@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', 'system-ui', 'sans-serif';
+  
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+  .light {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased font-sans transition-colors duration-200 dark:bg-slate-900 dark:text-slate-50;
+  }
+}
