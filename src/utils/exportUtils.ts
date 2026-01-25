@@ -244,32 +244,9 @@ export const generateICS = (data: ExportData): void => {
       let endMin = 0;
       let nextDay = false;
 
-      // Logic for specific job types
-      if (shift.type === 'STF') {
-        // STF: 09:00 - 16:30
-        startHour = 9;
-        startMin = 0;
-        endHour = 16;
-        endMin = 30;
-        nextDay = false;
-      } else if (shift.type === 'RA') {
-        const isWeekend = isSaturday(startDate) || isSunday(startDate);
-        if (isWeekend) {
-          // RA Weekend: 09:30 - 09:30 (next day)
-          startHour = 9;
-          startMin = 30;
-          endHour = 9;
-          endMin = 30;
-          nextDay = true;
-        } else {
-          // RA Weekday: 16:30 - 09:30 (next day)
-          startHour = 16;
-          startMin = 30;
-          endHour = 9;
-          endMin = 30;
-          nextDay = true;
-        }
-      }
+      // Default logic: Just basic hours if not specified
+      // (Future: User should be able to set start/end times per job)
+
 
       // Set start time
       startDate.setHours(startHour, startMin, 0);

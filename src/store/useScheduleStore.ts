@@ -234,7 +234,7 @@ export const useScheduleStore = create<ScheduleState>()(
       },
     }),
     {
-      name: 'paychecker-storage-v1',
+      name: 'paychecker-storage-v2',
     }
   )
 );
