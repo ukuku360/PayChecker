@@ -15,6 +15,7 @@ import { isSaturday, isSunday } from 'date-fns';
 import { dotColorMap } from './utils/colorUtils';
 import { supabase } from './lib/supabaseClient';
 import { Auth } from './components/Auth/Auth'; // Import Auth component
+import { GoogleAd } from './components/GoogleAd';
 
 function App() {
   const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData } = useScheduleStore();
@@ -153,6 +154,7 @@ function App() {
             currentDate={currentDate}
             onMonthChange={setCurrentDate}
           />
+          <GoogleAd className="mt-8" />
         </main>
         
         <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
