@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
-import { useScheduleStore, getWageConfigFromJobConfigs } from '../store/useScheduleStore';
+import { useScheduleStore } from '../store/useScheduleStore';
 import { calculateTotalPay } from '../utils/calculatePay';
 import { format, parseISO } from 'date-fns';
 
 export const useMonthlyTrends = (numberOfMonths = 6) => {
   const { shifts, jobConfigs, holidays } = useScheduleStore();
-  const wageConfig = getWageConfigFromJobConfigs(jobConfigs);
 
   const data = useMemo(() => {
     // 1. Group shifts by Month string (YYYY-MM)

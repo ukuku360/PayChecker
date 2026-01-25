@@ -1,12 +1,11 @@
 import { useMemo } from 'react';
-import { useScheduleStore, getWageConfigFromJobConfigs } from '../store/useScheduleStore';
+import { useScheduleStore } from '../store/useScheduleStore';
 import { calculateTotalPay } from '../utils/calculatePay';
 import { calculateTakeHome, calculateIncomeTax, calculateMedicareLevy } from '../data/taxRates';
 import { getFiscalYearRange, groupShiftsByFortnightYTD } from '../utils/fiscalYearUtils';
 
 export const useFiscalYearData = () => {
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
-  const wageConfig = getWageConfigFromJobConfigs(jobConfigs);
 
   const { start: fyStart, end: fyEnd, label: fyLabel } = getFiscalYearRange(new Date());
 
