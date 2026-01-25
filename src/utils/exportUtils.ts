@@ -237,11 +237,11 @@ export const generateICS = (data: ExportData): void => {
       let endDate = new Date(shift.date);
       
       // Default times
-      let startHour = 9;
-      let startMin = 0;
-      let endHour = 17;
-      let endMin = 0;
-      let nextDay = false;
+      const startHour = 9;
+      const startMin = 0;
+      const endHour = 17;
+      const endMin = 0;
+      const nextDay = false;
 
       // Default logic: Just basic hours if not specified
       // (Future: User should be able to set start/end times per job)
