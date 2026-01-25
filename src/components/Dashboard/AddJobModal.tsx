@@ -48,6 +48,7 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
         sunday: 35,
         holiday: 40,
       },
+      rateHistory: [],
     };
 
     onAdd(newJob);

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Shift, JobConfig, VacationPeriod, RateHistoryItem } from '../types';
+import type { Shift, JobConfig, VacationPeriod } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface CopiedShiftData {

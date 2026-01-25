@@ -35,7 +35,7 @@ export const useMonthlyTrends = (numberOfMonths = 6) => {
        // Aggregated pay per job type
        jobConfigs.forEach(job => {
           const jobShifts = monthShifts.filter(s => s.type === job.id);
-          const pay = calculateTotalPay(jobShifts, wageConfig, holidays);
+          const pay = calculateTotalPay(jobShifts, jobConfigs, holidays);
           row[job.id] = Math.round(pay); // Round for cleaner charts
        });
        

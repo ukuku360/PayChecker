@@ -25,7 +25,7 @@ export const useFiscalYearData = () => {
     fortnights.forEach(fn => {
         if (fn.shifts.length === 0) return;
 
-        const periodGross = calculateTotalPay(fn.shifts, wageConfig, holidays);
+        const periodGross = calculateTotalPay(fn.shifts, jobConfigs, holidays);
         
         // Calculate tax for this specific fortnight period
         // Treat it as a fortnightly pay cycle

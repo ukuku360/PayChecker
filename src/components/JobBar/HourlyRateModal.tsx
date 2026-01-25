@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { JobConfig, RateHistoryItem } from '../../types';
-import { X, Trash2, Calendar, History, Plus } from 'lucide-react';
+import { X, Trash2, Calendar, History } from 'lucide-react';
 import { clsx } from 'clsx';
 import { dotColorMap } from '../../utils/colorUtils';
 import { format } from 'date-fns';
@@ -19,7 +19,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
       weekend: job.defaultHours?.weekend ?? 0
   });
   const [effectiveDate, setEffectiveDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [rateHistory, setRateHistory] = useState<RateHistoryItem[]>(job.rateHistory || []);
+  const [rateHistory] = useState<RateHistoryItem[]>(job.rateHistory || []);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -38,16 +38,11 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
         new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime()
     );
 
-    // 3. Determine the "current" rates to display on cards (the one effective as of today)
-    // We can just trust the calculated logic, but for the 'hourlyRates' field which is used as fallback/display:
-    // If exact match for today exists, use it. Else find latest <= today.
-    const today = new Date();
-    const currentEffective = updatedHistory.find(h => new Date(h.effectiveDate) <= today) || updatedHistory[0]; // fallback to latest future if no past? or oldest? current logic uses latest <= date. 
-
+    // 3. Determine if the new rate should update the current hourlyRates
     // If we are adding a future rate, we shouldn't update 'hourlyRates' if it represents "current".
     // But if we are adding a past/today rate, we should.
-    // Let's rely on the store's "hourlyRates" being the "currently active default".
     // Simple heuristic: If the new effective date is <= today, update the main hourlyRates too.
+    const today = new Date();
     const isRateEffectiveNow = new Date(effectiveDate) <= today;
     const ratesToSave = isRateEffectiveNow ? rates : job.hourlyRates;
 
@@ -198,7 +193,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
                     
                     {showHistory && (
                         <div className="mt-3 space-y-2 animate-in slide-in-from-top-2 duration-200">
-                             {rateHistory.map((h, i) => (
+                             {rateHistory.map((h) => (
                                  <button
                                     key={h.effectiveDate}
                                     onClick={() => handleHistoryItemClick(h)}
