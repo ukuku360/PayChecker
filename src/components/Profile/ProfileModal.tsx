@@ -1,6 +1,6 @@
 import { X, User, GraduationCap, Plus, Trash2, Calendar } from 'lucide-react';
 import { useScheduleStore } from '../../store/useScheduleStore';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 
 interface ProfileModalProps {
@@ -12,20 +12,37 @@ interface ProfileModalProps {
 export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
   const { isStudentVisaHolder, vacationPeriods, updateProfile } = useScheduleStore();
   const [newPeriod, setNewPeriod] = useState({ start: '', end: '' });
+  
+  // Local state for editing
+  const [tempIsStudentVisaHolder, setTempIsStudentVisaHolder] = useState(isStudentVisaHolder);
+  const [tempVacationPeriods, setTempVacationPeriods] = useState(vacationPeriods);
+
+  // Sync with store when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTempIsStudentVisaHolder(isStudentVisaHolder);
+      setTempVacationPeriods(vacationPeriods || []);
+    }
+  }, [isOpen, isStudentVisaHolder, vacationPeriods]);
 
   if (!isOpen) return null;
 
   const handleAddPeriod = () => {
     if (newPeriod.start && newPeriod.end) {
-      updateProfile(isStudentVisaHolder, [...(vacationPeriods || []), newPeriod]);
+      setTempVacationPeriods([...(tempVacationPeriods || []), newPeriod]);
       setNewPeriod({ start: '', end: '' });
     }
   };
 
   const handleRemovePeriod = (index: number) => {
-    const updated = [...(vacationPeriods || [])];
+    const updated = [...(tempVacationPeriods || [])];
     updated.splice(index, 1);
-    updateProfile(isStudentVisaHolder, updated);
+    setTempVacationPeriods(updated);
+  };
+
+  const handleSave = async () => {
+    await updateProfile(tempIsStudentVisaHolder, tempVacationPeriods);
+    onClose();
   };
 
   return (
@@ -62,15 +79,15 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
                   <input 
                     type="checkbox" 
                     className="sr-only peer"
-                    checked={isStudentVisaHolder}
-                    onChange={(e) => updateProfile(e.target.checked)}
+                    checked={tempIsStudentVisaHolder}
+                    onChange={(e) => setTempIsStudentVisaHolder(e.target.checked)}
                   />
                   <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
               </div>
            </div>
 
-           {isStudentVisaHolder && (
+           {tempIsStudentVisaHolder && (
              <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Holiday Periods</label>
                 <div className="space-y-3">
@@ -97,11 +114,11 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
                   </div>
                   
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {vacationPeriods?.map((period, index) => (
+                    {tempVacationPeriods?.map((period, index) => (
                       <div key={index} className="flex items-center justify-between px-3 py-2 bg-white/50 border border-slate-200 rounded-lg text-sm">
                         <div className="flex items-center gap-2 text-slate-600">
                           <Calendar className="w-4 h-4 text-slate-400" />
-                          <span>{format(new Date(period.start), 'MMM d, yyyy')} - {format(new Date(period.end), 'MMM d, yyyy')}</span>
+                          <span>{format(new Date(period.start), 'dd/MM/yyyy')} - {format(new Date(period.end), 'dd/MM/yyyy')}</span>
                         </div>
                         <button 
                           onClick={() => handleRemovePeriod(index)}
@@ -111,7 +128,7 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
                         </button>
                       </div>
                     ))}
-                    {(!vacationPeriods || vacationPeriods.length === 0) && (
+                    {(!tempVacationPeriods || tempVacationPeriods.length === 0) && (
                       <p className="text-xs text-slate-400 italic text-center py-2">No holiday periods added</p>
                     )}
                   </div>
@@ -120,12 +137,18 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
            )}
 
            
-           <div className="pt-4 flex justify-end">
+           <div className="pt-4 flex justify-end gap-3">
               <button 
                 onClick={onClose}
-                className="neu-btn px-4 py-2 bg-slate-600 text-slate-600 font-medium rounded-lg"
+                className="px-4 py-2 text-slate-500 font-medium hover:text-slate-700 transition-colors"
               >
-                Close
+                Cancel
+              </button>
+              <button 
+                onClick={handleSave}
+                className="neu-btn px-6 py-2 !bg-indigo-500 !text-white font-medium rounded-lg hover:!bg-indigo-600 shadow-md hover:shadow-lg transition-all"
+              >
+                Save Changes
               </button>
            </div>
         </div>
