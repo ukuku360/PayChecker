@@ -1,90 +1,240 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Shift, JobConfig } from '../types';
+import type { Shift, JobConfig, VacationPeriod } from '../types';
+import { supabase } from '../lib/supabaseClient';
+
+interface CopiedShiftData {
+  type: string;
+  hours: number;
+}
 
 interface ScheduleState {
   shifts: Shift[];
   jobConfigs: JobConfig[];
   holidays: string[]; // ['2024-01-01', ...]
+  copiedShifts: CopiedShiftData[] | null;
+  isStudentVisaHolder: boolean;
+  vacationPeriods: VacationPeriod[];
   
-  addShift: (shift: Shift) => void;
-  updateShift: (id: string, shift: Partial<Shift>) => void;
-  removeShift: (id: string) => void;
-  addHoliday: (date: string) => void;
+  fetchData: () => Promise<void>;
+  addShift: (shift: Shift) => Promise<void>;
+  updateShift: (id: string, shift: Partial<Shift>) => Promise<void>;
+  removeShift: (id: string) => Promise<void>;
+  addHoliday: (date: string) => void; // Holidays still local for now or shared? Let's keep local/persisted for simplicity unless requested
   removeHoliday: (date: string) => void;
-  updateJobConfig: (id: string, config: Partial<JobConfig>) => void;
-  addJobConfig: (config: JobConfig) => void;
-  removeJobConfig: (id: string) => void;
+  updateJobConfig: (id: string, config: Partial<JobConfig>) => Promise<void>;
+  addJobConfig: (config: JobConfig) => Promise<void>;
+  removeJobConfig: (id: string) => Promise<void>;
+  setCopiedShifts: (shifts: CopiedShiftData[] | null) => void;
+  updateProfile: (isStudentVisaHolder: boolean, vacationPeriods?: VacationPeriod[]) => Promise<void>;
 }
 
-const DEFAULT_JOB_CONFIGS: JobConfig[] = [
-  {
-    id: 'RA',
-    name: 'RA',
-    color: 'blue',
-    defaultHours: {
-      weekday: 2,
-      weekend: 4,
-    },
-    hourlyRates: {
-      weekday: 25,
-      saturday: 30,
-      sunday: 35,
-      holiday: 40,
-    },
-  },
-  {
-    id: 'STF',
-    name: 'STF',
-    color: 'emerald',
-    defaultHours: {
-      weekday: 7.5,
-      weekend: 7.5,
-    },
-    hourlyRates: {
-      weekday: 30,
-      saturday: 37.5,
-      sunday: 45,
-      holiday: 52.5,
-    },
-  },
-];
+const DEFAULT_JOB_CONFIGS: JobConfig[] = [];
 
 export const useScheduleStore = create<ScheduleState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       shifts: [],
       jobConfigs: DEFAULT_JOB_CONFIGS,
       holidays: [],
+      copiedShifts: null,
+      isStudentVisaHolder: false,
+      vacationPeriods: [],
 
-      // Allow multiple jobs per day, but replace if same date + same type
-      addShift: (shift) => set((state) => ({ 
-        shifts: [
-          ...state.shifts.filter(s => !(s.date === shift.date && s.type === shift.type)), 
-          shift
-        ]
-      })),
-      updateShift: (id, updatedShift) => set((state) => ({
-        shifts: state.shifts.map((s) => (s.id === id ? { ...s, ...updatedShift } : s)),
-      })),
-      removeShift: (id) => set((state) => ({
-        shifts: state.shifts.filter((s) => s.id !== id),
-      })),
+      setCopiedShifts: (shifts) => set({ copiedShifts: shifts }),
+
+      fetchData: async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Fetch Job Configs
+        const { data: jobData, error: jobError } = await supabase
+          .from('job_configs')
+          .select('*');
+        
+        if (jobData && !jobError) {
+           const mappedJobs: JobConfig[] = jobData.map((j: any) => ({
+             id: j.config_id,
+             name: j.name,
+             color: j.color,
+             defaultHours: {
+               weekday: Number(j.default_hours_weekday),
+               weekend: Number(j.default_hours_weekend),
+             },
+             hourlyRates: {
+               weekday: Number(j.hourly_rate_weekday),
+               saturday: Number(j.hourly_rate_saturday),
+               sunday: Number(j.hourly_rate_sunday),
+               holiday: Number(j.hourly_rate_holiday),
+             }
+           }));
+           if (mappedJobs.length > 0) {
+             set({ jobConfigs: mappedJobs });
+           }
+        }
+
+        // Fetch Profile
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('is_student_visa_holder, vacation_periods')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileData) {
+          set({ 
+            isStudentVisaHolder: profileData.is_student_visa_holder,
+            vacationPeriods: profileData.vacation_periods || [] 
+          });
+        }
+
+        // Fetch Shifts
+        const { data: shiftData, error: shiftError } = await supabase
+          .from('shifts')
+          .select('*');
+
+        if (shiftData && !shiftError) {
+          const mappedShifts: Shift[] = shiftData.map((s: any) => ({
+            id: s.id, // We use UUID from DB or generated
+            date: s.date,
+            type: s.type,
+            hours: Number(s.hours),
+          }));
+          set({ shifts: mappedShifts });
+        }
+      },
+
+      addShift: async (shift) => {
+        // Optimistic update
+        set((state) => ({ 
+          shifts: [
+            ...state.shifts.filter(s => !(s.date === shift.date && s.type === shift.type)), 
+            shift
+          ]
+        }));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('shifts').upsert({
+             user_id: user.id,
+             date: shift.date,
+             type: shift.type,
+             hours: shift.hours
+          }, { onConflict: 'user_id, date, type' });
+        }
+      },
+
+      updateShift: async (id, updatedShift) => {
+        set((state) => ({
+          shifts: state.shifts.map((s) => (s.id === id ? { ...s, ...updatedShift } : s)),
+        }));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('shifts').update({
+             ...(updatedShift.hours !== undefined && { hours: updatedShift.hours }),
+          }).eq('id', id); 
+        }
+      },
+
+      removeShift: async (id) => {
+        set((state) => ({
+          shifts: state.shifts.filter((s) => s.id !== id),
+        }));
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('shifts').delete().eq('id', id);
+        }
+      },
+
       addHoliday: (date) => set((state) => ({ holidays: [...state.holidays, date] })),
       removeHoliday: (date) => set((state) => ({ holidays: state.holidays.filter((d) => d !== date) })),
-      updateJobConfig: (id, config) => set((state) => ({
-        jobConfigs: state.jobConfigs.map((j) => (j.id === id ? { ...j, ...config } : j)),
-      })),
-      addJobConfig: (config) => set((state) => ({
-        jobConfigs: [...state.jobConfigs, config],
-      })),
-      removeJobConfig: (id) => set((state) => ({
-        jobConfigs: state.jobConfigs.filter((j) => j.id !== id),
-        shifts: state.shifts.filter((s) => s.type !== id), // Also remove shifts for this job
-      })),
+
+      updateJobConfig: async (id, config) => {
+        set((state) => ({
+          jobConfigs: state.jobConfigs.map((j) => (j.id === id ? { ...j, ...config } : j)),
+        }));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+           const state = get();
+           const fullConfig = state.jobConfigs.find(j => j.id === id);
+           if (!fullConfig) return;
+
+           await supabase.from('job_configs').update({
+             name: fullConfig.name,
+             color: fullConfig.color,
+             default_hours_weekday: fullConfig.defaultHours.weekday,
+             default_hours_weekend: fullConfig.defaultHours.weekend,
+             hourly_rate_weekday: fullConfig.hourlyRates.weekday,
+             hourly_rate_saturday: fullConfig.hourlyRates.saturday,
+             hourly_rate_sunday: fullConfig.hourlyRates.sunday,
+             hourly_rate_holiday: fullConfig.hourlyRates.holiday,
+           }).eq('config_id', id).eq('user_id', user.id);
+        }
+      },
+
+      addJobConfig: async (config) => {
+        set((state) => ({
+          jobConfigs: [...state.jobConfigs, config],
+        }));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('job_configs').insert({
+             user_id: user.id,
+             config_id: config.id,
+             name: config.name,
+             color: config.color,
+             default_hours_weekday: config.defaultHours.weekday,
+             default_hours_weekend: config.defaultHours.weekend,
+             hourly_rate_weekday: config.hourlyRates.weekday,
+             hourly_rate_saturday: config.hourlyRates.saturday,
+             hourly_rate_sunday: config.hourlyRates.sunday,
+             hourly_rate_holiday: config.hourlyRates.holiday,
+           });
+        }
+      },
+
+      removeJobConfig: async (id) => {
+        set((state) => ({
+          jobConfigs: state.jobConfigs.filter((j) => j.id !== id),
+          shifts: state.shifts.filter((s) => s.type !== id),
+        }));
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('job_configs').delete().eq('config_id', id);
+        }
+      },
+
+      updateProfile: async (isStudentVisaHolder, vacationPeriods) => {
+        set((state) => ({ 
+          isStudentVisaHolder: isStudentVisaHolder,
+          vacationPeriods: vacationPeriods || state.vacationPeriods
+        }));
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Flatten vacation periods for JSONB storage just in case, though Typescript should handle
+          const updateData: any = {
+            id: user.id,
+            is_student_visa_holder: isStudentVisaHolder
+          };
+          if (vacationPeriods) {
+            updateData.vacation_periods = vacationPeriods;
+          }
+
+          const { error } = await supabase.from('profiles').upsert(updateData);
+          
+          if (error) {
+            console.error('Error updating profile:', error);
+          }
+        }
+      },
     }),
     {
-      name: 'paychecker-storage',
+      name: 'paychecker-storage-v1',
     }
   )
 );
@@ -97,3 +247,5 @@ export const getWageConfigFromJobConfigs = (jobConfigs: JobConfig[]) => {
   });
   return wageConfig;
 };
+
+export const SUPER_RATE = 0.115;

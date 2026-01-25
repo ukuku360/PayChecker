@@ -21,9 +21,8 @@ export const calculateShiftPay = (shift: Shift, wageConfig: WageConfig, holidays
   }
 
   const basePay = (shift.hours || 0) * hourlyRate;
-  const overtimePay = (shift.overtimeHours || 0) * (hourlyRate * 1.5);
 
-  return basePay + overtimePay;
+  return basePay;
 };
 
 export const calculateTotalPay = (shifts: Shift[], wageConfig: WageConfig, holidays: string[] = []) => {
@@ -46,8 +45,7 @@ export const calculateFortnightlyHours = (shifts: Shift[]) => {
     monday.setHours(0, 0, 0, 0);
     const mondayStr = monday.toISOString().split('T')[0];
 
-    const totalShiftHours = shift.hours + (shift.overtimeHours || 0);
-    weeklyHours[mondayStr] = (weeklyHours[mondayStr] || 0) + totalShiftHours;
+    weeklyHours[mondayStr] = (weeklyHours[mondayStr] || 0) + shift.hours;
   });
 
   const sortedWeeks = Object.keys(weeklyHours).sort();

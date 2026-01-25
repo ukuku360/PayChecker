@@ -1,28 +1,76 @@
 @import "tailwindcss";
 
-@variant dark (&:where(.dark, .dark *));
-
 @theme {
   --font-sans: 'Inter', 'system-ui', 'sans-serif';
   
+  /* Restrained color palette */
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
+  --color-primary-500: #64748b; /* Muted Slate Blue */
+  --color-primary-600: #475569;
+  --color-primary-700: #334155;
+
+  /* Neumorphic base colors */
+  --color-neu-base: #e0e5ec;
+  --color-neu-shadow-light: #ffffff;
+  --color-neu-shadow-dark: #a3b1c6;
 }
 
 @layer base {
   :root {
-    color-scheme: light dark;
-  }
-  .light {
     color-scheme: light;
-  }
-  .dark {
-    color-scheme: dark;
+    --neu-shadow: 9px 9px 16px var(--color-neu-shadow-dark), -9px -9px 16px var(--color-neu-shadow-light);
+    --neu-shadow-sm: 5px 5px 10px var(--color-neu-shadow-dark), -5px -5px 10px var(--color-neu-shadow-light);
+    --neu-shadow-pressed: inset 6px 6px 10px var(--color-neu-shadow-dark), inset -6px -6px 10px var(--color-neu-shadow-light);
+    --glass-bg: rgba(255, 255, 255, 0.25);
+    --glass-border: rgba(255, 255, 255, 0.3);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
   }
   body {
-    @apply bg-slate-50 text-slate-900 antialiased font-sans transition-colors duration-200 dark:bg-slate-900 dark:text-slate-50;
+    @apply bg-[#e0e5ec] text-slate-700 antialiased font-sans;
+  }
+}
+
+@layer components {
+  .neu-flat {
+    @apply bg-[#e0e5ec] rounded-xl;
+    box-shadow: var(--neu-shadow);
+  }
+  
+  .neu-flat-sm {
+      @apply bg-[#e0e5ec] rounded-lg;
+      box-shadow: var(--neu-shadow-sm);
+  }
+
+  .neu-pressed {
+    @apply bg-[#e0e5ec] rounded-xl;
+    box-shadow: var(--neu-shadow-pressed);
+  }
+  
+  .neu-btn {
+      @apply bg-[#e0e5ec] rounded-xl px-4 py-2 font-medium text-slate-600 transition-all hover:text-slate-800 active:scale-95;
+      box-shadow: var(--neu-shadow);
+  }
+  
+  .neu-btn:active {
+      box-shadow: var(--neu-shadow-pressed);
+  }
+  
+  .neu-icon-btn {
+      @apply bg-[#e0e5ec] rounded-xl p-2 text-slate-600 transition-all hover:text-slate-800 active:scale-95 flex items-center justify-center;
+      box-shadow: var(--neu-shadow);
+  }
+  
+  .neu-icon-btn:active {
+      box-shadow: var(--neu-shadow-pressed);
+  }
+
+  .glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    @apply rounded-2xl;
   }
 }

@@ -30,19 +30,20 @@ export const JobBar = ({ job, onOpenSettings }: JobBarProps) => {
         {...listeners}
         {...attributes}
         className={clsx(
-          'px-3 py-2 rounded-lg font-medium text-sm border cursor-grab active:cursor-grabbing transition-all flex items-center gap-2 bg-white',
-          interactiveBorderColorMap[job.color] || 'text-slate-700 border-slate-200 hover:border-slate-400',
-          isDragging ? 'opacity-90 z-50 shadow-lg scale-105' : 'opacity-100'
+          'neu-flat px-4 py-2 text-sm border-l-2 cursor-grab active:cursor-grabbing transition-all flex items-center gap-2',
+          interactiveBorderColorMap[job.color] ? '' : 'border-transparent',
+          isDragging ? 'opacity-90 z-50 scale-105' : 'hover:scale-105',
+          'text-slate-700'
         )}
       >
-        <div className={clsx("w-2 h-2 rounded-full", dotColorMap[job.color] || 'bg-slate-500')} />
-        {job.name}
+        <div className={clsx("w-2 h-2 rounded-full shadow-inner", dotColorMap[job.color] || 'bg-slate-500')} />
+        <span className="font-medium">{job.name}</span>
       </div>
       <button
         onClick={() => onOpenSettings(job)}
         className={clsx(
-          'absolute -right-1 -top-1 w-5 h-5 rounded-full border cursor-pointer flex items-center justify-center bg-white opacity-0 group-hover:opacity-100 transition-opacity shadow-sm',
-          interactiveBorderColorMap[job.color] || 'text-slate-700 border-slate-200',
+          'neu-icon-btn absolute -right-2 -top-2 w-6 h-6 !rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10 !p-0',
+          interactiveBorderColorMap[job.color] || 'text-slate-500',
         )}
         title="Set hourly rate"
       >

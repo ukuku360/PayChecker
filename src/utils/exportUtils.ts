@@ -3,11 +3,12 @@
  */
 import { jsPDF } from 'jspdf';
 import Papa from 'papaparse';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import type { Shift, JobConfig, WageConfig } from '../types';
 import { calculateShiftPay } from './calculatePay';
 import { getHolidayInfo } from '../data/australianHolidays';
 import { isSaturday, isSunday } from 'date-fns';
+import { SUPER_RATE } from '../store/useScheduleStore';
 
 interface ExportData {
   shifts: Shift[];
@@ -48,18 +49,18 @@ export const exportToCSV = (data: ExportData): void => {
         Day: format(new Date(shift.date), 'EEEE'),
         DayType: dayType,
         JobType: job?.name || shift.type,
-        BaseHours: shift.hours,
-        OvertimeHours: shift.overtimeHours || 0,
-        TotalHours: shift.hours + (shift.overtimeHours || 0),
+        Hours: shift.hours,
         Pay: pay.toFixed(2),
+        Super: (pay * SUPER_RATE).toFixed(2),
       };
     });
 
   // Calculate totals
   const totals = rows.reduce((acc, row) => ({
-    totalHours: acc.totalHours + row.TotalHours,
+    totalHours: acc.totalHours + row.Hours,
     totalPay: acc.totalPay + parseFloat(row.Pay),
-  }), { totalHours: 0, totalPay: 0 });
+    totalSuper: acc.totalSuper + parseFloat(row.Super),
+  }), { totalHours: 0, totalPay: 0, totalSuper: 0 });
 
   // Add totals row
   rows.push({
@@ -67,10 +68,9 @@ export const exportToCSV = (data: ExportData): void => {
     Day: '',
     DayType: '',
     JobType: 'TOTAL',
-    BaseHours: 0,
-    OvertimeHours: 0,
-    TotalHours: totals.totalHours,
+    Hours: totals.totalHours,
     Pay: totals.totalPay.toFixed(2),
+    Super: totals.totalSuper.toFixed(2),
   });
 
   const csv = Papa.unparse(rows);
@@ -98,13 +98,15 @@ export const exportToPDF = (data: ExportData): void => {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Calculate totals by job type
+// Calculate totals by job type
   const jobTotals: { [key: string]: { hours: number; pay: number } } = {};
   let grandTotalHours = 0;
   let grandTotalPay = 0;
+  let grandTotalSuper = 0;
 
   filteredShifts.forEach(shift => {
     const pay = calculateShiftPay(shift, data.wageConfig, data.holidays);
-    const hours = shift.hours + (shift.overtimeHours || 0);
+    const hours = shift.hours;
     
     if (!jobTotals[shift.type]) {
       jobTotals[shift.type] = { hours: 0, pay: 0 };
@@ -113,6 +115,7 @@ export const exportToPDF = (data: ExportData): void => {
     jobTotals[shift.type].pay += pay;
     grandTotalHours += hours;
     grandTotalPay += pay;
+    grandTotalSuper += pay * SUPER_RATE;
   });
 
   // Header
@@ -158,6 +161,9 @@ export const exportToPDF = (data: ExportData): void => {
   doc.text('Total:', 20, yPos);
   doc.text(`${grandTotalHours.toFixed(1)} hours`, 80, yPos);
   doc.text(`$${grandTotalPay.toFixed(2)}`, 130, yPos);
+  yPos += 7;
+  doc.text('Total Super (11.5%):', 20, yPos);
+  doc.text(`$${grandTotalSuper.toFixed(2)}`, 130, yPos);
   
   // Shift details section
   yPos += 20;
@@ -172,9 +178,7 @@ export const exportToPDF = (data: ExportData): void => {
   doc.text('Day', 45, yPos);
   doc.text('Type', 70, yPos);
   doc.text('Job', 95, yPos);
-  doc.text('Hours', 120, yPos);
-  doc.text('OT', 145, yPos);
-  doc.text('Pay', 165, yPos);
+  doc.text('Pay', 145, yPos);
   yPos += 2;
   doc.line(14, yPos, pageWidth - 14, yPos);
   yPos += 5;
@@ -196,8 +200,7 @@ export const exportToPDF = (data: ExportData): void => {
     doc.text(dayType.slice(0, 3), 70, yPos);
     doc.text(job?.name || shift.type, 95, yPos);
     doc.text(shift.hours.toString(), 120, yPos);
-    doc.text((shift.overtimeHours || 0).toString(), 145, yPos);
-    doc.text(`$${pay.toFixed(2)}`, 165, yPos);
+    doc.text(`$${pay.toFixed(2)}`, 145, yPos);
     yPos += 6;
   });
 
@@ -214,4 +217,109 @@ export const exportToPDF = (data: ExportData): void => {
   // Save
   const fileName = `PayChecker_${format(data.dateRange.start, 'yyyy-MM')}_to_${format(data.dateRange.end, 'yyyy-MM')}.pdf`;
   doc.save(fileName);
+};
+
+// Generate ICS file for Calendar Sync
+export const generateICS = (data: ExportData): void => {
+  const CRLF = '\r\n';
+  const now = new Date();
+  const dtStamp = format(now, "yyyyMMdd'T'HHmmss'Z'");
+
+  const events = data.shifts
+    .filter(s => {
+      const shiftDate = new Date(s.date);
+      return shiftDate >= data.dateRange.start && shiftDate <= data.dateRange.end;
+    })
+    .map(shift => {
+      const job = data.jobConfigs.find(j => j.id === shift.type);
+      const pay = calculateShiftPay(shift, data.wageConfig, data.holidays);
+      
+      const startDate = new Date(shift.date);
+      let endDate = new Date(shift.date);
+      
+      // Default times
+      let startHour = 9;
+      let startMin = 0;
+      let endHour = 17;
+      let endMin = 0;
+      let nextDay = false;
+
+      // Logic for specific job types
+      if (shift.type === 'STF') {
+        // STF: 09:00 - 16:30
+        startHour = 9;
+        startMin = 0;
+        endHour = 16;
+        endMin = 30;
+        nextDay = false;
+      } else if (shift.type === 'RA') {
+        const isWeekend = isSaturday(startDate) || isSunday(startDate);
+        if (isWeekend) {
+          // RA Weekend: 09:30 - 09:30 (next day)
+          startHour = 9;
+          startMin = 30;
+          endHour = 9;
+          endMin = 30;
+          nextDay = true;
+        } else {
+          // RA Weekday: 16:30 - 09:30 (next day)
+          startHour = 16;
+          startMin = 30;
+          endHour = 9;
+          endMin = 30;
+          nextDay = true;
+        }
+      }
+
+      // Set start time
+      startDate.setHours(startHour, startMin, 0);
+
+      // Set end time
+      if (nextDay) {
+        endDate = addDays(endDate, 1);
+      }
+      endDate.setHours(endHour, endMin, 0);
+      
+      const dtStart = format(startDate, "yyyyMMdd'T'HHmmss");
+      const dtEnd = format(endDate, "yyyyMMdd'T'HHmmss");
+      
+      const summary = `${job?.name || shift.type} Shift`;
+      const description = `Hours: ${shift.hours}\\nEst. Pay: $${pay.toFixed(2)}`;
+      
+      // UID should be persistent if possible, using shift.id
+      const uid = `${shift.id}@paychecker.app`;
+
+      return [
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${dtStamp}`,
+        `DTSTART:${dtStart}`,
+        `DTEND:${dtEnd}`, 
+        `SUMMARY:${summary}`,
+        `DESCRIPTION:${description}`,
+        'END:VEVENT'
+      ].join(CRLF);
+    });
+
+  const calendar = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//PayChecker//Work Schedule//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    ...events,
+    'END:VCALENDAR'
+  ].join(CRLF);
+
+  const blob = new Blob([calendar], { type: 'text/calendar;charset=utf-8' });
+  const link = document.createElement('a');
+  
+  const fileName = `PayChecker_${format(data.dateRange.start, 'yyyy-MM')}_to_${format(data.dateRange.end, 'yyyy-MM')}.ics`;
+  
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
 };

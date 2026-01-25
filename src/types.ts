@@ -30,10 +30,14 @@ export interface Shift {
   date: string; // ISO date string YYYY-MM-DD
   type: JobType;
   hours: number;
-  overtimeHours: number;
 }
 
 export interface Holiday {
   date: string; // YYYY-MM-DD
   name: string;
+}
+
+export interface VacationPeriod {
+  start: string; // YYYY-MM-DD
+  end: string; // YYYY-MM-DD
 }
