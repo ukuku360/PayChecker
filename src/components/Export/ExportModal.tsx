@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { X, FileText, Download, Calendar } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { clsx } from 'clsx';
-import { useScheduleStore, getWageConfigFromJobConfigs, SUPER_RATE } from '../../store/useScheduleStore';
+import { useScheduleStore, SUPER_RATE } from '../../store/useScheduleStore';
 import { exportToCSV, exportToPDF, generateICS } from '../../utils/exportUtils';
 import { calculateTotalPay } from '../../utils/calculatePay';
 
@@ -15,7 +15,6 @@ type ExportRange = 'current' | 'previous' | 'custom';
 
 export const ExportModal = ({ currentMonth, onClose }: ExportModalProps) => {
   const { shifts, jobConfigs, holidays } = useScheduleStore();
-  const wageConfig = getWageConfigFromJobConfigs(jobConfigs);
   
   const [exportRange, setExportRange] = useState<ExportRange>('current');
   const [customStart, setCustomStart] = useState(format(startOfMonth(currentMonth), 'yyyy-MM-dd'));
@@ -33,13 +32,13 @@ export const ExportModal = ({ currentMonth, onClose }: ExportModalProps) => {
 
   const summary = useMemo(() => {
     const totalHours = filteredShifts.reduce((acc, s) => acc + s.hours, 0);
-    const totalPay = calculateTotalPay(filteredShifts, wageConfig, holidays);
+    const totalPay = calculateTotalPay(filteredShifts, jobConfigs, holidays);
     return { totalHours, totalPay, totalSuper: totalPay * SUPER_RATE, shiftCount: filteredShifts.length };
-  }, [filteredShifts, wageConfig, holidays]);
+  }, [filteredShifts, jobConfigs, holidays]);
 
-  const handleExportCSV = () => exportToCSV({ shifts, jobConfigs, wageConfig, holidays, dateRange });
-  const handleExportPDF = () => exportToPDF({ shifts, jobConfigs, wageConfig, holidays, dateRange });
-  const handleGenerateICS = () => generateICS({ shifts, jobConfigs, wageConfig, holidays, dateRange });
+  const handleExportCSV = () => exportToCSV({ shifts, jobConfigs, holidays, dateRange });
+  const handleExportPDF = () => exportToPDF({ shifts, jobConfigs, holidays, dateRange });
+  const handleGenerateICS = () => generateICS({ shifts, jobConfigs, holidays, dateRange });
   const formatCurrency = (amount: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
 
   return (

@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Shift, JobConfig, VacationPeriod } from '../types';
+import type { Shift, JobConfig, VacationPeriod, RateHistoryItem } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface CopiedShiftData {
   type: string;
   hours: number;
+  note?: string;
 }
 
 interface ScheduleState {
@@ -20,7 +21,7 @@ interface ScheduleState {
   addShift: (shift: Shift) => Promise<void>;
   updateShift: (id: string, shift: Partial<Shift>) => Promise<void>;
   removeShift: (id: string) => Promise<void>;
-  addHoliday: (date: string) => void; // Holidays still local for now or shared? Let's keep local/persisted for simplicity unless requested
+  addHoliday: (date: string) => void;
   removeHoliday: (date: string) => void;
   updateJobConfig: (id: string, config: Partial<JobConfig>) => Promise<void>;
   addJobConfig: (config: JobConfig) => Promise<void>;
@@ -66,10 +67,26 @@ export const useScheduleStore = create<ScheduleState>()(
                saturday: Number(j.hourly_rate_saturday),
                sunday: Number(j.hourly_rate_sunday),
                holiday: Number(j.hourly_rate_holiday),
-             }
+             },
+             rateHistory: j.rate_history || [], // Assuming rate_history is a JSONB column
            }));
-           if (mappedJobs.length > 0) {
-             set({ jobConfigs: mappedJobs });
+           
+           // Migration for existing data: if rateHistory is empty, seed it with current rates
+           const migratedJobs = mappedJobs.map(job => {
+             if (!job.rateHistory || job.rateHistory.length === 0) {
+               return {
+                 ...job,
+                 rateHistory: [{
+                   effectiveDate: '2000-01-01', // Apply from the beginning
+                   rates: { ...job.hourlyRates }
+                 }]
+               };
+             }
+             return job;
+           });
+
+           if (migratedJobs.length > 0) {
+             set({ jobConfigs: migratedJobs });
            }
         }
 
@@ -94,10 +111,11 @@ export const useScheduleStore = create<ScheduleState>()(
 
         if (shiftData && !shiftError) {
           const mappedShifts: Shift[] = shiftData.map((s: any) => ({
-            id: s.id, // We use UUID from DB or generated
+            id: s.id,
             date: s.date,
             type: s.type,
             hours: Number(s.hours),
+            note: s.note || undefined, // assuming note column exists or JSONB
           }));
           set({ shifts: mappedShifts });
         }
@@ -118,7 +136,8 @@ export const useScheduleStore = create<ScheduleState>()(
              user_id: user.id,
              date: shift.date,
              type: shift.type,
-             hours: shift.hours
+             hours: shift.hours,
+             note: shift.note
           }, { onConflict: 'user_id, date, type' });
         }
       },
@@ -132,6 +151,7 @@ export const useScheduleStore = create<ScheduleState>()(
         if (user) {
           await supabase.from('shifts').update({
              ...(updatedShift.hours !== undefined && { hours: updatedShift.hours }),
+             ...(updatedShift.note !== undefined && { note: updatedShift.note }),
           }).eq('id', id); 
         }
       },
@@ -170,6 +190,7 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_saturday: fullConfig.hourlyRates.saturday,
              hourly_rate_sunday: fullConfig.hourlyRates.sunday,
              hourly_rate_holiday: fullConfig.hourlyRates.holiday,
+             rate_history: fullConfig.rateHistory, // Handle JSONB update
            }).eq('config_id', id).eq('user_id', user.id);
         }
       },
@@ -192,6 +213,7 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_saturday: config.hourlyRates.saturday,
              hourly_rate_sunday: config.hourlyRates.sunday,
              hourly_rate_holiday: config.hourlyRates.holiday,
+             rate_history: config.rateHistory,
            });
         }
       },

@@ -31,6 +31,21 @@
   }
 }
 
+/* Hide number input spinners */
+@layer utilities {
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  /* For Firefox */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield; 
+  }
+}
+
 @layer components {
   .neu-flat {
     @apply bg-[#e0e5ec] rounded-xl;

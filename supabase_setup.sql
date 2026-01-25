@@ -11,6 +11,7 @@ create table public.job_configs (
   hourly_rate_saturday numeric not null,
   hourly_rate_sunday numeric not null,
   hourly_rate_holiday numeric not null,
+  rate_history jsonb default '[]'::jsonb, -- Added for effective rate history
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   
   primary key (id),
@@ -24,6 +25,7 @@ create table public.shifts (
   date text not null, -- Storing as 'YYYY-MM-DD' text to match app logic
   type text not null, -- Corresponds to job_configs.config_id
   hours numeric not null,
+  note text, -- Added for shift notes
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   
   primary key (id),

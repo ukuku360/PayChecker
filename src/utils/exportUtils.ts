@@ -4,7 +4,7 @@
 import { jsPDF } from 'jspdf';
 import Papa from 'papaparse';
 import { format, addDays } from 'date-fns';
-import type { Shift, JobConfig, WageConfig } from '../types';
+import type { Shift, JobConfig } from '../types';
 import { calculateShiftPay } from './calculatePay';
 import { getHolidayInfo } from '../data/australianHolidays';
 import { isSaturday, isSunday } from 'date-fns';
@@ -13,7 +13,6 @@ import { SUPER_RATE } from '../store/useScheduleStore';
 interface ExportData {
   shifts: Shift[];
   jobConfigs: JobConfig[];
-  wageConfig: WageConfig;
   holidays: string[];
   dateRange: {
     start: Date;
@@ -42,7 +41,7 @@ export const exportToCSV = (data: ExportData): void => {
     .map(shift => {
       const job = data.jobConfigs.find(j => j.id === shift.type);
       const dayType = getDayType(shift.date, data.holidays);
-      const pay = calculateShiftPay(shift, data.wageConfig, data.holidays);
+      const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
       
       return {
         Date: shift.date,
@@ -105,7 +104,7 @@ export const exportToPDF = (data: ExportData): void => {
   let grandTotalSuper = 0;
 
   filteredShifts.forEach(shift => {
-    const pay = calculateShiftPay(shift, data.wageConfig, data.holidays);
+    const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
     const hours = shift.hours;
     
     if (!jobTotals[shift.type]) {
@@ -193,7 +192,7 @@ export const exportToPDF = (data: ExportData): void => {
     
     const job = data.jobConfigs.find(j => j.id === shift.type);
     const dayType = getDayType(shift.date, data.holidays);
-    const pay = calculateShiftPay(shift, data.wageConfig, data.holidays);
+    const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
     
     doc.text(shift.date, 14, yPos);
     doc.text(format(new Date(shift.date), 'EEE'), 45, yPos);
@@ -232,7 +231,7 @@ export const generateICS = (data: ExportData): void => {
     })
     .map(shift => {
       const job = data.jobConfigs.find(j => j.id === shift.type);
-      const pay = calculateShiftPay(shift, data.wageConfig, data.holidays);
+      const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
       
       const startDate = new Date(shift.date);
       let endDate = new Date(shift.date);

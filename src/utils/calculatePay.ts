@@ -1,15 +1,38 @@
-import { isSaturday, isSunday } from 'date-fns';
-import type { Shift, WageConfig } from '../types';
+import { isSaturday, isSunday,  parseISO } from 'date-fns';
+import type { Shift, JobConfig } from '../types';
 import { isPublicHoliday } from '../data/australianHolidays';
 
-export const calculateShiftPay = (shift: Shift, wageConfig: WageConfig, holidays: string[] = []) => {
+const getRateForDate = (job: JobConfig, dateString: string) => {
+  if (!job.rateHistory || job.rateHistory.length === 0) {
+    return job.hourlyRates;
+  }
+
+  // Find the latest rate history item that is effective on or before the date
+  // Sort by date descending efficiently? 
+  // Ideally rateHistory should be sorted, but let's sort to be safe or find efficiently.
+  // Given low volume, simple filter & sort is fine
+  const sortedHistory = [...job.rateHistory].sort((a, b) => 
+    new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime()
+  );
+
+  const effectiveRate = sortedHistory.find(history => 
+    new Date(history.effectiveDate) <= new Date(dateString)
+  );
+
+  return effectiveRate ? effectiveRate.rates : job.hourlyRates; // Fallback to current if no history matches (or maybe 0?)
+};
+
+export const calculateShiftPay = (shift: Shift, jobConfigs: JobConfig[], holidays: string[] = []) => {
+  const job = jobConfigs.find(j => j.id === shift.type);
+  if (!job) return 0;
+
   const date = new Date(shift.date);
   // Check both custom holidays from store AND automatic VIC public holidays
   const isHoliday = holidays.includes(shift.date) || isPublicHoliday(shift.date);
   const isWeekendSat = isSaturday(date);
   const isWeekendSun = isSunday(date);
   
-  const rates = wageConfig[shift.type];
+  const rates = getRateForDate(job, shift.date);
   let hourlyRate = rates.weekday;
 
   if (isHoliday) {
@@ -25,9 +48,9 @@ export const calculateShiftPay = (shift: Shift, wageConfig: WageConfig, holidays
   return basePay;
 };
 
-export const calculateTotalPay = (shifts: Shift[], wageConfig: WageConfig, holidays: string[] = []) => {
+export const calculateTotalPay = (shifts: Shift[], jobConfigs: JobConfig[], holidays: string[] = []) => {
   return shifts.reduce((total, shift) => {
-    return total + calculateShiftPay(shift, wageConfig, holidays);
+    return total + calculateShiftPay(shift, jobConfigs, holidays);
   }, 0);
 };
 

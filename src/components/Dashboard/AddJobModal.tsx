@@ -13,6 +13,9 @@ interface AddJobModalProps {
 export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
   const [newJobName, setNewJobName] = useState('');
   const [newJobColor, setNewJobColor] = useState('purple');
+  const [defaultWeekdayHours, setDefaultWeekdayHours] = useState<string | number>(7.5);
+  const [defaultWeekendHours, setDefaultWeekendHours] = useState<string | number>(7.5);
+  
   const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
@@ -20,6 +23,8 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
       setIsRendered(true);
       setNewJobName('');
       setNewJobColor('purple');
+      setDefaultWeekdayHours(7.5); 
+      setDefaultWeekendHours(7.5);
     } else {
       const timer = setTimeout(() => setIsRendered(false), 200); // Wait for exit animation
       return () => clearTimeout(timer);
@@ -34,8 +39,8 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
       name: newJobName,
       color: newJobColor,
       defaultHours: {
-        weekday: 7.5,
-        weekend: 7.5,
+        weekday: Number(defaultWeekdayHours) || 0,
+        weekend: Number(defaultWeekendHours) || 0,
       },
       hourlyRates: {
         weekday: 25,
@@ -95,6 +100,47 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
               className="neu-pressed w-full px-4 py-3 border-none focus:ring-0 text-sm placeholder-slate-400 text-slate-700"
               autoFocus
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
+                    Def. Weekday
+                </label>
+                <div className="relative">
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={defaultWeekdayHours}
+                        onChange={(e) => setDefaultWeekdayHours(e.target.value)}
+                        onBlur={() => {
+                            if (defaultWeekdayHours === '') setDefaultWeekdayHours(0);
+                        }}
+                        className="neu-pressed w-full px-4 py-2 border-none focus:ring-0 text-sm text-slate-700"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">hrs</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
+                    Def. Weekend
+                </label>
+                <div className="relative">
+                    <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={defaultWeekendHours}
+                        onChange={(e) => setDefaultWeekendHours(e.target.value)}
+                         onBlur={() => {
+                            if (defaultWeekendHours === '') setDefaultWeekendHours(0);
+                        }}
+                        className="neu-pressed w-full px-4 py-2 border-none focus:ring-0 text-sm text-slate-700"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">hrs</span>
+                </div>
+              </div>
           </div>
           
           <div>

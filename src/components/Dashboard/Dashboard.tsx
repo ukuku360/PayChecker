@@ -1,4 +1,4 @@
-import { useScheduleStore, getWageConfigFromJobConfigs, SUPER_RATE } from '../../store/useScheduleStore';
+import { useScheduleStore, SUPER_RATE } from '../../store/useScheduleStore';
 import { calculateTotalPay, calculateFortnightlyHours } from '../../utils/calculatePay';
 import { calculateTakeHome } from '../../data/taxRates';
 import type { JobType, JobConfig } from '../../types';
@@ -64,7 +64,6 @@ const DraggableJobCard = ({
 export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport }: DashboardProps) => {
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'trends'>('monthly');
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
-  const wageConfig = getWageConfigFromJobConfigs(jobConfigs);
 
   const allFortnightlyHours = calculateFortnightlyHours(shifts);
   
@@ -85,7 +84,7 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport }
     return shiftDate >= monthStart && shiftDate <= monthEnd;
   });
   
-  const monthlyPay = calculateTotalPay(monthlyShifts, wageConfig, holidays);
+  const monthlyPay = calculateTotalPay(monthlyShifts, jobConfigs, holidays);
   
   const getHoursByType = (type: JobType) => 
     monthlyShifts.filter(s => s.type === type).reduce((acc, s) => acc + (s.hours || 0), 0);
