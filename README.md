@@ -1,11 +1,8 @@
-# React + TypeScript + Vite
+# PayChecker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+I built this to keep track of my work schedule and calculate my pay because I got tired of doing the math manually every time. It's pretty straightforward - add your shifts, set your hourly rate, and it handles the rest (including penalty rates, holidays, etc.).
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Feel free to use it if you need something similar. I made it for myself but figured others might find it useful too.
 
 ## React Compiler
 
