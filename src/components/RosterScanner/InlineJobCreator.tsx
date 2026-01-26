@@ -13,8 +13,8 @@ interface InlineJobCreatorProps {
 const DEFAULT_JOB_CONFIG = {
   defaultHours: { weekday: 8, weekend: 8 },
   hourlyRates: { weekday: 25, saturday: 30, sunday: 35, holiday: 40 },
-  rateHistory: []
-} as const;
+  rateHistory: [] as any[]
+};
 
 export function InlineJobCreator({ onJobCreated, onCancel, suggestedName = '' }: InlineJobCreatorProps) {
   const [jobName, setJobName] = useState(suggestedName);
@@ -27,8 +27,8 @@ export function InlineJobCreator({ onJobCreated, onCancel, suggestedName = '' }:
     setIsSubmitting(true);
 
     const newJob: JobConfig = {
-      id: jobName.trim().toUpperCase().replace(/\s+/g, '_'),
-      name: jobName.trim(),
+      id: crypto.randomUUID(),
+      name: jobName,
       color: jobColor,
       ...DEFAULT_JOB_CONFIG
     };

@@ -17,15 +17,6 @@ interface JobAliasInput {
 
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 
-/** Check if the error indicates an auth failure that needs token refresh */
-function isAuthError(error: { status?: number; message?: string } | null): boolean {
-  if (!error) return false;
-  return (
-    error.status === 401 ||
-    error.status === 403 ||
-    /jwt|invalid|expired/i.test(error.message ?? '')
-  );
-}
 
 /** Validate token by checking with Supabase auth */
 async function validateToken(token: string): Promise<boolean> {
