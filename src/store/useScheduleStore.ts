@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Shift, JobConfig, VacationPeriod } from '../types';
+import type { Shift, JobConfig, VacationPeriod, Expense } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface CopiedShiftData {
@@ -17,6 +17,7 @@ interface ScheduleState {
   isStudentVisaHolder: boolean;
   vacationPeriods: VacationPeriod[];
   savingsGoal: number;
+  expenses: Expense[];
   
   fetchData: () => Promise<void>;
   addShift: (shift: Shift) => Promise<void>;
@@ -29,7 +30,10 @@ interface ScheduleState {
   removeJobConfig: (id: string) => Promise<void>;
   setCopiedShifts: (shifts: CopiedShiftData[] | null) => void;
   updateProfile: (isStudentVisaHolder: boolean, vacationPeriods?: VacationPeriod[]) => Promise<void>;
-  updateSavingsGoal: (goal: number) => void;
+  updateSavingsGoal: (goal: number) => Promise<void>;
+  addExpense: (expense: Expense) => Promise<void>;
+  updateExpense: (id: string, expense: Partial<Expense>) => Promise<void>;
+  removeExpense: (id: string) => Promise<void>;
 }
 
 const DEFAULT_JOB_CONFIGS: JobConfig[] = [];
@@ -44,6 +48,7 @@ export const useScheduleStore = create<ScheduleState>()(
       isStudentVisaHolder: false,
       vacationPeriods: [],
       savingsGoal: 0,
+      expenses: [],
 
       setCopiedShifts: (shifts) => set({ copiedShifts: shifts }),
       
@@ -104,7 +109,7 @@ export const useScheduleStore = create<ScheduleState>()(
         // Fetch Profile
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('is_student_visa_holder, vacation_periods, savings_goal, holidays')
+          .select('is_student_visa_holder, vacation_periods, savings_goal, holidays, expenses')
           .eq('id', user.id)
           .maybeSingle();
         
@@ -117,7 +122,8 @@ export const useScheduleStore = create<ScheduleState>()(
             isStudentVisaHolder: profileData.is_student_visa_holder ?? false,
             vacationPeriods: profileData.vacation_periods || [],
             savingsGoal: Number(profileData.savings_goal) || 0,
-            holidays: profileData.holidays || []
+            holidays: profileData.holidays || [],
+            expenses: profileData.expenses || []
           });
         } else {
           // Profile doesn't exist - create one with defaults
@@ -132,7 +138,8 @@ export const useScheduleStore = create<ScheduleState>()(
             isStudentVisaHolder: false,
             vacationPeriods: [],
             savingsGoal: 0,
-            holidays: []
+            holidays: [],
+            expenses: []
           });
         }
 
@@ -273,6 +280,9 @@ export const useScheduleStore = create<ScheduleState>()(
 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          // Delete all shifts with this job type first
+          await supabase.from('shifts').delete().eq('type', id).eq('user_id', user.id);
+          // Then delete the job config
           await supabase.from('job_configs').delete().eq('config_id', id);
         }
       },
@@ -295,6 +305,37 @@ export const useScheduleStore = create<ScheduleState>()(
           if (error) {
             console.error('Error updating profile:', error);
           }
+        }
+      },
+
+      addExpense: async (expense) => {
+        set((state) => ({ expenses: [...state.expenses, expense] }));
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const expenses = get().expenses;
+          await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+        }
+      },
+
+      updateExpense: async (id, updatedExpense) => {
+        set((state) => ({
+          expenses: state.expenses.map((e) => (e.id === id ? { ...e, ...updatedExpense } : e)),
+        }));
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const expenses = get().expenses;
+          await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+        }
+      },
+
+      removeExpense: async (id) => {
+        set((state) => ({
+          expenses: state.expenses.filter((e) => e.id !== id),
+        }));
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const expenses = get().expenses;
+          await supabase.from('profiles').update({ expenses }).eq('id', user.id);
         }
       },
     }),

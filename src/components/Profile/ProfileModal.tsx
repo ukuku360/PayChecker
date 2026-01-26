@@ -13,35 +13,45 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
   const { isStudentVisaHolder, vacationPeriods, updateProfile } = useScheduleStore();
   const [newPeriod, setNewPeriod] = useState({ start: '', end: '' });
   
-  // Local state for editing
+  // Local state for editing student visa holder toggle only
   const [tempIsStudentVisaHolder, setTempIsStudentVisaHolder] = useState(isStudentVisaHolder);
-  const [tempVacationPeriods, setTempVacationPeriods] = useState(vacationPeriods);
 
-  // Sync with store when modal opens
+  // Sync student visa holder state when modal opens
   useEffect(() => {
     if (isOpen) {
       setTempIsStudentVisaHolder(isStudentVisaHolder);
-      setTempVacationPeriods(vacationPeriods || []);
     }
-  }, [isOpen, isStudentVisaHolder, vacationPeriods]);
+  }, [isOpen, isStudentVisaHolder]);
 
   if (!isOpen) return null;
 
-  const handleAddPeriod = () => {
+  // 휴가 기간 추가 시 즉시 Supabase에 저장
+  const handleAddPeriod = async () => {
     if (newPeriod.start && newPeriod.end) {
-      setTempVacationPeriods([...(tempVacationPeriods || []), newPeriod]);
+      const updatedPeriods = [...(vacationPeriods || []), newPeriod];
+      await updateProfile(tempIsStudentVisaHolder, updatedPeriods);
       setNewPeriod({ start: '', end: '' });
     }
   };
 
-  const handleRemovePeriod = (index: number) => {
-    const updated = [...(tempVacationPeriods || [])];
+  // 휴가 기간 삭제 시 즉시 Supabase에 저장
+  const handleRemovePeriod = async (index: number) => {
+    const updated = [...(vacationPeriods || [])];
     updated.splice(index, 1);
-    setTempVacationPeriods(updated);
+    await updateProfile(tempIsStudentVisaHolder, updated);
   };
 
+  // Save Changes 시 입력칸의 날짜도 함께 저장
   const handleSave = async () => {
-    await updateProfile(tempIsStudentVisaHolder, tempVacationPeriods);
+    let periodsToSave = [...(vacationPeriods || [])];
+    
+    // 입력칸에 날짜가 있으면 추가
+    if (newPeriod.start && newPeriod.end) {
+      periodsToSave = [...periodsToSave, newPeriod];
+      setNewPeriod({ start: '', end: '' });
+    }
+    
+    await updateProfile(tempIsStudentVisaHolder, periodsToSave);
     onClose();
   };
 
@@ -114,7 +124,7 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
                   </div>
                   
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {tempVacationPeriods?.map((period, index) => (
+                    {vacationPeriods?.map((period, index) => (
                       <div key={index} className="flex items-center justify-between px-3 py-2 bg-white/50 border border-slate-200 rounded-lg text-sm">
                         <div className="flex items-center gap-2 text-slate-600">
                           <Calendar className="w-4 h-4 text-slate-400" />
@@ -128,7 +138,7 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
                         </button>
                       </div>
                     ))}
-                    {(!tempVacationPeriods || tempVacationPeriods.length === 0) && (
+                    {(!vacationPeriods || vacationPeriods.length === 0) && (
                       <p className="text-xs text-slate-400 italic text-center py-2">No holiday periods added</p>
                     )}
                   </div>

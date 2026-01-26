@@ -2,7 +2,7 @@ import { useScheduleStore, SUPER_RATE } from '../../store/useScheduleStore';
 import { calculateTotalPay, calculateFortnightlyHours } from '../../utils/calculatePay';
 import { calculateTakeHome } from '../../data/taxRates';
 import type { JobType, JobConfig } from '../../types';
-import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator } from 'lucide-react';
+import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, DollarSign } from 'lucide-react';
 import { format, addDays, startOfMonth, endOfMonth } from 'date-fns';
 import { clsx } from 'clsx';
 import { useDraggable } from '@dnd-kit/core';
@@ -13,13 +13,14 @@ import { IncomeChart } from './IncomeChart';
 import { JobBreakdown } from './JobBreakdown';
 import { WorkStats } from './WorkStats';
 import { SavingsGoal } from './SavingsGoal';
+import { ExpensesView } from './ExpensesView';
 
 interface DashboardProps {
   currentMonth: Date;
   onJobDoubleClick?: (job: JobConfig) => void;
   onAddJob?: () => void;
   onExport?: () => void;
-  onViewModeChange?: (mode: 'monthly' | 'fiscal') => void;
+  onViewModeChange?: (mode: 'monthly' | 'fiscal' | 'budget') => void;
 }
 
 const DraggableJobCard = ({ 
@@ -66,10 +67,10 @@ const DraggableJobCard = ({
 };
 
 export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, onViewModeChange }: DashboardProps) => {
-  const [viewMode, setViewMode] = useState<'monthly' | 'fiscal'>('monthly');
+  const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
 
-  const handleViewModeChange = (mode: 'monthly' | 'fiscal') => {
+  const handleViewModeChange = (mode: 'monthly' | 'fiscal' | 'budget') => {
     setViewMode(mode);
     onViewModeChange?.(mode);
   };
@@ -126,6 +127,16 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
             <Calculator className="w-3.5 h-3.5" />
             Details
           </button>
+          <button
+            onClick={() => handleViewModeChange('budget')}
+            className={clsx(
+              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+              viewMode === 'budget' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <DollarSign className="w-3.5 h-3.5" />
+            Budget
+          </button>
         </div>
       </div>
 
@@ -137,6 +148,8 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
           <JobBreakdown />
           <WorkStats />
         </div>
+      ) : viewMode === 'budget' ? (
+        <ExpensesView />
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap gap-4 items-center">
@@ -231,9 +244,14 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
                 {fortnightlyHours.sort((a, b) => a.periodStart.localeCompare(b.periodStart)).map((period) => {
                   const start = new Date(period.periodStart);
                   const end = addDays(start, 13);
-                  const startMonth = start.getMonth();
-                  const endMonth = end.getMonth();
-                  const isVacation = startMonth === 0 || startMonth === 1 || endMonth === 0 || endMonth === 1;
+                  
+                  // Check if any day in the fortnight falls within user's vacation periods
+                  const isVacation = useScheduleStore.getState().vacationPeriods.some(vp => {
+                    const vpStart = new Date(vp.start);
+                    const vpEnd = new Date(vp.end);
+                    return (start <= vpEnd && end >= vpStart);
+                  });
+                  
                   const isOverLimit = !isVacation && period.totalHours > 48;
                   const isNearLimit = !isVacation && period.totalHours > 40;
                   const progressPercent = isVacation ? 100 : Math.min(100, (period.totalHours / 48) * 100);

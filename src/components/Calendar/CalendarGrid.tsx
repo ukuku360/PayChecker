@@ -4,6 +4,9 @@ import { clsx } from 'clsx';
 import { useState } from 'react';
 import { DayCell } from './DayCell';
 import { useScheduleStore } from '../../store/useScheduleStore';
+import { VisaWarningModal } from './VisaWarningModal';
+import { calculateFortnightlyHours } from '../../utils/calculatePay';
+import type { Shift } from '../../types';
 
 interface CalendarGridProps {
   currentDate: Date;
@@ -11,7 +14,98 @@ interface CalendarGridProps {
 }
 
 export const CalendarGrid = ({ currentDate, onMonthChange }: CalendarGridProps) => {
-  const { shifts, removeShift, updateShift, addShift } = useScheduleStore();
+  const { shifts, removeShift, updateShift, addShift, isStudentVisaHolder, vacationPeriods } = useScheduleStore();
+  const [isWarningOpen, setIsWarningOpen] = useState(false);
+  const [overageAmount, setOverageAmount] = useState(0);
+  const [pendingAction, setPendingAction] = useState<{ type: 'add' | 'update', data: any } | null>(null);
+
+  const checkVisaLimit = (tempShifts: Shift[]) => {
+    // We need to check if ANY fortnight period exceeds 48 hours
+    // But we only care about periods that include the date of the change?
+    // Actually simpler to just check all periods in the relevant range, or just check all periods calculated.
+    // calculateFortnightlyHours returns all relevant periods.
+    
+    const fortnightlyHours = calculateFortnightlyHours(tempShifts);
+    
+    // Find the max overage
+    let maxOverage = 0;
+    
+    for (const period of fortnightlyHours) {
+        if (period.totalHours > 48) {
+             // Check if this period is a vacation period
+             const periodStart = new Date(period.periodStart);
+             const periodEnd = new Date(period.periodStart);
+             periodEnd.setDate(periodEnd.getDate() + 13);
+             
+             const isVacation = vacationPeriods.some(vp => {
+                const vpStart = new Date(vp.start);
+                const vpEnd = new Date(vp.end);
+                return (periodStart <= vpEnd && periodEnd >= vpStart);
+             });
+             
+             if (!isVacation) {
+                 maxOverage = Math.max(maxOverage, period.totalHours - 48);
+             }
+        }
+    }
+    
+    return maxOverage;
+  };
+
+  const handleAddShift = (shift: Shift) => {
+      if (!isStudentVisaHolder) {
+          addShift(shift);
+          return;
+      }
+      
+      const tempShifts = [...shifts.filter(s => !(s.date === shift.date && s.type === shift.type)), shift];
+      const overage = checkVisaLimit(tempShifts);
+      
+      if (overage > 0) {
+          setOverageAmount(overage);
+          setPendingAction({ type: 'add', data: shift });
+          setIsWarningOpen(true);
+      } else {
+          addShift(shift);
+      }
+  };
+
+  const handleUpdateShift = (id: string, shiftUpdate: Partial<Shift>) => {
+      if (!isStudentVisaHolder) {
+          updateShift(id, shiftUpdate);
+          return;
+      }
+
+      // If we are not updating hours, no need to check
+      if (shiftUpdate.hours === undefined) {
+           updateShift(id, shiftUpdate);
+           return;
+      }
+      
+      const tempShifts = shifts.map(s => s.id === id ? { ...s, ...shiftUpdate } : s);
+      const overage = checkVisaLimit(tempShifts);
+      
+      if (overage > 0) {
+          setOverageAmount(overage);
+          setPendingAction({ type: 'update', data: { id, shiftUpdate } });
+          setIsWarningOpen(true);
+      } else {
+          updateShift(id, shiftUpdate);
+      }
+  };
+  
+  const confirmPendingAction = () => {
+      if (!pendingAction) return;
+      
+      if (pendingAction.type === 'add') {
+          addShift(pendingAction.data);
+      } else if (pendingAction.type === 'update') {
+          updateShift(pendingAction.data.id, pendingAction.data.shiftUpdate);
+      }
+      
+      setIsWarningOpen(false);
+      setPendingAction(null);
+  };
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -66,12 +160,19 @@ export const CalendarGrid = ({ currentDate, onMonthChange }: CalendarGridProps) 
               currentMonth={currentDate}
               shifts={dayShifts}
               onRemoveShift={removeShift}
-              onUpdateShift={updateShift}
-              onAddShift={addShift}
+              onUpdateShift={handleUpdateShift}
+              onAddShift={handleAddShift}
             />
           );
         })}
       </div>
+      
+      <VisaWarningModal 
+        isOpen={isWarningOpen}
+        onClose={() => { setIsWarningOpen(false); setPendingAction(null); }}
+        onConfirm={confirmPendingAction}
+        overageAmount={overageAmount}
+      />
     </div>
   );
 };

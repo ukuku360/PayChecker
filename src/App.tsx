@@ -25,7 +25,7 @@ function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'monthly' | 'fiscal'>('monthly');
+  const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const [session, setSession] = useState<any>(null); // Use any for simplicity or import Session type
   const [loading, setLoading] = useState(true);
 

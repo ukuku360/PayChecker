@@ -39,14 +39,14 @@ export const calculateIncomeTax = (annualIncome: number): number => {
   for (const bracket of TAX_BRACKETS_2025_26) {
     const max = bracket.max ?? Infinity;
     if (annualIncome <= max) {
-      const taxableInBracket = annualIncome - bracket.min + 1;
+      const taxableInBracket = annualIncome - bracket.min;
       return bracket.baseTax + taxableInBracket * bracket.rate;
     }
   }
   
   // Should never reach here, but fallback to top bracket
   const topBracket = TAX_BRACKETS_2025_26[TAX_BRACKETS_2025_26.length - 1];
-  const taxableInBracket = annualIncome - topBracket.min + 1;
+  const taxableInBracket = annualIncome - topBracket.min;
   return topBracket.baseTax + taxableInBracket * topBracket.rate;
 };
 

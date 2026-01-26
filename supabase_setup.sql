@@ -73,6 +73,9 @@ create table public.profiles (
   id uuid not null references auth.users on delete cascade,
   is_student_visa_holder boolean default false,
   vacation_periods jsonb default '[]'::jsonb,
+  savings_goal numeric default 0,
+  holidays jsonb default '[]'::jsonb,
+  expenses jsonb default '[]'::jsonb,
   
   primary key (id)
 );
@@ -93,3 +96,26 @@ create policy "Users can insert their own profile"
   on public.profiles for insert
   with check ( auth.uid() = id );
 
+
+-- =============================================
+-- MIGRATION: Add new columns to existing tables
+-- Run this if you already have the tables created
+-- =============================================
+
+-- Add rate_history column to job_configs
+ALTER TABLE public.job_configs 
+ADD COLUMN IF NOT EXISTS rate_history jsonb DEFAULT '[]'::jsonb;
+
+-- Add note column to shifts
+ALTER TABLE public.shifts 
+ADD COLUMN IF NOT EXISTS note text;
+
+-- Add new columns to profiles
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS savings_goal numeric DEFAULT 0;
+
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS holidays jsonb DEFAULT '[]'::jsonb;
+
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS expenses jsonb DEFAULT '[]'::jsonb;
