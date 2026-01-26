@@ -57,7 +57,8 @@ export const useScheduleStore = create<ScheduleState>()(
         set({ savingsGoal: goal });
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('profiles').update({ savings_goal: goal }).eq('id', user.id);
+          const { error } = await supabase.from('profiles').update({ savings_goal: goal }).eq('id', user.id);
+          if (error) console.error('Failed to update savings goal:', error);
         }
       },
 
@@ -86,11 +87,20 @@ export const useScheduleStore = create<ScheduleState>()(
 
         if (!user) return;
 
-        // Fetch Job Configs
-        const { data: jobData, error: jobError } = await supabase
-          .from('job_configs')
-          .select('*');
+        // Fetch all data in parallel
+        const [
+           { data: jobData, error: jobError },
+           { data: shiftData, error: shiftError },
+           { data: profileData, error: profileError }
+        ] = await Promise.all([
+          supabase.from('job_configs').select('*'),
+          supabase.from('shifts').select('*'),
+          supabase.from('profiles').select('is_student_visa_holder, vacation_periods, savings_goal, holidays, expenses').eq('id', user.id).maybeSingle()
+        ]);
         
+        // Handle Job Configs
+        if (jobError) console.error('Error fetching job configs:', jobError);
+
         if (jobData && !jobError) {
            const mappedJobs: JobConfig[] = jobData.map((j: any) => ({
              id: j.config_id,
@@ -128,13 +138,21 @@ export const useScheduleStore = create<ScheduleState>()(
            }
         }
 
-        // Fetch Profile
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('is_student_visa_holder, vacation_periods, savings_goal, holidays, expenses')
-          .eq('id', user.id)
-          .maybeSingle();
-        
+        // Handle Shifts
+        if (shiftError) console.error('Error fetching shifts:', shiftError);
+
+        if (shiftData && !shiftError) {
+          const mappedShifts: Shift[] = shiftData.map((s: any) => ({
+            id: s.id,
+            date: s.date,
+            type: s.type,
+            hours: Number(s.hours),
+            note: s.note || undefined,
+          }));
+          set({ shifts: mappedShifts });
+        }
+
+        // Handle Profile
         if (profileError) {
           console.error('Error fetching profile:', profileError);
         }
@@ -149,13 +167,17 @@ export const useScheduleStore = create<ScheduleState>()(
           });
         } else {
           // Profile doesn't exist - create one with defaults
-          await supabase.from('profiles').insert({
+          // We can do this asynchronously without waiting
+          supabase.from('profiles').insert({
             id: user.id,
             is_student_visa_holder: false,
             vacation_periods: [],
             savings_goal: 0,
             holidays: []
+          }).then(({ error }) => {
+             if (error) console.error('Error creating profile:', error);
           });
+
           set({ 
             isStudentVisaHolder: false,
             vacationPeriods: [],
@@ -163,22 +185,6 @@ export const useScheduleStore = create<ScheduleState>()(
             holidays: [],
             expenses: []
           });
-        }
-
-        // Fetch Shifts
-        const { data: shiftData, error: shiftError } = await supabase
-          .from('shifts')
-          .select('*');
-
-        if (shiftData && !shiftError) {
-          const mappedShifts: Shift[] = shiftData.map((s: any) => ({
-            id: s.id,
-            date: s.date,
-            type: s.type,
-            hours: Number(s.hours),
-            note: s.note || undefined, // assuming note column exists or JSONB
-          }));
-          set({ shifts: mappedShifts });
         }
       },
 
@@ -193,13 +199,14 @@ export const useScheduleStore = create<ScheduleState>()(
 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('shifts').upsert({
+          const { error } = await supabase.from('shifts').upsert({
              user_id: user.id,
              date: shift.date,
              type: shift.type,
              hours: shift.hours,
              note: shift.note
           }, { onConflict: 'user_id, date, type' });
+          if (error) console.error('Error adding shift:', error);
         }
       },
 
@@ -210,10 +217,11 @@ export const useScheduleStore = create<ScheduleState>()(
 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('shifts').update({
+          const { error } = await supabase.from('shifts').update({
              ...(updatedShift.hours !== undefined && { hours: updatedShift.hours }),
              ...(updatedShift.note !== undefined && { note: updatedShift.note }),
           }).eq('id', id); 
+          if (error) console.error('Error updating shift:', error);
         }
       },
 
@@ -224,7 +232,8 @@ export const useScheduleStore = create<ScheduleState>()(
         
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('shifts').delete().eq('id', id);
+          const { error } = await supabase.from('shifts').delete().eq('id', id);
+          if (error) console.error('Error removing shift:', error);
         }
       },
 
@@ -233,7 +242,8 @@ export const useScheduleStore = create<ScheduleState>()(
         set({ holidays: newHolidays });
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
+          const { error } = await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
+          if (error) console.error('Error adding holiday:', error);
         }
       },
       
@@ -242,7 +252,8 @@ export const useScheduleStore = create<ScheduleState>()(
         set({ holidays: newHolidays });
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
+          const { error } = await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
+          if (error) console.error('Error removing holiday:', error);
         }
       },
 
@@ -257,7 +268,7 @@ export const useScheduleStore = create<ScheduleState>()(
            const fullConfig = state.jobConfigs.find(j => j.id === id);
            if (!fullConfig) return;
 
-           await supabase.from('job_configs').update({
+           const { error } = await supabase.from('job_configs').update({
              name: fullConfig.name,
              color: fullConfig.color,
              default_hours_weekday: fullConfig.defaultHours.weekday,
@@ -268,6 +279,7 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_holiday: fullConfig.hourlyRates.holiday,
              rate_history: fullConfig.rateHistory, // Handle JSONB update
            }).eq('config_id', id).eq('user_id', user.id);
+           if (error) console.error('Error updating job config:', error);
         }
       },
 
@@ -278,7 +290,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from('job_configs').insert({
+          const { error } = await supabase.from('job_configs').insert({
              user_id: user.id,
              config_id: config.id,
              name: config.name,
@@ -291,6 +303,7 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_holiday: config.hourlyRates.holiday,
              rate_history: config.rateHistory,
            });
+           if (error) console.error('Error adding job config:', error);
         }
       },
 
@@ -303,9 +316,12 @@ export const useScheduleStore = create<ScheduleState>()(
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           // Delete all shifts with this job type first
-          await supabase.from('shifts').delete().eq('type', id).eq('user_id', user.id);
+          const { error: shiftError } = await supabase.from('shifts').delete().eq('type', id).eq('user_id', user.id);
+          if (shiftError) console.error('Error deleting related shifts:', shiftError);
+
           // Then delete the job config
-          await supabase.from('job_configs').delete().eq('config_id', id);
+          const { error: configError } = await supabase.from('job_configs').delete().eq('config_id', id);
+          if (configError) console.error('Error deleting job config:', configError);
         }
       },
 
@@ -335,7 +351,8 @@ export const useScheduleStore = create<ScheduleState>()(
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const expenses = get().expenses;
-          await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+          const { error } = await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+          if (error) console.error('Error adding expense:', error);
         }
       },
 
@@ -346,7 +363,8 @@ export const useScheduleStore = create<ScheduleState>()(
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const expenses = get().expenses;
-          await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+          const { error } = await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+          if (error) console.error('Error updating expense:', error);
         }
       },
 
@@ -357,7 +375,8 @@ export const useScheduleStore = create<ScheduleState>()(
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const expenses = get().expenses;
-          await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+          const { error } = await supabase.from('profiles').update({ expenses }).eq('id', user.id);
+          if (error) console.error('Error removing expense:', error);
         }
       },
     }),

@@ -15,15 +15,27 @@ interface GoogleAdProps {
 }
 
 export const GoogleAd: React.FC<GoogleAdProps> = ({ 
-  slot = '0000000000', // Default dummy slot, user needs to replace
+  slot = '8564028791', // Main Banner Slot
   format = 'auto', 
   responsive = true,
   style,
   className
 }) => {
+  const adRef = React.useRef<HTMLModElement>(null);
+  const initialized = React.useRef(false);
+
   useEffect(() => {
+    // Prevent double execution in React Strict Mode
+    if (initialized.current) return;
+
+    // Check if ad is already loaded in this specific element
+    if (adRef.current && adRef.current.getAttribute('data-adsbygoogle-status')) {
+      return;
+    }
+
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
+      initialized.current = true;
     } catch (e) {
       console.error('Google Ads error:', e);
     }
@@ -32,6 +44,7 @@ export const GoogleAd: React.FC<GoogleAdProps> = ({
   return (
     <div className={`google-ad-container ${className || ''}`} style={{ overflow: 'hidden', ...style }}>
       <ins
+        ref={adRef}
         className="adsbygoogle"
         style={{ display: 'block' }}
         data-ad-client="ca-pub-4516626856296531" // Replace with actual client ID

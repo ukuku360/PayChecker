@@ -92,4 +92,15 @@ export interface Feedback {
   created_at: string;
   status: 'new' | 'read' | 'completed';
   user_email?: string;
+  admin_reply?: string;
+  reply_created_at?: string;
+}
+
+export interface FeedbackReply {
+  id: string;
+  feedback_id: string;
+  sender_id: string;
+  content: string;
+  is_admin_reply: boolean;
+  created_at: string;
 }

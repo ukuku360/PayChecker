@@ -35,23 +35,35 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-      if (session?.user) {
-        fetchData(session.user.id);
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        if (session?.user) {
+          fetchData(session.user.id).catch(err => console.error('Background fetch failed:', err));
+        }
+      } catch (error) {
+        console.error('Error initializing session:', error);
+      } finally {
+        setLoading(false);
       }
-    });
+    };
+
+    initSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
-      setLoading(false);
+      
       if (session?.user) {
-        fetchData(session.user.id);
+        // Don't show full screen loading on auth change, just fetch data
+        // Maybe show a small indicator in the dashboard if needed, but for now just load
+        fetchData(session.user.id).catch(err => console.error('Background fetch failed:', err));
+        setLoading(false); 
       } else {
         clearData();
+        setLoading(false);
       }
     });
 
@@ -111,6 +123,7 @@ function App() {
 
   const handleLogout = async () => {
     clearData();
+    setSession(null); // Force immediate UI update
     await supabase.auth.signOut();
   };
 
@@ -159,21 +172,36 @@ function App() {
           </div>
         </header>
 
-        <main className="max-w-7xl mx-auto space-y-8">
-          <Dashboard 
-            currentMonth={currentDate}
-            onJobDoubleClick={setSelectedJob}
-            onAddJob={() => setShowAddJobModal(true)}
-            onExport={() => setShowExportModal(true)}
-            onViewModeChange={setViewMode}
-          />
-          {viewMode === 'monthly' && (
-            <CalendarGrid 
-              currentDate={currentDate}
-              onMonthChange={setCurrentDate}
-            />
-          )}
-          <GoogleAd className="mt-8" />
+        <main className="max-w-7xl mx-auto">
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Main Content Area */}
+            <div className="flex-1 min-w-0 space-y-8">
+              <Dashboard 
+                currentMonth={currentDate}
+                onJobDoubleClick={setSelectedJob}
+                onAddJob={() => setShowAddJobModal(true)}
+                onExport={() => setShowExportModal(true)}
+                onViewModeChange={setViewMode}
+              />
+              {viewMode === 'monthly' && (
+                <CalendarGrid 
+                  currentDate={currentDate}
+                  onMonthChange={setCurrentDate}
+                  onAddJob={() => setShowAddJobModal(true)}
+                />
+              )}
+              {/* Horizontal Ad at bottom of content */}
+              <GoogleAd slot="8564028791" className="mt-8" /> 
+            </div>
+
+            {/* Vertical Ad Sidebar (Desktop only) */}
+            <div className="hidden lg:block w-[160px] xl:w-[300px] shrink-0">
+               <div className="sticky top-24">
+                  <div className="text-xs font-bold text-slate-300 uppercase text-center mb-2">Ad</div>
+                  <GoogleAd slot="6494384759" style={{ minHeight: '600px' }} />
+               </div>
+            </div>
+          </div>
         </main>
         
         <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
@@ -232,11 +260,13 @@ function App() {
         {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}
         {/* Alternatively, add it to the profile modal or just check email here */}
         {/* For simplicity, let's put a subtle trigger in the footer or near the ad */}
-        <div className="text-center mt-20 pb-4 opacity-5 hover:opacity-100 transition-opacity">
-           <button onClick={() => setShowAdminFeedback(true)} className="text-[10px] text-slate-400">
-              Admin Access
-           </button>
-        </div>
+        {session?.user?.email === 'nayoonho2001@gmail.com' && (
+          <div className="text-center mt-20 pb-4 opacity-5 hover:opacity-100 transition-opacity">
+            <button onClick={() => setShowAdminFeedback(true)} className="text-[10px] text-slate-400">
+               Admin Access
+            </button>
+          </div>
+        )}
       </div>
     </DndContext>
   )

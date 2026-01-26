@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { format, isSameMonth, isToday, isWeekend } from 'date-fns';
-import { Copy, ClipboardPaste, StickyNote, X, Check } from 'lucide-react';
+import { Copy, ClipboardPaste, StickyNote, X, Check, Plus as Plus_Lucide } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState, useRef, useEffect } from 'react';
 import type { Shift } from '../../types';
@@ -15,9 +15,10 @@ interface DayCellProps {
   onRemoveShift: (id: string) => void;
   onUpdateShift: (id: string, shift: Partial<Shift>) => void;
   onAddShift: (shift: Shift) => void;
+  onAddJobAddNewJob?: () => void;
 }
 
-export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShift, onAddShift }: DayCellProps) => {
+export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShift, onAddShift, onAddJobAddNewJob }: DayCellProps) => {
   const { jobConfigs, holidays, copiedShifts, setCopiedShifts } = useScheduleStore();
   const dateStr = format(date, 'yyyy-MM-dd');
   const [showJobPicker, setShowJobPicker] = useState(false);
@@ -92,7 +93,25 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
       )}>
       {showJobPicker && (
         <div ref={pickerRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[140px] animate-in fade-in zoom-in-95 duration-150">
-          <div className="text-xs font-medium text-slate-500 px-2 py-1 mb-1">Add Job</div>
+          <div className="flex items-center justify-between mb-1 px-2 py-1">
+            <span className="text-xs font-medium text-slate-500">Add Job</span>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onAddJobAddNewJob?.(); setShowJobPicker(false); }}
+              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-500 transition-colors"
+              title="Create New Job"
+            >
+              <Plus_Lucide className="w-3 h-3" />
+            </button>
+          </div>
+          {jobConfigs.length === 0 && (
+             <button 
+                onClick={(e) => { e.stopPropagation(); onAddJobAddNewJob?.(); setShowJobPicker(false); }}
+                className="w-full text-center px-3 py-4 rounded-lg text-xs text-slate-400 hover:text-indigo-500 hover:bg-slate-50 border border-dashed border-slate-200 hover:border-indigo-200 transition-all flex flex-col items-center gap-1"
+             >
+                <Plus_Lucide className="w-4 h-4" />
+                <span>Create First Job</span>
+             </button>
+          )}
           {jobConfigs.map((job) => {
             const colors = colorMap[job.color] || colorMap.slate;
             const alreadyAdded = shifts.some(s => s.type === job.id);

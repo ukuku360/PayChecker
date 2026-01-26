@@ -11,9 +11,10 @@ import type { Shift } from '../../types';
 interface CalendarGridProps {
   currentDate: Date;
   onMonthChange: (date: Date) => void;
+  onAddJob?: () => void;
 }
 
-export const CalendarGrid = ({ currentDate, onMonthChange }: CalendarGridProps) => {
+export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarGridProps) => {
   const { shifts, removeShift, updateShift, addShift, isStudentVisaHolder, vacationPeriods } = useScheduleStore();
   const [isWarningOpen, setIsWarningOpen] = useState(false);
   const [overageAmount, setOverageAmount] = useState(0);
@@ -162,6 +163,7 @@ export const CalendarGrid = ({ currentDate, onMonthChange }: CalendarGridProps) 
               onRemoveShift={removeShift}
               onUpdateShift={handleUpdateShift}
               onAddShift={handleAddShift}
+              onAddJobAddNewJob={onAddJob}
             />
           );
         })}
@@ -178,26 +180,43 @@ export const CalendarGrid = ({ currentDate, onMonthChange }: CalendarGridProps) 
 };
 
 const GlobalSaveButton = () => {
-  const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const { fetchData } = useScheduleStore();
   
-  const handleSave = () => {
-    // Since Zustand persist and onUpdateShift handle the actual saving automatically,
-    // this button serves as a manual confirmation and reassurance for the user.
-    // We could trigger a re-fetch or sync check here if needed.
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setStatus('saving');
+    try {
+      // Trigger a re-fetch to ensure we are in sync with the server
+      await fetchData(); 
+      setStatus('saved');
+      setTimeout(() => setStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Save/Sync failed:', error);
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 3000);
+    }
   };
 
   return (
     <button
       onClick={handleSave}
+      disabled={status === 'saving'}
       className={clsx(
-        "neu-btn flex items-center gap-2",
-        saved && "!bg-emerald-100/50 !text-emerald-600 neu-pressed"
+        "neu-btn flex items-center gap-2 transition-all",
+        status === 'saved' && "!bg-emerald-100/50 !text-emerald-600 neu-pressed",
+        status === 'error' && "!bg-red-100/50 !text-red-600 neu-pressed"
       )}
     >
-      <Save className={clsx("w-4 h-4", saved ? "text-emerald-600" : "text-slate-500")} />
-      <span>{saved ? 'Saved!' : 'Save'}</span>
+      <Save className={clsx("w-4 h-4", 
+        status === 'saved' ? "text-emerald-600" : 
+        status === 'error' ? "text-red-600" : "text-slate-500",
+        status === 'saving' && "animate-spin"
+      )} />
+      <span>
+        {status === 'saving' ? 'Syncing...' : 
+         status === 'saved' ? 'Synced!' : 
+         status === 'error' ? 'Error' : 'Save'}
+      </span>
     </button>
   );
 };
