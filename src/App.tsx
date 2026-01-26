@@ -16,14 +16,19 @@ import { dotColorMap } from './utils/colorUtils';
 import { supabase } from './lib/supabaseClient';
 import { Auth } from './components/Auth/Auth'; // Import Auth component
 import { GoogleAd } from './components/GoogleAd';
+import { FeedbackModal } from './components/Feedback/FeedbackModal';
+import { AdminFeedbackList } from './components/Feedback/AdminFeedbackList';
+import { MessageSquare } from 'lucide-react';
 
 function App() {
-  const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData } = useScheduleStore();
+  const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData, clearData } = useScheduleStore();
   const [activeType, setActiveType] = useState<JobType | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
   const [showAddJobModal, setShowAddJobModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showAdminFeedback, setShowAdminFeedback] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const [session, setSession] = useState<any>(null); // Use any for simplicity or import Session type
@@ -33,8 +38,8 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
-      if (session) {
-        fetchData(); // Fetch data when session is restored
+      if (session?.user) {
+        fetchData(session.user.id);
       }
     });
 
@@ -43,8 +48,10 @@ function App() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
-      if (session) {
-        fetchData(); // Fetch data on login
+      if (session?.user) {
+        fetchData(session.user.id);
+      } else {
+        clearData();
       }
     });
 
@@ -103,6 +110,7 @@ function App() {
   };
 
   const handleLogout = async () => {
+    clearData();
     await supabase.auth.signOut();
   };
 
@@ -134,6 +142,13 @@ function App() {
               className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
             >
               Sign Out
+            </button>
+            <button 
+               onClick={() => setShowFeedbackModal(true)}
+               className="text-slate-500 hover:text-indigo-500 transition-colors p-2"
+               title="Feedback"
+            >
+               <MessageSquare className="w-5 h-5" />
             </button>
             <button 
                onClick={() => setShowProfileModal(true)}
@@ -201,6 +216,27 @@ function App() {
           onClose={() => setShowProfileModal(false)}
           email={session?.user?.email}
         />
+
+        {/* Feedback Modals */}
+        <FeedbackModal 
+          isOpen={showFeedbackModal} 
+          onClose={() => setShowFeedbackModal(false)}
+          userEmail={session?.user?.email}
+        />
+        
+        <AdminFeedbackList 
+          isOpen={showAdminFeedback} 
+          onClose={() => setShowAdminFeedback(false)} 
+        />
+        
+        {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}
+        {/* Alternatively, add it to the profile modal or just check email here */}
+        {/* For simplicity, let's put a subtle trigger in the footer or near the ad */}
+        <div className="text-center mt-20 pb-4 opacity-5 hover:opacity-100 transition-opacity">
+           <button onClick={() => setShowAdminFeedback(true)} className="text-[10px] text-slate-400">
+              Admin Access
+           </button>
+        </div>
       </div>
     </DndContext>
   )

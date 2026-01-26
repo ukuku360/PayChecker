@@ -19,7 +19,8 @@ interface ScheduleState {
   savingsGoal: number;
   expenses: Expense[];
   
-  fetchData: () => Promise<void>;
+  fetchData: (userId?: string) => Promise<void>;
+  clearData: () => void;
   addShift: (shift: Shift) => Promise<void>;
   updateShift: (id: string, shift: Partial<Shift>) => Promise<void>;
   removeShift: (id: string) => Promise<void>;
@@ -60,8 +61,29 @@ export const useScheduleStore = create<ScheduleState>()(
         }
       },
 
-      fetchData: async () => {
-        const { data: { user } } = await supabase.auth.getUser();
+      clearData: () => {
+        set({
+          shifts: [],
+          jobConfigs: DEFAULT_JOB_CONFIGS,
+          holidays: [],
+          copiedShifts: null,
+          isStudentVisaHolder: false,
+          vacationPeriods: [],
+          savingsGoal: 0,
+          expenses: [],
+        });
+      },
+
+      fetchData: async (userId?: string) => {
+        let user: any = null;
+        
+        if (userId) {
+          user = { id: userId };
+        } else {
+          const { data } = await supabase.auth.getUser();
+          user = data.user;
+        }
+
         if (!user) return;
 
         // Fetch Job Configs

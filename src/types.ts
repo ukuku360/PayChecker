@@ -83,3 +83,13 @@ export const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; emoji:
   { value: 'investment', label: 'Investment', emoji: '📈' },
   { value: 'other', label: 'Other', emoji: '📦' },
 ];
+
+export interface Feedback {
+  id: string;
+  user_id: string;
+  message: string;
+  type: 'feedback' | 'feature_request' | 'bug';
+  created_at: string;
+  status: 'new' | 'read' | 'completed';
+  user_email?: string;
+}
