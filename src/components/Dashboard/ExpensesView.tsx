@@ -4,7 +4,7 @@ import { calculateTotalPay } from '../../utils/calculatePay';
 import { calculateTakeHome } from '../../data/taxRates';
 import { EXPENSE_CATEGORIES } from '../../types';
 import type { Expense, ExpenseCategory } from '../../types';
-import { Plus, Trash2, Edit2, Check, X, Receipt, TrendingDown, Wallet, RefreshCw, PieChart } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Receipt, TrendingDown, Wallet, RefreshCw } from 'lucide-react';
 import { clsx } from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { startOfMonth, endOfMonth, format, subMonths } from 'date-fns';
