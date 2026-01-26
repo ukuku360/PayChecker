@@ -3,6 +3,7 @@ import { TAX_BRACKETS_2025_26 } from '../../data/taxRates';
 import { Wallet, Receipt, Scale, PiggyBank, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
+import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
 
 const formatCurrency = (amount: number) => 
   new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
@@ -31,32 +32,44 @@ export const FiscalYearView = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* YTD Gross */}
-        <div className="neu-flat p-5 flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-             <div className="p-2 rounded-xl neu-pressed text-indigo-500">
-               <Wallet className="w-5 h-5" />
-             </div>
-             <span className="text-xs font-bold text-slate-400 uppercase">YTD Income</span>
-          </div>
-          <div>
-            <span className="text-2xl font-bold text-slate-700 block">{formatCurrency(ytdGrossPay)}</span>
-            <span className="text-[10px] text-slate-400">Total Gross Pay</span>
-          </div>
-        </div>
+        <FeatureHelpTarget
+            message="Your total gross income for this financial year (before tax)."
+            title="YTD Gross Income"
+            position="bottom"
+        >
+            <div className="neu-flat p-5 flex flex-col gap-4 h-full">
+            <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl neu-pressed text-indigo-500">
+                <Wallet className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold text-slate-400 uppercase">YTD Income</span>
+            </div>
+            <div>
+                <span className="text-2xl font-bold text-slate-700 block">{formatCurrency(ytdGrossPay)}</span>
+                <span className="text-[10px] text-slate-400">Total Gross Pay</span>
+            </div>
+            </div>
+        </FeatureHelpTarget>
 
         {/* Est Withheld */}
-        <div className="neu-flat p-5 flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-             <div className="p-2 rounded-xl neu-pressed text-amber-500">
-               <Receipt className="w-5 h-5" />
-             </div>
-             <span className="text-xs font-bold text-slate-400 uppercase">Tax Withheld</span>
-          </div>
-          <div>
-            <span className="text-2xl font-bold text-slate-700 block">{formatCurrency(ytdEstimatedTaxWithheld)}</span>
-            <span className="text-[10px] text-slate-400">Est. paid via PAYG</span>
-          </div>
-        </div>
+        <FeatureHelpTarget
+             message="Estimated amount of tax your employer has withheld so far."
+             title="Tax Withheld"
+             position="bottom"
+        >
+            <div className="neu-flat p-5 flex flex-col gap-4 h-full">
+            <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl neu-pressed text-amber-500">
+                <Receipt className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold text-slate-400 uppercase">Tax Withheld</span>
+            </div>
+            <div>
+                <span className="text-2xl font-bold text-slate-700 block">{formatCurrency(ytdEstimatedTaxWithheld)}</span>
+                <span className="text-[10px] text-slate-400">Est. paid via PAYG</span>
+            </div>
+            </div>
+        </FeatureHelpTarget>
 
         {/* Actual Liability */}
         <div className="neu-flat p-5 flex flex-col gap-4">
@@ -73,24 +86,30 @@ export const FiscalYearView = () => {
         </div>
 
         {/* Refund Estimate */}
-        <div className={clsx("neu-flat p-5 flex flex-col gap-4 relative overflow-hidden", isRefundPos ? "border-l-4 border-emerald-400" : "border-l-4 border-rose-400")}>
-             <div className="flex items-center gap-3 relative z-10">
-                <div className={clsx("p-2 rounded-xl neu-pressed", isRefundPos ? "text-emerald-500" : "text-rose-500")}>
-                    <PiggyBank className="w-5 h-5" />
+        <FeatureHelpTarget
+             message="Estimated tax refund or bill based on current income and tax rates."
+             title="Tax Refund Estimate"
+             position="left"
+        >
+            <div className={clsx("neu-flat p-5 flex flex-col gap-4 relative overflow-hidden h-full", isRefundPos ? "border-l-4 border-emerald-400" : "border-l-4 border-rose-400")}>
+                <div className="flex items-center gap-3 relative z-10">
+                    <div className={clsx("p-2 rounded-xl neu-pressed", isRefundPos ? "text-emerald-500" : "text-rose-500")}>
+                        <PiggyBank className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-400 uppercase">Est. Return</span>
                 </div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Est. Return</span>
+                <div className="relative z-10">
+                    <span className={clsx("text-2xl font-bold block", isRefundPos ? "text-emerald-600" : "text-rose-600")}>
+                        {isRefundPos ? '+' : ''}{formatCurrency(estimatedRefund)}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                        {isRefundPos ? 'Estimated Refund' : 'Estimated Tax Bill'}
+                    </span>
+                </div>
+                {/* Background Gradient */}
+                <div className={clsx("absolute -right-6 -bottom-6 w-24 h-24 rounded-full blur-2xl opacity-20 pointer-events-none", isRefundPos ? "bg-emerald-400" : "bg-rose-400")}></div>
             </div>
-            <div className="relative z-10">
-                <span className={clsx("text-2xl font-bold block", isRefundPos ? "text-emerald-600" : "text-rose-600")}>
-                    {isRefundPos ? '+' : ''}{formatCurrency(estimatedRefund)}
-                </span>
-                <span className="text-[10px] text-slate-400">
-                    {isRefundPos ? 'Estimated Refund' : 'Estimated Tax Bill'}
-                </span>
-            </div>
-            {/* Background Gradient */}
-            <div className={clsx("absolute -right-6 -bottom-6 w-24 h-24 rounded-full blur-2xl opacity-20 pointer-events-none", isRefundPos ? "bg-emerald-400" : "bg-rose-400")}></div>
-        </div>
+        </FeatureHelpTarget>
       </div>
 
        {/* Tax Bracket Visualizer */}

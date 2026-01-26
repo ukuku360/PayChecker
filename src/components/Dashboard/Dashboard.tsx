@@ -14,6 +14,7 @@ import { JobBreakdown } from './JobBreakdown';
 import { WorkStats } from './WorkStats';
 import { SavingsGoal } from './SavingsGoal';
 import { ExpensesView } from './ExpensesView';
+import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
 
 interface DashboardProps {
   currentMonth: Date;
@@ -118,26 +119,41 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
             <CalendarRange className="w-3.5 h-3.5" />
             Monthly
           </button>
-          <button
-            onClick={() => handleViewModeChange('fiscal')}
-            className={clsx(
-              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-              viewMode === 'fiscal' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
-            )}
+          <FeatureHelpTarget
+             message="View detailed breakdown of your fiscal year earnings, tax estimates, and savings goals."
+             title="Fiscal Details"
+             position="bottom"
+             guidance={true}
           >
-            <Calculator className="w-3.5 h-3.5" />
-            Details
-          </button>
-          <button
-            onClick={() => handleViewModeChange('budget')}
-            className={clsx(
-              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-              viewMode === 'budget' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
-            )}
+           <button
+             onClick={() => handleViewModeChange('fiscal')}
+             className={clsx(
+               "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+               viewMode === 'fiscal' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
+             )}
+           >
+             <Calculator className="w-3.5 h-3.5" />
+             Details
+           </button>
+          </FeatureHelpTarget>
+
+          <FeatureHelpTarget
+             message="Track your expenses and manage your budget allocation."
+             title="Budget & Expenses"
+             position="bottom"
+             guidance={true}
           >
-            <DollarSign className="w-3.5 h-3.5" />
-            Budget
-          </button>
+           <button
+             onClick={() => handleViewModeChange('budget')}
+             className={clsx(
+               "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+               viewMode === 'budget' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
+             )}
+           >
+             <DollarSign className="w-3.5 h-3.5" />
+             Budget
+           </button>
+          </FeatureHelpTarget>
         </div>
       </div>
 
@@ -159,12 +175,12 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
               <div className="p-2 rounded-full neu-pressed">
                 <Wallet className="w-5 h-5 text-indigo-500" />
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Est. Pay</span>
-                  <span className="text-[10px] text-slate-400">Gross Income</span>
+                  <span className="text-lg font-bold text-slate-700">{formatCurrency(monthlyPay)}</span>
                 </div>
-                <span className="text-xl font-bold text-slate-700">{formatCurrency(monthlyPay)}</span>
+                <span className="text-[10px] text-slate-400">Gross Income</span>
               </div>
             </div>
 
@@ -225,24 +241,38 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
 
             {/* AI Scan Button */}
             {onAIScan && (
-              <button
-                onClick={onAIScan}
-                className="neu-icon-btn w-12 h-12 rounded-xl !p-0 group"
-                title="Scan roster with AI"
+              <FeatureHelpTarget 
+                message="Automatically import your schedule by uploading a photo or PDF of your roster. We'll scan it and add shifts for you!" 
+                title="Smart Roster Scan"
+                position="left"
+                guidance={true}
               >
-                <Sparkles className="w-5 h-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-              </button>
+                <button
+                  onClick={onAIScan}
+                  className="neu-icon-btn w-12 h-12 rounded-xl !p-0 group"
+                  title="Scan roster with AI"
+                >
+                  <Sparkles className="w-5 h-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
+                </button>
+              </FeatureHelpTarget>
             )}
 
             {/* Export Button */}
             {onExport && (
-              <button
-                onClick={onExport}
-                className="neu-icon-btn w-12 h-12 rounded-xl !p-0"
-                title="Export report"
+              <FeatureHelpTarget 
+                message="Download your timesheet data as CSV or PDF reports, or sync your shifts directly to your calendar (ICS)." 
+                title="Export & Sync"
+                position="right"
+                guidance={true}
               >
-                <Download className="w-5 h-5 text-slate-500" />
-              </button>
+                <button
+                  onClick={onExport}
+                  className="neu-icon-btn w-12 h-12 rounded-xl !p-0"
+                  title="Export report"
+                >
+                  <Download className="w-5 h-5 text-slate-500" />
+                </button>
+              </FeatureHelpTarget>
             )}
           </div>
 

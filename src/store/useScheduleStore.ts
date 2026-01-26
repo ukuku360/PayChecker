@@ -19,6 +19,9 @@ interface ScheduleState {
   savingsGoal: number;
   expenses: Expense[];
 
+  hasSeenHelp: boolean;
+  markHelpSeen: () => Promise<void>;
+
   fetchData: (userId?: string) => Promise<void>;
   clearData: () => void;
   addShift: (shift: Shift) => Promise<void>;
@@ -51,6 +54,16 @@ export const useScheduleStore = create<ScheduleState>()(
       vacationPeriods: [],
       savingsGoal: 0,
       expenses: [],
+      hasSeenHelp: false,
+
+      markHelpSeen: async () => {
+         set({ hasSeenHelp: true });
+         const { data: { user } } = await supabase.auth.getUser();
+         if (user) {
+            const { error } = await supabase.from('profiles').update({ has_seen_help: true }).eq('id', user.id);
+            if (error) console.error('Error marking help as seen:', error);
+         }
+      },
 
       setCopiedShifts: (shifts) => set({ copiedShifts: shifts }),
       

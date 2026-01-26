@@ -9,6 +9,7 @@ import { clsx } from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { startOfMonth, endOfMonth, format, subMonths } from 'date-fns';
 import { ExpensePieChart, RealIncomeChart } from './ExpenseCharts';
+import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
@@ -124,7 +125,6 @@ export const ExpensesView = () => {
     setEditingId(null);
     setFormData({ name: '', amount: '', category: 'other', isRecurring: true });
   };
-
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Summary Cards */}
@@ -147,53 +147,47 @@ export const ExpensesView = () => {
           <span className="text-[10px] text-slate-400">{visibleExpenses.length} items monthly</span>
         </div>
 
-        <div className={clsx("neu-flat p-5 flex flex-col gap-2 border-l-4", realIncome >= 0 ? "border-emerald-400" : "border-rose-400")}>
-          <div className="flex items-center gap-2">
-            <Receipt className={clsx("w-5 h-5", realIncome >= 0 ? "text-emerald-500" : "text-rose-500")} />
-            <span className="text-xs font-bold uppercase text-slate-400">Real Income</span>
-          </div>
-          <span className={clsx("text-2xl font-bold", realIncome >= 0 ? "text-emerald-600" : "text-rose-600")}>
-            {formatCurrency(realIncome)}
-          </span>
-          <span className="text-[10px] text-slate-400">After fixed expenses</span>
-        </div>
+        <FeatureHelpTarget
+            message="Your actual disposable income after tax and fixed expenses are deducted."
+            title="Real Income"
+            position="left"
+        >
+            <div className={clsx("neu-flat p-5 flex flex-col gap-2 border-l-4 h-full", realIncome >= 0 ? "border-emerald-400" : "border-rose-400")}>
+              <div className="flex items-center gap-2">
+                <Receipt className={clsx("w-5 h-5", realIncome >= 0 ? "text-emerald-500" : "text-rose-500")} />
+                <span className="text-xs font-bold uppercase text-slate-400">Real Income</span>
+              </div>
+              <span className={clsx("text-2xl font-bold", realIncome >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                {formatCurrency(realIncome)}
+              </span>
+              <span className="text-[10px] text-slate-400">After fixed expenses</span>
+            </div>
+        </FeatureHelpTarget>
       </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="neu-flat p-6">
-          <div className="flex items-center gap-2 mb-4">
-             <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-500">
-               <PieChart className="w-4 h-4" />
-             </div>
-             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Expense Breakdown</h3>
-          </div>
-          <ExpensePieChart data={pieData} />
-        </div>
-        
-        <div className="neu-flat p-6">
-          <div className="flex items-center gap-2 mb-4">
-             <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-500">
-               <TrendingDown className="w-4 h-4" />
-             </div>
-             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Real Income Trend</h3>
-          </div>
-          <RealIncomeChart data={trendData} />
-        </div>
+        <RealIncomeChart data={trendData} />
+        <ExpensePieChart data={pieData} />
       </div>
-
       {/* Expense List */}
       <div className="neu-flat p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Monthly Fixed Expenses</h3>
           {!isAdding && (
-            <button
-              onClick={() => setIsAdding(true)}
-              className="neu-icon-btn !p-2 flex items-center gap-2"
+            <FeatureHelpTarget
+                message="Add your recurring monthly costs (like rent or subscriptions) to track your real disposable income."
+                title="Add Expenses"
+                position="left"
             >
-              <Plus className="w-4 h-4 text-slate-500" />
-              <span className="text-xs font-bold text-slate-500">Add</span>
-            </button>
+                <button
+                onClick={() => setIsAdding(true)}
+                className="neu-icon-btn !p-2 flex items-center gap-2"
+                >
+                <Plus className="w-4 h-4 text-slate-500" />
+                <span className="text-xs font-bold text-slate-500">Add</span>
+                </button>
+            </FeatureHelpTarget>
           )}
         </div>
 

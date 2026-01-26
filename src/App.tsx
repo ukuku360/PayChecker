@@ -19,6 +19,8 @@ import { GoogleAd } from './components/GoogleAd';
 import { FeedbackModal } from './components/Feedback/FeedbackModal';
 import { AdminFeedbackList } from './components/Feedback/AdminFeedbackList';
 import { RosterScannerModal } from './components/RosterScanner/RosterScannerModal';
+import { FeatureHelpTrigger } from './components/FeatureHelp/FeatureHelpTrigger';
+import { useFeatureHelpStore } from './store/useFeatureHelpStore';
 import { MessageSquare } from 'lucide-react';
 
 function App() {
@@ -92,6 +94,42 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, [fetchData]);
+
+  const { isHelpMode, setHelpMode } = useFeatureHelpStore();
+  const { hasSeenHelp, markHelpSeen } = useScheduleStore();
+
+  // Onboarding Logic
+  useEffect(() => {
+    if (session?.user && !loading) {
+       // Allow a small delay to ensure store hydration if needed, 
+       // but typically if we are here, we can check.
+       // However, default is false. If we haven't fetched profile yet, it is false.
+       // So we might open it prematurely if the user HAS seen it but we haven't fetched that fact yet.
+       // BUT, fetchData is called in the previous useEffect.
+       // We can check if `jobConfigs` or `shifts` (or just check if we have data) to guess if loaded.
+       // Or just rely on the fact that if it opens, no big deal, they close it and we save true.
+       // To be safer, we could add a `isDataLoaded` flag to store, but that's extra resizing.
+       // Let's just try checking hasSeenHelp. If false, we open.
+       if (hasSeenHelp === false) { 
+          // Check if we really want to force it every time or just once per session?
+          // Requirement: "user first logs in".
+          // If hasSeenHelp is false, we show it.
+          // We should avoid re-opening if the user manually closed it in this session.
+          // But hasSeenHelp is persisted.
+          // So:
+          setHelpMode(true);
+       }
+    }
+  }, [session, loading]); // Run once when session loads
+
+  // Mark as seen when closing
+  useEffect(() => {
+    if (!isHelpMode && hasSeenHelp === false && session?.user) {
+        // If help mode was active and now inactive, and we haven't marked seen yet:
+        markHelpSeen();
+    }
+  }, [isHelpMode, hasSeenHelp, session]);
+
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -174,11 +212,12 @@ function App() {
           </div>
           <div className="flex items-center gap-4">
             <button 
-              onClick={handleLogout}
-              className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+               onClick={handleLogout}
+               className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
             >
               Sign Out
             </button>
+            <FeatureHelpTrigger />
             <button 
                onClick={() => setShowFeedbackModal(true)}
                className="text-slate-500 hover:text-indigo-500 transition-colors p-2"
