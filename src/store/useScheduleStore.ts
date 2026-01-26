@@ -18,10 +18,11 @@ interface ScheduleState {
   vacationPeriods: VacationPeriod[];
   savingsGoal: number;
   expenses: Expense[];
-  
+
   fetchData: (userId?: string) => Promise<void>;
   clearData: () => void;
   addShift: (shift: Shift) => Promise<void>;
+  addMultipleShifts: (shifts: Shift[]) => Promise<void>;
   updateShift: (id: string, shift: Partial<Shift>) => Promise<void>;
   removeShift: (id: string) => Promise<void>;
   addHoliday: (date: string) => void;
@@ -116,7 +117,8 @@ export const useScheduleStore = create<ScheduleState>()(
                sunday: Number(j.hourly_rate_sunday),
                holiday: Number(j.hourly_rate_holiday),
              },
-             rateHistory: j.rate_history || [], // Assuming rate_history is a JSONB column
+             rateHistory: j.rate_history || [],
+             defaultBreakMinutes: j.default_break_minutes != null ? Number(j.default_break_minutes) : undefined,
            }));
            
            // Migration for existing data: if rateHistory is empty, seed it with current rates
@@ -190,9 +192,9 @@ export const useScheduleStore = create<ScheduleState>()(
 
       addShift: async (shift) => {
         // Optimistic update
-        set((state) => ({ 
+        set((state) => ({
           shifts: [
-            ...state.shifts.filter(s => !(s.date === shift.date && s.type === shift.type)), 
+            ...state.shifts.filter(s => !(s.date === shift.date && s.type === shift.type)),
             shift
           ]
         }));
@@ -207,6 +209,42 @@ export const useScheduleStore = create<ScheduleState>()(
              note: shift.note
           }, { onConflict: 'user_id, date, type' });
           if (error) console.error('Error adding shift:', error);
+        }
+      },
+
+      addMultipleShifts: async (newShifts) => {
+        if (newShifts.length === 0) return;
+
+        // Optimistic update - remove any existing shifts with same date/type
+        set((state) => {
+          const existingShiftKeys = new Set(
+            newShifts.map(s => `${s.date}-${s.type}`)
+          );
+          const filteredShifts = state.shifts.filter(
+            s => !existingShiftKeys.has(`${s.date}-${s.type}`)
+          );
+          return { shifts: [...filteredShifts, ...newShifts] };
+        });
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Bulk upsert to Supabase
+          const shiftsToUpsert = newShifts.map(shift => ({
+            user_id: user.id,
+            date: shift.date,
+            type: shift.type,
+            hours: shift.hours,
+            note: shift.note
+          }));
+
+          const { error } = await supabase.from('shifts').upsert(
+            shiftsToUpsert,
+            { onConflict: 'user_id, date, type' }
+          );
+
+          if (error) {
+            console.error('Error adding multiple shifts:', error);
+          }
         }
       },
 
@@ -277,7 +315,8 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_saturday: fullConfig.hourlyRates.saturday,
              hourly_rate_sunday: fullConfig.hourlyRates.sunday,
              hourly_rate_holiday: fullConfig.hourlyRates.holiday,
-             rate_history: fullConfig.rateHistory, // Handle JSONB update
+             rate_history: fullConfig.rateHistory,
+             default_break_minutes: fullConfig.defaultBreakMinutes || null,
            }).eq('config_id', id).eq('user_id', user.id);
            if (error) console.error('Error updating job config:', error);
         }
@@ -302,6 +341,7 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_sunday: config.hourlyRates.sunday,
              hourly_rate_holiday: config.hourlyRates.holiday,
              rate_history: config.rateHistory,
+             default_break_minutes: config.defaultBreakMinutes || null,
            });
            if (error) console.error('Error adding job config:', error);
         }

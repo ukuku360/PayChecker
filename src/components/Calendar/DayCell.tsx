@@ -7,6 +7,7 @@ import type { Shift } from '../../types';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { colorMap } from '../../utils/colorUtils';
 import { getHolidayInfo, isPublicHoliday } from '../../data/australianHolidays';
+import { calculatePaidHours } from '../../utils/calculatePay';
 
 interface DayCellProps {
   date: Date;
@@ -223,16 +224,24 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
                         </button>
                   </div>
                   <div className="flex items-center gap-0.5">
-                    <input 
-                      type="number" 
-                      min="0" 
-                      step="0.5" 
-                      value={shift.hours} 
-                      onChange={(e) => { e.stopPropagation(); onUpdateShift(shift.id, { hours: parseFloat(e.target.value) || 0 }); }} 
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={shift.hours}
+                      onChange={(e) => { e.stopPropagation(); onUpdateShift(shift.id, { hours: parseFloat(e.target.value) || 0 }); }}
                       onClick={(e) => e.stopPropagation()}
-                      className="w-10 text-sm bg-white/50 border border-current/20 rounded px-1 py-0.5 focus:ring-1 focus:ring-current/30 text-center font-bold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                      className="w-10 text-sm bg-white/50 border border-current/20 rounded px-1 py-0.5 focus:ring-1 focus:ring-current/30 text-center font-bold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <span className="opacity-70 text-[10px]">h</span>
+                    {(() => {
+                      const paidHours = calculatePaidHours(shift, jobConfigs);
+                      return paidHours < shift.hours ? (
+                        <span className="text-[9px] text-slate-500 ml-0.5" title="Paid hours after break">
+                          ({paidHours}h)
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); onRemoveShift(shift.id); }}

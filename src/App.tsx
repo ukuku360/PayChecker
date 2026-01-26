@@ -18,6 +18,7 @@ import { Auth } from './components/Auth/Auth'; // Import Auth component
 import { GoogleAd } from './components/GoogleAd';
 import { FeedbackModal } from './components/Feedback/FeedbackModal';
 import { AdminFeedbackList } from './components/Feedback/AdminFeedbackList';
+import { RosterScannerModal } from './components/RosterScanner/RosterScannerModal';
 import { MessageSquare } from 'lucide-react';
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showAdminFeedback, setShowAdminFeedback] = useState(false);
+  const [showRosterScanner, setShowRosterScanner] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const [session, setSession] = useState<any>(null); // Use any for simplicity or import Session type
@@ -38,6 +40,27 @@ function App() {
     const initSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const { data: { user }, error: userError } = await supabase.auth.getUser(session.access_token);
+          if (userError || !user) {
+            const shouldClearSession =
+              userError?.status === 401 ||
+              userError?.status === 403 ||
+              /jwt|invalid|expired/i.test(userError?.message ?? '');
+
+            if (shouldClearSession) {
+              console.warn('Invalid session detected, clearing local auth:', userError);
+              await supabase.auth.signOut({ scope: 'local' });
+              setSession(null);
+              clearData();
+              setLoading(false);
+              return;
+            }
+
+            console.warn('Session validation failed, keeping local session:', userError);
+          }
+        }
+
         setSession(session);
         if (session?.user) {
           fetchData(session.user.id).catch(err => console.error('Background fetch failed:', err));
@@ -176,11 +199,12 @@ function App() {
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Main Content Area */}
             <div className="flex-1 min-w-0 space-y-8">
-              <Dashboard 
+              <Dashboard
                 currentMonth={currentDate}
                 onJobDoubleClick={setSelectedJob}
                 onAddJob={() => setShowAddJobModal(true)}
                 onExport={() => setShowExportModal(true)}
+                onAIScan={() => setShowRosterScanner(true)}
                 onViewModeChange={setViewMode}
               />
               {viewMode === 'monthly' && (
@@ -252,9 +276,15 @@ function App() {
           userEmail={session?.user?.email}
         />
         
-        <AdminFeedbackList 
-          isOpen={showAdminFeedback} 
-          onClose={() => setShowAdminFeedback(false)} 
+        <AdminFeedbackList
+          isOpen={showAdminFeedback}
+          onClose={() => setShowAdminFeedback(false)}
+        />
+
+        {/* Roster Scanner Modal */}
+        <RosterScannerModal
+          isOpen={showRosterScanner}
+          onClose={() => setShowRosterScanner(false)}
         />
         
         {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}

@@ -2,6 +2,23 @@ import { isSaturday, isSunday } from 'date-fns';
 import type { Shift, JobConfig } from '../types';
 import { isPublicHoliday } from '../data/australianHolidays';
 
+/**
+ * Calculate paid hours for a shift, accounting for break deductions
+ * Break is always deducted if configured (no threshold)
+ */
+export const calculatePaidHours = (shift: Shift, jobConfigs: JobConfig[]): number => {
+  const job = jobConfigs.find(j => j.id === shift.type);
+  if (!job) return shift.hours;
+
+  const breakMinutes = job.defaultBreakMinutes || 0;
+  if (breakMinutes === 0) {
+    return shift.hours;
+  }
+
+  const breakHours = breakMinutes / 60;
+  return Math.max(0, Math.round((shift.hours - breakHours) * 100) / 100);
+};
+
 const getRateForDate = (job: JobConfig, dateString: string) => {
   if (!job.rateHistory || job.rateHistory.length === 0) {
     return job.hourlyRates;
@@ -43,7 +60,9 @@ export const calculateShiftPay = (shift: Shift, jobConfigs: JobConfig[], holiday
     hourlyRate = rates.saturday;
   }
 
-  const basePay = (shift.hours || 0) * hourlyRate;
+  // Use paid hours (after break deduction) for pay calculation
+  const paidHours = calculatePaidHours(shift, jobConfigs);
+  const basePay = paidHours * hourlyRate;
 
   return basePay;
 };

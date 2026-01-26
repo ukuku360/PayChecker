@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { JobConfig, RateHistoryItem } from '../../types';
-import { X, Trash2, Calendar, History } from 'lucide-react';
+import { X, Trash2, Calendar, History, Coffee } from 'lucide-react';
 import { clsx } from 'clsx';
 import { dotColorMap } from '../../utils/colorUtils';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
   const [rateHistory] = useState<RateHistoryItem[]>(job.rateHistory || []);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [breakHours, setBreakHours] = useState((job.defaultBreakMinutes ?? 0) / 60);
 
   const handleSave = () => {
     // Logic:
@@ -46,10 +47,11 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
     const isRateEffectiveNow = new Date(effectiveDate) <= today;
     const ratesToSave = isRateEffectiveNow ? rates : job.hourlyRates;
 
-    onSave(job.id, { 
+    onSave(job.id, {
         hourlyRates: ratesToSave,
         defaultHours: defaultHours,
         rateHistory: updatedHistory,
+        defaultBreakMinutes: breakHours > 0 ? breakHours * 60 : undefined,
     });
     onClose();
   };
@@ -135,6 +137,33 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">hrs</span>
                     </div>
                   </div>
+              </div>
+          </div>
+
+          {/* Break Time Configuration */}
+          <div className="neu-flat p-4 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 bg-amber-50 rounded-lg text-amber-500"><Coffee className="w-3.5 h-3.5" /></div>
+                <h3 className="text-sm font-bold text-slate-700">Unpaid Break</h3>
+              </div>
+              <div>
+                <label className={labelClass}>Break Time</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={breakHours}
+                    onChange={(e) => setBreakHours(Number(e.target.value) || 0)}
+                    className={clsx(inputClass, "pl-3 bg-white/50 border-white/50 shadow-sm")}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">hrs</span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  {breakHours > 0
+                    ? `${breakHours}h will be deducted from paid hours`
+                    : 'No break deduction'}
+                </p>
               </div>
           </div>
 

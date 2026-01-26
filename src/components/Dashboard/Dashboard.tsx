@@ -2,7 +2,7 @@ import { useScheduleStore, SUPER_RATE } from '../../store/useScheduleStore';
 import { calculateTotalPay, calculateFortnightlyHours } from '../../utils/calculatePay';
 import { calculateTakeHome } from '../../data/taxRates';
 import type { JobType, JobConfig } from '../../types';
-import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, DollarSign } from 'lucide-react';
+import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, DollarSign, Sparkles } from 'lucide-react';
 import { format, addDays, startOfMonth, endOfMonth } from 'date-fns';
 import { clsx } from 'clsx';
 import { useDraggable } from '@dnd-kit/core';
@@ -20,6 +20,7 @@ interface DashboardProps {
   onJobDoubleClick?: (job: JobConfig) => void;
   onAddJob?: () => void;
   onExport?: () => void;
+  onAIScan?: () => void;
   onViewModeChange?: (mode: 'monthly' | 'fiscal' | 'budget') => void;
 }
 
@@ -66,7 +67,7 @@ const DraggableJobCard = ({
   );
 };
 
-export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, onViewModeChange }: DashboardProps) => {
+export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, onAIScan, onViewModeChange }: DashboardProps) => {
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
 
@@ -219,6 +220,17 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
                 title="Add new job"
               >
                 <Plus className="w-5 h-5 text-slate-500" />
+              </button>
+            )}
+
+            {/* AI Scan Button */}
+            {onAIScan && (
+              <button
+                onClick={onAIScan}
+                className="neu-icon-btn w-12 h-12 rounded-xl !p-0 group"
+                title="Scan roster with AI"
+              >
+                <Sparkles className="w-5 h-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
               </button>
             )}
 

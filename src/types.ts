@@ -25,6 +25,7 @@ export interface JobConfig {
     holiday: number;
   };
   rateHistory: RateHistoryItem[];
+  defaultBreakMinutes?: number; // Unpaid break time in minutes (default: 0)
 }
 
 export interface WageConfig {
@@ -102,5 +103,45 @@ export interface FeedbackReply {
   sender_id: string;
   content: string;
   is_admin_reply: boolean;
+  created_at: string;
+}
+
+// Roster Scanner Types
+export interface ParsedShift {
+  id: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  totalHours: number;
+  rosterJobName: string; // Original name from roster
+  mappedJobId?: string; // User's JobConfig id (after mapping)
+  confidence: number; // 0-1 confidence score from AI
+  selected: boolean; // Whether user wants to add this shift
+  hasConflict?: boolean; // Conflicts with existing shift
+  conflictShiftId?: string; // ID of conflicting shift
+}
+
+export interface RosterScanResult {
+  success: boolean;
+  shifts: ParsedShift[];
+  processingTimeMs: number;
+  error?: string;
+  errorType?: 'blurry' | 'no_shifts' | 'timeout' | 'limit_exceeded' | 'unknown' | 'auth' | 'network' | 'parse_error' | 'not_roster' | 'config' | 'invalid_input';
+}
+
+export interface JobAlias {
+  id: string;
+  user_id: string;
+  job_config_id: string;
+  alias: string;
+  created_at?: string;
+}
+
+export interface RosterScan {
+  id: string;
+  user_id: string;
+  parsed_result: RosterScanResult;
+  shifts_created: number;
+  processing_time_ms: number;
   created_at: string;
 }
