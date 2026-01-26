@@ -16,6 +16,7 @@ interface ScheduleState {
   copiedShifts: CopiedShiftData[] | null;
   isStudentVisaHolder: boolean;
   vacationPeriods: VacationPeriod[];
+  savingsGoal: number;
   
   fetchData: () => Promise<void>;
   addShift: (shift: Shift) => Promise<void>;
@@ -28,6 +29,7 @@ interface ScheduleState {
   removeJobConfig: (id: string) => Promise<void>;
   setCopiedShifts: (shifts: CopiedShiftData[] | null) => void;
   updateProfile: (isStudentVisaHolder: boolean, vacationPeriods?: VacationPeriod[]) => Promise<void>;
+  updateSavingsGoal: (goal: number) => void;
 }
 
 const DEFAULT_JOB_CONFIGS: JobConfig[] = [];
@@ -41,8 +43,17 @@ export const useScheduleStore = create<ScheduleState>()(
       copiedShifts: null,
       isStudentVisaHolder: false,
       vacationPeriods: [],
+      savingsGoal: 0,
 
       setCopiedShifts: (shifts) => set({ copiedShifts: shifts }),
+      
+      updateSavingsGoal: async (goal) => {
+        set({ savingsGoal: goal });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('profiles').update({ savings_goal: goal }).eq('id', user.id);
+        }
+      },
 
       fetchData: async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -91,16 +102,37 @@ export const useScheduleStore = create<ScheduleState>()(
         }
 
         // Fetch Profile
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('is_student_visa_holder, vacation_periods')
+          .select('is_student_visa_holder, vacation_periods, savings_goal, holidays')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
+        
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+        }
         
         if (profileData) {
           set({ 
-            isStudentVisaHolder: profileData.is_student_visa_holder,
-            vacationPeriods: profileData.vacation_periods || [] 
+            isStudentVisaHolder: profileData.is_student_visa_holder ?? false,
+            vacationPeriods: profileData.vacation_periods || [],
+            savingsGoal: Number(profileData.savings_goal) || 0,
+            holidays: profileData.holidays || []
+          });
+        } else {
+          // Profile doesn't exist - create one with defaults
+          await supabase.from('profiles').insert({
+            id: user.id,
+            is_student_visa_holder: false,
+            vacation_periods: [],
+            savings_goal: 0,
+            holidays: []
+          });
+          set({ 
+            isStudentVisaHolder: false,
+            vacationPeriods: [],
+            savingsGoal: 0,
+            holidays: []
           });
         }
 
@@ -167,8 +199,23 @@ export const useScheduleStore = create<ScheduleState>()(
         }
       },
 
-      addHoliday: (date) => set((state) => ({ holidays: [...state.holidays, date] })),
-      removeHoliday: (date) => set((state) => ({ holidays: state.holidays.filter((d) => d !== date) })),
+      addHoliday: async (date) => {
+        const newHolidays = [...get().holidays, date];
+        set({ holidays: newHolidays });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
+        }
+      },
+      
+      removeHoliday: async (date) => {
+        const newHolidays = get().holidays.filter((d) => d !== date);
+        set({ holidays: newHolidays });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
+        }
+      },
 
       updateJobConfig: async (id, config) => {
         set((state) => ({
@@ -231,23 +278,19 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       updateProfile: async (isStudentVisaHolder, vacationPeriods) => {
-        set((state) => ({ 
+        const periodsToSave = vacationPeriods || [];
+        set({ 
           isStudentVisaHolder: isStudentVisaHolder,
-          vacationPeriods: vacationPeriods || state.vacationPeriods
-        }));
+          vacationPeriods: periodsToSave
+        });
         
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // Flatten vacation periods for JSONB storage just in case, though Typescript should handle
-          const updateData: any = {
+          const { error } = await supabase.from('profiles').upsert({
             id: user.id,
-            is_student_visa_holder: isStudentVisaHolder
-          };
-          if (vacationPeriods) {
-            updateData.vacation_periods = vacationPeriods;
-          }
-
-          const { error } = await supabase.from('profiles').upsert(updateData);
+            is_student_visa_holder: isStudentVisaHolder,
+            vacation_periods: periodsToSave
+          });
           
           if (error) {
             console.error('Error updating profile:', error);

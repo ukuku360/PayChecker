@@ -2,7 +2,7 @@ import { useScheduleStore, SUPER_RATE } from '../../store/useScheduleStore';
 import { calculateTotalPay, calculateFortnightlyHours } from '../../utils/calculatePay';
 import { calculateTakeHome } from '../../data/taxRates';
 import type { JobType, JobConfig } from '../../types';
-import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, TrendingUp } from 'lucide-react';
+import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator } from 'lucide-react';
 import { format, addDays, startOfMonth, endOfMonth } from 'date-fns';
 import { clsx } from 'clsx';
 import { useDraggable } from '@dnd-kit/core';
@@ -10,12 +10,16 @@ import { dotColorMap, borderColorMap } from '../../utils/colorUtils';
 import { useState } from 'react';
 import { FiscalYearView } from './FiscalYearView';
 import { IncomeChart } from './IncomeChart';
+import { JobBreakdown } from './JobBreakdown';
+import { WorkStats } from './WorkStats';
+import { SavingsGoal } from './SavingsGoal';
 
 interface DashboardProps {
   currentMonth: Date;
   onJobDoubleClick?: (job: JobConfig) => void;
   onAddJob?: () => void;
   onExport?: () => void;
+  onViewModeChange?: (mode: 'monthly' | 'fiscal') => void;
 }
 
 const DraggableJobCard = ({ 
@@ -61,9 +65,14 @@ const DraggableJobCard = ({
   );
 };
 
-export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport }: DashboardProps) => {
-  const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'trends'>('monthly');
+export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, onViewModeChange }: DashboardProps) => {
+  const [viewMode, setViewMode] = useState<'monthly' | 'fiscal'>('monthly');
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
+
+  const handleViewModeChange = (mode: 'monthly' | 'fiscal') => {
+    setViewMode(mode);
+    onViewModeChange?.(mode);
+  };
 
   const allFortnightlyHours = calculateFortnightlyHours(shifts);
   
@@ -95,10 +104,10 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport }
   return (
     <div className="space-y-6 mb-6">
       {/* View Toggle */}
-      <div className="flex justify-end mb-2">
+      <div className="flex justify-end -mt-2 mb-6">
         <div className="neu-flat p-1 flex gap-1 rounded-xl">
           <button
-            onClick={() => setViewMode('monthly')}
+            onClick={() => handleViewModeChange('monthly')}
             className={clsx(
               "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
               viewMode === 'monthly' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
@@ -108,32 +117,26 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport }
             Monthly
           </button>
           <button
-            onClick={() => setViewMode('fiscal')}
+            onClick={() => handleViewModeChange('fiscal')}
             className={clsx(
               "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
               viewMode === 'fiscal' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
             )}
           >
             <Calculator className="w-3.5 h-3.5" />
-            Fiscal Year
-          </button>
-          <button
-            onClick={() => setViewMode('trends')}
-            className={clsx(
-              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-              viewMode === 'trends' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            Trends
+            Details
           </button>
         </div>
       </div>
 
-      {viewMode === 'trends' ? (
-         <IncomeChart />
-      ) : viewMode === 'fiscal' ? (
-        <FiscalYearView />
+      {viewMode === 'fiscal' ? (
+        <div className="space-y-6">
+          <SavingsGoal />
+          <FiscalYearView />
+          <IncomeChart />
+          <JobBreakdown />
+          <WorkStats />
+        </div>
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap gap-4 items-center">

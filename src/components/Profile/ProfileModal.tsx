@@ -46,7 +46,7 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md flex items-center justify-center z-50 transition-all duration-300" onClick={onClose}>
+    <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300" onClick={onClose}>
       <div className="glass-panel w-full max-w-md mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
           <div className="flex items-center gap-3">

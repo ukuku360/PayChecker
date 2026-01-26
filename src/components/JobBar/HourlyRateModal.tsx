@@ -79,7 +79,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
   const labelClass = "text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block";
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300" onClick={onClose}>
+    <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300" onClick={onClose}>
       <div 
         className="glass-panel w-full max-w-md mx-4 overflow-hidden shadow-2xl scale-100 animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

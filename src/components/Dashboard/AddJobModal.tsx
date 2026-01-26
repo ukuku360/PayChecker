@@ -59,7 +59,7 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
   return (
     <div 
       className={clsx(
-        "fixed inset-0 bg-slate-900/20 backdrop-blur-md flex items-center justify-center z-50 transition-all duration-300",
+        "fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300",
         isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
       onClick={onClose}

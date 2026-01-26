@@ -25,6 +25,7 @@ function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'monthly' | 'fiscal'>('monthly');
   const [session, setSession] = useState<any>(null); // Use any for simplicity or import Session type
   const [loading, setLoading] = useState(true);
 
@@ -149,11 +150,14 @@ function App() {
             onJobDoubleClick={setSelectedJob}
             onAddJob={() => setShowAddJobModal(true)}
             onExport={() => setShowExportModal(true)}
+            onViewModeChange={setViewMode}
           />
-          <CalendarGrid 
-            currentDate={currentDate}
-            onMonthChange={setCurrentDate}
-          />
+          {viewMode === 'monthly' && (
+            <CalendarGrid 
+              currentDate={currentDate}
+              onMonthChange={setCurrentDate}
+            />
+          )}
           <GoogleAd className="mt-8" />
         </main>
         
