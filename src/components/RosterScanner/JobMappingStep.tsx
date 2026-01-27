@@ -94,12 +94,13 @@ export function JobMappingStep({
       {/* Info box */}
       <div className="flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-600">
         <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-medium">New job names detected</p>
-          <p className="text-xs text-blue-500 mt-0.5">
-            {localJobConfigs.length > 0
-              ? 'Select an existing job or create a new one.'
-              : 'Create a new job to map this roster name.'}
+        <div className="space-y-1.5">
+          <p className="font-medium">🔗 Job Mapping이란?</p>
+          <p className="text-xs text-blue-500">
+            로스터에 표시된 직업명(예: "Kitchen")을 앱에 등록된 Job(예: "Cafe")과 연결합니다.
+          </p>
+          <p className="text-xs text-blue-500">
+            💡 "Remember this mapping"을 체크하면 다음 스캔 시 자동으로 연결됩니다.
           </p>
         </div>
       </div>

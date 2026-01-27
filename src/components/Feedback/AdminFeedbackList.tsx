@@ -276,7 +276,14 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
                 </button>
              </div>
           </div>
-          <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.message}</p>
+          {!expanded && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] bg-slate-100 text-slate-700 rounded-2xl rounded-tl-none p-3 text-sm whitespace-pre-wrap">
+                <p className="text-[10px] text-slate-400 font-bold mb-1">User</p>
+                {item.message}
+              </div>
+            </div>
+          )}
           
           <div className="flex gap-2 items-center">
               <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", 
@@ -291,13 +298,19 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
           {/* Expanded View */}
           {expanded && (
             <div className="mt-4 pt-4 border-t border-slate-200/50 space-y-4">
+               <div className="flex justify-start">
+                 <div className="max-w-[85%] bg-slate-100 text-slate-700 rounded-2xl rounded-tl-none p-3 text-sm whitespace-pre-wrap">
+                   <p className="text-[10px] text-slate-400 font-bold mb-1">User</p>
+                   {item.message}
+                 </div>
+               </div>
                {/* Legacy Reply showing as first message if exists */}
                {item.admin_reply && (
                   <div className="flex justify-end">
-                      <div className="max-w-[85%] bg-indigo-500 text-white shadow-md shadow-indigo-500/20 rounded-2xl rounded-tr-none p-3 text-sm">
-                         <p className="text-[10px] text-indigo-200 font-bold mb-1">Admin (Legacy)</p>
-                         {item.admin_reply}
-                      </div>
+                    <div className="max-w-[85%] bg-indigo-500 text-white shadow-md shadow-indigo-500/20 rounded-2xl rounded-tr-none p-3 text-sm">
+                      <p className="text-[10px] text-indigo-200 font-bold mb-1">Admin (Legacy)</p>
+                      {item.admin_reply}
+                    </div>
                   </div>
                )}
 
@@ -308,9 +321,9 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
                    <div key={reply.id} className={clsx("flex", reply.is_admin_reply ? "justify-end" : "justify-start")}>
                      <div className={clsx(
                        "max-w-[85%] rounded-2xl p-3 text-sm",
-                       !reply.is_admin_reply 
-                         ? "bg-slate-100 rounded-tl-none text-slate-700" 
-                         : "bg-indigo-500 rounded-tr-none text-white shadow-md shadow-indigo-500/20"
+                       reply.is_admin_reply 
+                         ? "bg-indigo-500 rounded-tr-none text-white shadow-md shadow-indigo-500/20" 
+                         : "bg-slate-100 rounded-tl-none text-slate-700"
                      )}>
                         <p className={clsx("text-[10px] font-bold mb-1", reply.is_admin_reply ? "text-indigo-200" : "text-slate-400")}>
                           {reply.is_admin_reply ? "Admin" : "User"}

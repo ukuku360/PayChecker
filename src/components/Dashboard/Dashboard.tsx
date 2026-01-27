@@ -2,7 +2,7 @@ import { useScheduleStore, SUPER_RATE } from '../../store/useScheduleStore';
 import { calculateTotalPay, calculateFortnightlyHours } from '../../utils/calculatePay';
 import { calculateTakeHome } from '../../data/taxRates';
 import type { JobType, JobConfig } from '../../types';
-import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, DollarSign, Sparkles } from 'lucide-react';
+import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, DollarSign, Sparkles, Briefcase, Calendar } from 'lucide-react';
 import { format, addDays, startOfMonth, endOfMonth } from 'date-fns';
 import { clsx } from 'clsx';
 import { useDraggable } from '@dnd-kit/core';
@@ -15,6 +15,7 @@ import { WorkStats } from './WorkStats';
 import { SavingsGoal } from './SavingsGoal';
 import { ExpensesView } from './ExpensesView';
 import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
+import { EmptyState } from '../EmptyState';
 
 interface DashboardProps {
   currentMonth: Date;
@@ -314,6 +315,33 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Empty State - No Jobs */}
+          {jobConfigs.length === 0 && (
+            <div className="neu-flat">
+              <EmptyState
+                icon={Briefcase}
+                title="첫 번째 직업을 추가하세요!"
+                description="직업을 등록하면 시프트를 추가하고 급여를 계산할 수 있습니다."
+                actionLabel="직업 추가하기"
+                onAction={onAddJob}
+              />
+            </div>
+          )}
+
+          {/* Empty State - No Shifts This Month */}
+          {jobConfigs.length > 0 && monthlyShifts.length === 0 && (
+            <div className="neu-flat">
+              <EmptyState
+                icon={Calendar}
+                title="이번 달 시프트가 없습니다"
+                description="로스터 스캐너로 시프트를 쉽게 추가하거나, 캘린더에서 더블클릭으로 직접 추가하세요!"
+                actionLabel="로스터 스캔하기"
+                onAction={onAIScan}
+                variant="subtle"
+              />
             </div>
           )}
         </div>

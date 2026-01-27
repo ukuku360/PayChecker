@@ -1,12 +1,62 @@
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, format } from 'date-fns';
-import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, X, GripVertical, MousePointerClick, Lightbulb, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DayCell } from './DayCell';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { VisaWarningModal } from './VisaWarningModal';
 import { calculateFortnightlyHours } from '../../utils/calculatePay';
 import type { Shift } from '../../types';
+
+const CALENDAR_HINTS_DISMISSED_KEY = 'paychecker_calendar_hints_dismissed';
+
+const CalendarHintBanner = () => {
+  const [isDismissed, setIsDismissed] = useState(true);
+  
+  useEffect(() => {
+    const dismissed = localStorage.getItem(CALENDAR_HINTS_DISMISSED_KEY);
+    setIsDismissed(dismissed === 'true');
+  }, []);
+
+  const handleDismiss = () => {
+    localStorage.setItem(CALENDAR_HINTS_DISMISSED_KEY, 'true');
+    setIsDismissed(true);
+  };
+
+  if (isDismissed) return null;
+
+  return (
+    <div className="mx-4 mt-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 animate-in slide-in-from-top-2 duration-300">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-indigo-100 rounded-lg shrink-0">
+            <Lightbulb className="w-4 h-4 text-indigo-500" />
+          </div>
+          <div className="space-y-2">
+            <h4 className="text-sm font-bold text-slate-700">캘린더 사용 팁</h4>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <GripVertical className="w-3 h-3 text-indigo-400" />
+                <span><strong>드래그 앤 드롭:</strong> 상단의 일정 카드를 캘린더 날짜로 드래그하세요</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <MousePointerClick className="w-3 h-3 text-indigo-400" />
+                <span><strong>더블클릭:</strong> 빈 날짜를 더블클릭하면 시프트 추가, 시프트를 더블클릭하면 시간 편집</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button 
+          onClick={handleDismiss}
+          className="p-1 hover:bg-white/50 rounded-lg transition-colors shrink-0"
+          aria-label="닫기"
+        >
+          <X className="w-4 h-4 text-slate-400" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface CalendarGridProps {
   currentDate: Date;
@@ -124,6 +174,7 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
         </h2>
           <div className="flex items-center gap-4">
             <GlobalSaveButton />
+            <ClearMonthButton monthStart={monthStart} monthEnd={monthEnd} />
             <div className="flex gap-3">
               <button 
                 onClick={() => onMonthChange(subMonths(currentDate, 1))}
@@ -140,6 +191,8 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
             </div>
           </div>
       </div>
+
+      <CalendarHintBanner />
 
       <div className="grid grid-cols-7 border-b border-white/50 bg-slate-100/30">
         {weekDays.map((day) => (
@@ -175,6 +228,76 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
         onConfirm={confirmPendingAction}
         overageAmount={overageAmount}
       />
+    </div>
+  );
+};
+
+const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd: Date }) => {
+  const { shifts, removeShiftsInRange } = useScheduleStore();
+  const [confirming, setConfirming] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const startKey = format(monthStart, 'yyyy-MM-dd');
+  const endKey = format(monthEnd, 'yyyy-MM-dd');
+  const monthShiftCount = shifts.filter(s => s.date >= startKey && s.date <= endKey).length;
+
+  useEffect(() => {
+    setConfirming(false);
+  }, [startKey, endKey]);
+
+  useEffect(() => {
+    if (confirming && monthShiftCount === 0) {
+      setConfirming(false);
+    }
+  }, [confirming, monthShiftCount]);
+
+  const handleClear = async () => {
+    if (clearing || monthShiftCount === 0) return;
+    setClearing(true);
+    await removeShiftsInRange(startKey, endKey);
+    setClearing(false);
+    setConfirming(false);
+  };
+
+  return (
+    <div className="flex items-center">
+      {!confirming ? (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          disabled={monthShiftCount === 0}
+          className={clsx(
+            "neu-btn flex items-center gap-2 !bg-rose-50 !text-rose-700 border border-rose-100",
+            monthShiftCount === 0 ? "opacity-50 !cursor-not-allowed" : "hover:!bg-rose-100"
+          )}
+          title="이번 달 시프트 전체 삭제"
+        >
+          <Trash2 className="w-4 h-4" />
+          <span>이번 달 삭제</span>
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={clearing}
+            className={clsx(
+              "px-3 py-2 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors shadow-sm",
+              clearing && "opacity-70"
+            )}
+          >
+            {clearing ? '삭제 중...' : `전체 삭제 (${monthShiftCount})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="neu-icon-btn w-9 h-9 !rounded-lg text-slate-500 hover:text-slate-700"
+            aria-label="삭제 취소"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -220,4 +343,3 @@ const GlobalSaveButton = () => {
     </button>
   );
 };
-

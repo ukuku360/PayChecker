@@ -1,70 +1,54 @@
 # PayChecker
+**Your Personal Roster & Pay Manager**
 
-I built this to keep track of my work schedule and calculate my pay because I got tired of doing the math manually every time. It's pretty straightforward - add your shifts, set your hourly rate, and it handles the rest (including penalty rates, holidays, etc.).
+Keeping track of variable shifts, penalty rates, and tax deductions can be a headache. PayChecker makes it effortless to manage your work schedule, calculate accurate expected pay, and track your financial goals—all in one place.
 
-Feel free to use it if you need something similar. I made it for myself but figured others might find it useful too.
+---
 
-## React Compiler
+## ✨ Features & How to Use
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Click on a section below to learn how PayChecker can help you.
 
-## Expanding the ESLint configuration
+<details>
+<summary><strong>📅 Auto Roster Scanner (Upload & Go)</strong></summary>
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+*   **Snap & Upload**: Just drag and drop your roster file (PDF or Image) into the app.
+*   **Automatic Schedule**: The app intelligently reads your shifts—dates, times, and roles—and adds them straight to your calendar.
+*   **Smart Mapping**: It remembers your job codes, so "Shift A" on your roster automatically links to your "Bartender" job settings.
+</details>
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+<details>
+<summary><strong>📊 Smart Dashboard & Savings Goals</strong></summary>
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+*   **track Your Earnings**: See exactly how much you are estimated to earn this week or month at a glance. No more guessing until payday.
+*   **Set Goals**: Saving for a holiday or a new car? Set a **Savings Goal** and watch your progress bar grow as you complete shifts.
+</details>
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+<details>
+<summary><strong>💰 Fiscal Year Overview</strong></summary>
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+*   **Tax Made Easy**: View your income based on the financial year (e.g., July to June).
+*   **Year-to-Date Tracking**: Instantly see your total cumulative income for the year to help you stay on top of tax brackets and annual planning.
+</details>
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+<details>
+<summary><strong>💸 Expense Tracker</strong></summary>
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+*   **Log Deductions**: Bought new work boots, a uniform, or a course? Log the receipts immediately.
+*   **Organized for Tax Time**: Keep all your work-related expenses categorized and ready for when you need to file your tax return.
+</details>
+
+<details>
+<summary><strong>🏢 Manage Multiple Jobs</strong></summary>
+
+*   **Multiple Rates**: Juggle multiple jobs effortlessly. Add different employers and assign specific base rates to each.
+*   **Penalty Rates**: Define custom rules for weekends, public holidays, or late nights. The app does the math for you.
+</details>
+
+<br/>
+
+## � Get Started
+
+1.  **Add Your Jobs**: Go to the settings or Job Manager to set up your employers and hourly rates.
+2.  **Upload Roster**: Use the **Scanner** tab to upload your weekly or monthly roster.
+3.  **Check Dashboard**: Visit the **Dashboard** to see your upcoming schedule and projected earnings!

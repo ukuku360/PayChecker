@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { JobConfig, RateHistoryItem } from '../../types';
-import { X, Trash2, Calendar, History, Coffee } from 'lucide-react';
+import { X, Trash2, Calendar, History, Coffee, Info } from 'lucide-react';
 import { clsx } from 'clsx';
 import { dotColorMap } from '../../utils/colorUtils';
 import { format } from 'date-fns';
@@ -194,6 +194,14 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
               <div className="flex items-center gap-2 mb-1">
                 <div className="p-1.5 bg-amber-50 rounded-lg text-amber-500"><Coffee className="w-3.5 h-3.5" /></div>
                 <h3 className="text-sm font-bold text-slate-700">Unpaid Break</h3>
+                <div className="group relative ml-auto">
+                  <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
+                  <div className="absolute right-0 top-full mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                    <p className="font-medium mb-1">휴식 시간 차감 방식</p>
+                    <p className="text-slate-300">예: 8시간 근무 × 30분 휴식 = <strong>7.5시간 급여</strong></p>
+                    <div className="absolute -top-1.5 right-4 w-3 h-3 bg-slate-800 rotate-45" />
+                  </div>
+                </div>
               </div>
               <div>
                 <label className={labelClass}>Break Time</label>
@@ -230,7 +238,23 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                 <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500"><Calendar className="w-3.5 h-3.5" /></div>
                     <div className="flex flex-col">
-                        <h3 className="text-sm font-bold text-slate-700">Hourly Rates</h3>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-sm font-bold text-slate-700">Hourly Rates</h3>
+                          <div className="group relative">
+                            <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
+                            <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                              <p className="font-medium mb-2">🎯 Penalty Rates 예시</p>
+                              <div className="space-y-1 text-slate-300">
+                                <p>평일 시급: <strong>$25</strong></p>
+                                <p>토요일 (1.25x): <strong>$31.25</strong></p>
+                                <p>일요일 (1.5x): <strong>$37.50</strong></p>
+                                <p>공휴일 (2.5x): <strong>$62.50</strong></p>
+                              </div>
+                              <p className="text-slate-400 mt-2 text-[10px]">* 업종별 Award에 따라 다를 수 있습니다</p>
+                              <div className="absolute -top-1.5 left-4 w-3 h-3 bg-slate-800 rotate-45" />
+                            </div>
+                          </div>
+                        </div>
                         <span className="text-[10px] text-slate-400 font-medium uppercase">Effective Date</span>
                     </div>
                 </div>
@@ -269,13 +293,23 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                {/* History Expand Toggle */}
                {rateHistory.length > 0 && (
                  <div className="pt-2">
-                    <button 
-                        onClick={() => setShowHistory(!showHistory)}
-                        className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-500 flex items-center justify-center gap-2 transition-all"
-                    >
-                        <History className="w-3.5 h-3.5" />
-                        {showHistory ? 'Hide Rate History' : `View Rate History (${rateHistory.length})`}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                          onClick={() => setShowHistory(!showHistory)}
+                          className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-500 flex items-center justify-center gap-2 transition-all"
+                      >
+                          <History className="w-3.5 h-3.5" />
+                          {showHistory ? 'Hide Rate History' : `View Rate History (${rateHistory.length})`}
+                      </button>
+                      <div className="group relative">
+                        <Info className="w-4 h-4 text-slate-400 cursor-help" />
+                        <div className="absolute right-0 top-full mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                          <p className="font-medium mb-1">📅 Rate History란?</p>
+                          <p className="text-slate-300">급여 인상 시 이전 요율을 기록합니다. 과거 날짜의 시프트에는 해당 시점의 요율이 자동 적용됩니다.</p>
+                          <div className="absolute -top-1.5 right-4 w-3 h-3 bg-slate-800 rotate-45" />
+                        </div>
+                      </div>
+                    </div>
                     
                     {showHistory && (
                         <div className="mt-3 space-y-2 animate-in slide-in-from-top-2 duration-200">

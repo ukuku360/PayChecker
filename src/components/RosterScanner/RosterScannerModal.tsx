@@ -30,6 +30,14 @@ const STEP_TITLES: Record<ExtendedScanStep, string> = {
   confirmation: 'Confirm Shifts'
 };
 
+const STEP_DESCRIPTIONS: Record<ExtendedScanStep, string> = {
+  upload: '로스터 이미지나 PDF를 업로드하세요',
+  processing: 'AI가 시프트 정보를 추출하고 있습니다',
+  questions: '정확한 추출을 위해 몇 가지 질문에 답해주세요',
+  mapping: '로스터의 직업명을 앱의 Job과 연결합니다',
+  confirmation: '추출된 시프트를 확인하고 캘린더에 추가합니다'
+};
+
 const STEP_ORDER: ExtendedScanStep[] = ['upload', 'processing', 'questions', 'mapping', 'confirmation'];
 
 export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps) {
@@ -421,6 +429,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 </div>
               ))}
             </div>
+            <p className="text-center text-xs text-slate-500 mt-2">{STEP_DESCRIPTIONS[step]}</p>
           </div>
         )}
 

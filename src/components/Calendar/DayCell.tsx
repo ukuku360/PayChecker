@@ -149,6 +149,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
 
   return (
     <div ref={setNodeRef} onDoubleClick={handleDoubleClick}
+      title={shifts.length === 0 ? "더블클릭으로 시프트 추가" : undefined}
       className={clsx(
         'min-h-[120px] p-2 flex flex-col gap-2 transition-all relative border-b border-r border-slate-50 last:border-r-0 cursor-pointer group/cell',
         !isCurrentMonth && 'bg-slate-50/30 text-slate-300',
@@ -328,7 +329,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
         {shifts.map((shift) => {
           const colors = colorMap[getJobColor(shift.type)] || colorMap.slate;
           return (
-            <div key={shift.id} onDoubleClick={(e) => { e.stopPropagation(); handleTimeEditOpen(shift); }} className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative', colors.bg, colors.border, colors.text)}>
+            <div key={shift.id} onDoubleClick={(e) => { e.stopPropagation(); handleTimeEditOpen(shift); }} title="더블클릭으로 시간 편집" className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative', colors.bg, colors.border, colors.text)}>
               <div className="flex justify-between items-center w-full">
                 <div className="flex flex-col gap-0.5 w-full">
                   <div className="flex justify-between items-center pr-4">

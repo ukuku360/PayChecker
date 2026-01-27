@@ -31,6 +31,7 @@ interface ScheduleState {
   addMultipleShifts: (shifts: Shift[]) => Promise<void>;
   updateShift: (id: string, shift: Partial<Shift>) => Promise<void>;
   removeShift: (id: string) => Promise<void>;
+  removeShiftsInRange: (startDate: string, endDate: string) => Promise<void>;
   addHoliday: (date: string) => void;
   removeHoliday: (date: string) => void;
   updateJobConfig: (id: string, config: Partial<JobConfig>) => Promise<void>;
@@ -310,6 +311,27 @@ export const useScheduleStore = create<ScheduleState>()(
         if (user) {
           const { error } = await supabase.from('shifts').delete().eq('id', id);
           if (error) console.error('Error removing shift:', error);
+        }
+      },
+
+      removeShiftsInRange: async (startDate, endDate) => {
+        const previousShifts = get().shifts;
+        set({
+          shifts: previousShifts.filter((s) => s.date < startDate || s.date > endDate),
+        });
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabase
+          .from('shifts')
+          .delete()
+          .eq('user_id', user.id)
+          .gte('date', startDate)
+          .lte('date', endDate);
+        if (error) {
+          console.error('Error removing shifts in range:', error);
+          set({ shifts: previousShifts });
         }
       },
 

@@ -1,8 +1,58 @@
-import { useCallback, useRef, useState } from 'react';
-import { Upload, Camera, FileText, X, AlertCircle, Sparkles } from 'lucide-react';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import { Upload, Camera, FileText, X, AlertCircle, Sparkles, Lightbulb, Image, Users } from 'lucide-react';
 import { clsx } from 'clsx';
 import { isValidImageFormat, isPDF } from '../../utils/imageUtils';
 import type { RosterIdentifier } from '../../types';
+
+const SCANNER_HINTS_DISMISSED_KEY = 'paychecker_scanner_hints_dismissed';
+
+const RosterScannerHintBanner = () => {
+  const [isDismissed, setIsDismissed] = useState(true);
+  
+  useEffect(() => {
+    const dismissed = localStorage.getItem(SCANNER_HINTS_DISMISSED_KEY);
+    setIsDismissed(dismissed === 'true');
+  }, []);
+
+  const handleDismiss = () => {
+    localStorage.setItem(SCANNER_HINTS_DISMISSED_KEY, 'true');
+    setIsDismissed(true);
+  };
+
+  if (isDismissed) return null;
+
+  return (
+    <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 animate-in slide-in-from-top-2 duration-300">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-indigo-100 rounded-lg shrink-0">
+            <Lightbulb className="w-4 h-4 text-indigo-500" />
+          </div>
+          <div className="space-y-2">
+            <h4 className="text-sm font-bold text-slate-700">로스터 스캔 팁</h4>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <Image className="w-3 h-3 text-indigo-400" />
+                <span><strong>스크린샷:</strong> 로스터 앱이나 이메일을 스크린샷으로 캡쳐하세요</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <Users className="w-3 h-3 text-indigo-400" />
+                <span><strong>여러 명 로스터:</strong> AI가 자동으로 당신의 시프트만 찾아냅니다</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button 
+          onClick={handleDismiss}
+          className="p-1 hover:bg-white/50 rounded-lg transition-colors shrink-0"
+          aria-label="닫기"
+        >
+          <X className="w-4 h-4 text-slate-400" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface UploadStepProps {
   onFileSelect: (file: File) => void;
@@ -87,7 +137,10 @@ export function UploadStep({
   }, []);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
+      {/* Hint Banner */}
+      <RosterScannerHintBanner />
+      
       {/* Instructions */}
       <div className="text-center text-sm text-slate-500">
         <p>Upload a photo or screenshot of your work roster.</p>

@@ -291,25 +291,38 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
           </button>
       </div>
       
-      <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.message}</p>
+      {!expanded && (
+        <div className="flex justify-start">
+          <div className="max-w-[85%] bg-slate-100 rounded-2xl rounded-tl-none p-3 text-sm text-slate-700 whitespace-pre-wrap">
+            {item.message}
+          </div>
+        </div>
+      )}
       
       {/* Legacy Admin Reply Display (for backward compatibility) */}
       {item.admin_reply && !expanded && (
-        <div className="mt-3 ml-2 pl-3 border-l-2 border-indigo-200">
-          <p className="text-xs font-bold text-indigo-500 mb-1">Developer Reply</p>
-          <p className="text-sm text-slate-600 truncate">{item.admin_reply}</p>
+        <div className="mt-3 flex justify-end">
+          <div className="max-w-[85%] bg-indigo-500 rounded-2xl rounded-tr-none p-3 text-sm text-white shadow-md shadow-indigo-500/20">
+            <p className="text-[10px] text-indigo-200 font-bold mb-1">Developer</p>
+            <span className="truncate block">{item.admin_reply}</span>
+          </div>
         </div>
       )}
 
       {expanded && (
         <div className="mt-4 pt-4 border-t border-slate-200/50 space-y-4">
+           <div className="flex justify-start">
+             <div className="max-w-[85%] bg-slate-100 rounded-2xl rounded-tl-none p-3 text-sm text-slate-700 whitespace-pre-wrap">
+               {item.message}
+             </div>
+           </div>
            {/* Legacy Reply showing as first message if exists */}
            {item.admin_reply && (
-              <div className="flex justify-start">
-                  <div className="max-w-[85%] bg-indigo-50 rounded-2xl rounded-tl-none p-3 text-sm text-slate-700">
-                     <p className="text-[10px] text-indigo-500 font-bold mb-1">Developer</p>
-                     {item.admin_reply}
-                  </div>
+              <div className="flex justify-end">
+                <div className="max-w-[85%] bg-indigo-500 rounded-2xl rounded-tr-none p-3 text-sm text-white shadow-md shadow-indigo-500/20">
+                  <p className="text-[10px] text-indigo-200 font-bold mb-1">Developer</p>
+                  {item.admin_reply}
+                </div>
               </div>
            )}
 
@@ -317,14 +330,14 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
              <div className="text-center text-xs text-slate-400 py-2">Loading replies...</div>
            ) : (
              replies.map(reply => (
-               <div key={reply.id} className={clsx("flex", reply.is_admin_reply ? "justify-start" : "justify-end")}>
+               <div key={reply.id} className={clsx("flex", reply.is_admin_reply ? "justify-end" : "justify-start")}>
                  <div className={clsx(
                    "max-w-[85%] rounded-2xl p-3 text-sm",
                    reply.is_admin_reply 
-                     ? "bg-indigo-50 rounded-tl-none text-slate-700" 
-                     : "bg-indigo-500 rounded-tr-none text-white shadow-md shadow-indigo-500/20"
+                     ? "bg-indigo-500 rounded-tr-none text-white shadow-md shadow-indigo-500/20" 
+                     : "bg-slate-100 rounded-tl-none text-slate-700"
                  )}>
-                    {reply.is_admin_reply && <p className="text-[10px] text-indigo-500 font-bold mb-1">Developer</p>}
+                    {reply.is_admin_reply && <p className="text-[10px] text-indigo-200 font-bold mb-1">Developer</p>}
                     {reply.content}
                  </div>
                </div>
