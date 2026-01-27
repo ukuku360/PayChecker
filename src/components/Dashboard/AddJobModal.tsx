@@ -8,15 +8,28 @@ interface AddJobModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (job: JobConfig) => void;
+  existingJobIds?: string[];
 }
 
-export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
+export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: AddJobModalProps) {
   const [newJobName, setNewJobName] = useState('');
   const [newJobColor, setNewJobColor] = useState('purple');
   const [defaultWeekdayHours, setDefaultWeekdayHours] = useState<string | number>(7.5);
   const [defaultWeekendHours, setDefaultWeekendHours] = useState<string | number>(7.5);
-  
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+
   const [isRendered, setIsRendered] = useState(false);
+
+  // Check for duplicate job ID
+  const checkDuplicate = (name: string): boolean => {
+    const newId = name.toUpperCase().replace(/\s+/g, '_');
+    if (existingJobIds.includes(newId)) {
+      setDuplicateError(`A job with ID "${newId}" already exists`);
+      return true;
+    }
+    setDuplicateError(null);
+    return false;
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -33,6 +46,7 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
 
   const handleAddJob = () => {
     if (!newJobName.trim()) return;
+    if (checkDuplicate(newJobName)) return;
 
     const newJob: JobConfig = {
       id: newJobName.toUpperCase().replace(/\s+/g, '_'),
@@ -62,14 +76,12 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
         "fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300",
         isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
-      onClick={onClose}
     >
-      <div 
+      <div
         className={clsx(
           "glass-panel w-full max-w-sm mx-4 overflow-hidden transform transition-all duration-300",
           isOpen ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
         )}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
           <h2 className="text-lg font-bold text-slate-700">Add New Job</h2>
@@ -97,10 +109,20 @@ export function AddJobModal({ isOpen, onClose, onAdd }: AddJobModalProps) {
               autoComplete="off" // generic field
               placeholder="e.g., Tutoring"
               value={newJobName}
-              onChange={(e) => setNewJobName(e.target.value)}
-              className="neu-pressed w-full px-4 py-3 border-none focus:ring-0 text-sm placeholder-slate-400 text-slate-700"
+              onChange={(e) => {
+                setNewJobName(e.target.value);
+                if (duplicateError) checkDuplicate(e.target.value);
+              }}
+              onBlur={() => checkDuplicate(newJobName)}
+              className={clsx(
+                "neu-pressed w-full px-4 py-3 border-none focus:ring-0 text-sm placeholder-slate-400 text-slate-700",
+                duplicateError && "ring-1 ring-rose-400"
+              )}
               autoFocus
             />
+            {duplicateError && (
+              <p className="text-xs text-rose-500 mt-1 pl-1">{duplicateError}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, Camera, FileText, X, AlertCircle } from 'lucide-react';
+import { Upload, Camera, FileText, X, AlertCircle, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { isValidImageFormat, isPDF } from '../../utils/imageUtils';
+import type { RosterIdentifier } from '../../types';
 
 interface UploadStepProps {
   onFileSelect: (file: File) => void;
@@ -10,6 +11,14 @@ interface UploadStepProps {
   onClear: () => void;
   onProcess: () => void;
   isLoading: boolean;
+  // Legacy props - kept for backward compatibility but not used in AI-first flow
+  identifier: RosterIdentifier | null;
+  onIdentifierChange: (identifier: RosterIdentifier | null) => void;
+  scanAll: boolean;
+  onScanAllChange: (scanAll: boolean) => void;
+  onSaveIdentifier?: () => void;
+  hasSavedIdentifier?: boolean;
+  scanUsage?: { used: number; limit: number } | null;
 }
 
 const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.heic,.heif,.webp,.pdf';
@@ -21,7 +30,8 @@ export function UploadStep({
   file,
   onClear,
   onProcess,
-  isLoading
+  isLoading,
+  scanUsage
 }: UploadStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +92,14 @@ export function UploadStep({
       <div className="text-center text-sm text-slate-500">
         <p>Upload a photo or screenshot of your work roster.</p>
         <p className="text-xs mt-1 text-slate-400">Supports JPG, PNG, HEIC, and PDF</p>
+        {scanUsage && (
+          <p className={clsx(
+            "text-xs mt-2 font-medium",
+            scanUsage.limit - scanUsage.used <= 3 ? "text-amber-600" : "text-slate-400"
+          )}>
+            {scanUsage.limit - scanUsage.used} scans remaining this month
+          </p>
+        )}
       </div>
 
       {/* Error display */}
@@ -193,6 +211,17 @@ export function UploadStep({
             <span className="text-slate-400 ml-2">
               ({(file.size / (1024 * 1024)).toFixed(2)} MB)
             </span>
+          </div>
+
+          {/* AI-first info banner */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+            <Sparkles className="w-5 h-5 text-indigo-500 shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-indigo-700">Smart Detection</p>
+              <p className="text-xs text-indigo-500">
+                AI will analyze your roster and ask who you are
+              </p>
+            </div>
           </div>
 
           {/* Process button */}

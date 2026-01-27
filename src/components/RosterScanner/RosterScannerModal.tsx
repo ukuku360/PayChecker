@@ -2,14 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Sparkles, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useScheduleStore } from '../../store/useScheduleStore';
-import { processRoster, saveJobAliases, getJobAliases } from '../../lib/rosterApi';
+import { processRosterPhase1, processRosterPhase2, saveJobAliases, getJobAliases, getRosterScanUsage } from '../../lib/rosterApi';
 import { supabase } from '../../lib/supabaseClient';
 import { compressImage, createPreviewUrl, isPDF } from '../../utils/imageUtils';
 import { extractFirstPageAsImage } from '../../utils/pdfUtils';
-import type { ParsedShift, JobAlias } from '../../types';
+import type { ParsedShift, JobAlias, IdentifiedPerson, SmartQuestion, QuestionAnswer, OcrResult } from '../../types';
 import type { ScanStep, JobMapping } from './types';
 import { UploadStep } from './UploadStep';
 import { ProcessingStep } from './ProcessingStep';
+import { QuestionStep } from './QuestionStep';
 import { JobMappingStep } from './JobMappingStep';
 import { ConfirmationStep } from './ConfirmationStep';
 
@@ -18,19 +19,25 @@ interface RosterScannerModalProps {
   onClose: () => void;
 }
 
-const STEP_TITLES: Record<ScanStep, string> = {
+// Extended step type to include questions
+type ExtendedScanStep = ScanStep | 'questions';
+
+const STEP_TITLES: Record<ExtendedScanStep, string> = {
   upload: 'Scan Roster',
   processing: 'Analyzing',
+  questions: 'Quick Question',
   mapping: 'Map Jobs',
   confirmation: 'Confirm Shifts'
 };
+
+const STEP_ORDER: ExtendedScanStep[] = ['upload', 'processing', 'questions', 'mapping', 'confirmation'];
 
 export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps) {
   const { jobConfigs, shifts: existingShifts, addMultipleShifts, addJobConfig } = useScheduleStore();
   const [isRendered, setIsRendered] = useState(false);
 
   // Scanner state
-  const [step, setStep] = useState<ScanStep>('upload');
+  const [step, setStep] = useState<ExtendedScanStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [parsedShifts, setParsedShifts] = useState<ParsedShift[]>([]);
@@ -42,6 +49,16 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
   const [jobAliases, setJobAliases] = useState<JobAlias[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
+
+  // AI-first flow state
+  const [questions, setQuestions] = useState<SmartQuestion[]>([]);
+  const [ocrData, setOcrData] = useState<OcrResult | null>(null);
+
+  // Scan usage state
+  const [scanUsage, setScanUsage] = useState<{ used: number; limit: number } | null>(null);
+
+  // Identified person from AI
+  const [identifiedPerson, setIdentifiedPerson] = useState<IdentifiedPerson | null>(null);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -58,9 +75,15 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
       setIsLoading(false);
       setShowSuccess(false);
       setAddedCount(0);
+      setQuestions([]);
+      setOcrData(null);
+      setIdentifiedPerson(null);
 
       // Fetch existing job aliases
       getJobAliases().then(aliases => setJobAliases(aliases)).catch(console.error);
+
+      // Fetch scan usage
+      getRosterScanUsage().then(usage => setScanUsage(usage)).catch(console.error);
     } else {
       const timer = setTimeout(() => setIsRendered(false), 200);
       return () => clearTimeout(timer);
@@ -100,6 +123,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
     setErrorType(null);
   }, [previewUrl]);
 
+  // Phase 1: OCR + Question Generation
   const handleProcess = useCallback(async () => {
     if (!file) return;
 
@@ -110,36 +134,104 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
 
     try {
       // Compress image or extract from PDF
-      let imageBase64: string;
+      let base64: string;
 
       if (isPDF(file)) {
-        imageBase64 = await extractFirstPageAsImage(file);
+        base64 = await extractFirstPageAsImage(file);
       } else {
-        imageBase64 = await compressImage(file);
+        base64 = await compressImage(file);
       }
 
-      // Call API
-      const result = await processRoster(
-        imageBase64,
-        jobConfigs.map(j => ({ id: j.id, name: j.name })),
-        jobAliases.map(a => ({ alias: a.alias, job_config_id: a.job_config_id }))
-      );
+      // Call Phase 1 API: OCR + Question Generation
+      const result = await processRosterPhase1(base64);
 
       if (!result.success) {
-        setError(result.error || 'Processing failed');
+        setError(result.error || 'Failed to analyze roster');
         setErrorType(result.errorType || 'unknown');
         setScanLimit(result.scanLimit ?? null);
         setIsLoading(false);
         return;
       }
 
-      setParsedShifts(result.shifts);
+      // Update scan usage
+      if (result.scansUsed !== undefined && result.scanLimit !== undefined) {
+        setScanUsage({ used: result.scansUsed, limit: result.scanLimit });
+      }
+
+      // Store OCR data and questions (with defensive checks)
+      const safeOcrData = result.ocrData || { success: false, contentType: 'text' as const, headers: [], rows: [] };
+      setOcrData(safeOcrData);
+      const safeQuestions = Array.isArray(result.questions) ? result.questions : [];
+      setQuestions(safeQuestions);
+
+      // Check if we should skip questions and go straight to extraction
+      // skipToExtraction is true for simple content (single-person, email, etc.)
+      const shouldSkipQuestions = result.skipToExtraction === true || safeQuestions.length === 0;
+
+      if (shouldSkipQuestions) {
+        // Pass ocrData directly since setState is async
+        await handleQuestionSubmit([], safeOcrData);
+      } else {
+        setStep('questions');
+        setIsLoading(false);
+      }
+    } catch (err) {
+      console.error('Phase 1 error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setErrorType('unknown');
+      setScanLimit(null);
+      setIsLoading(false);
+    }
+  }, [file]);
+
+  // Phase 2: Filter with user's answers
+  const handleQuestionSubmit = useCallback(async (answers: QuestionAnswer[], contentData?: OcrResult) => {
+    // Use directly passed contentData or fall back to state
+    const dataToUse = contentData || ocrData;
+    
+    if (!dataToUse) {
+      setError('Missing OCR data');
+      setErrorType('unknown');
+      return;
+    }
+
+    setStep('processing');
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Call Phase 2 API: Filter with answers
+      const result = await processRosterPhase2(
+        dataToUse,
+        answers,
+        jobConfigs.map(j => ({ id: j.id, name: j.name })),
+        jobAliases.map(a => ({ alias: a.alias, job_config_id: a.job_config_id }))
+      );
+
+      if (!result.success) {
+        setError(result.error || 'Failed to extract shifts');
+        setErrorType(result.errorType || 'unknown');
+        setIsLoading(false);
+        return;
+      }
+
+      // Validate mappedJobId - if the job doesn't exist, treat as unmapped
+      const jobConfigIds = new Set(jobConfigs.map(j => j.id));
+      const validatedShifts = result.shifts.map(shift => {
+        if (shift.mappedJobId && !jobConfigIds.has(shift.mappedJobId)) {
+          return { ...shift, mappedJobId: undefined };
+        }
+        return shift;
+      });
+
+      setParsedShifts(validatedShifts);
+      setIdentifiedPerson(result.identifiedPerson ?? null);
 
       // Check for unmapped jobs
-      const unmapped = result.shifts
+      const unmapped = validatedShifts
         .filter(s => !s.mappedJobId)
         .map(s => s.rosterJobName)
-        .filter((name, idx, arr) => arr.indexOf(name) === idx); // unique
+        .filter((name, idx, arr) => arr.indexOf(name) === idx);
 
       setUnmappedJobNames(unmapped);
 
@@ -150,14 +242,13 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
         setStep('confirmation');
       }
     } catch (err) {
-      console.error('Process error:', err);
+      console.error('Phase 2 error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
       setErrorType('unknown');
-      setScanLimit(null);
     } finally {
       setIsLoading(false);
     }
-  }, [file, jobConfigs, jobAliases]);
+  }, [ocrData, jobConfigs, jobAliases]);
 
   const handleRetry = useCallback(() => {
     handleProcess();
@@ -165,6 +256,14 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
 
   const handleBackToUpload = useCallback(() => {
     setStep('upload');
+    setError(null);
+    setErrorType(null);
+    setQuestions([]);
+    setOcrData(null);
+  }, []);
+
+  const handleBackToQuestions = useCallback(() => {
+    setStep('questions');
     setError(null);
     setErrorType(null);
   }, []);
@@ -182,7 +281,6 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
   }, [addJobConfig]);
 
   const handleMappingComplete = useCallback(async (mappings: JobMapping[]) => {
-    // Apply mappings to shifts
     const updatedShifts = parsedShifts.map(shift => {
       const mapping = mappings.find(m => m.rosterJobName === shift.rosterJobName);
       if (mapping) {
@@ -193,7 +291,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
 
     setParsedShifts(updatedShifts);
 
-    // Save aliases for mappings that should be remembered
+    // Save aliases
     const aliasesToSave = mappings.filter(m => m.saveAsAlias);
     if (aliasesToSave.length > 0) {
       try {
@@ -201,8 +299,6 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
           alias: m.rosterJobName,
           job_config_id: m.mappedJobId
         })));
-
-        // Update local aliases
         const newAliases = await getJobAliases();
         setJobAliases(newAliases);
       } catch (err) {
@@ -219,27 +315,32 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
 
   const handleConfirm = useCallback(async () => {
     const selectedShifts = parsedShifts.filter(s => s.selected && s.mappedJobId);
-
     if (selectedShifts.length === 0) return;
 
     setIsLoading(true);
 
     try {
-      // Convert ParsedShift to Shift format
-      const shiftsToAdd = selectedShifts.map(s => ({
-        id: s.id,
-        date: s.date,
-        type: s.mappedJobId!,
-        hours: s.totalHours,
-        note: `Scanned: ${s.startTime}-${s.endTime}`
-      }));
+      const shiftsToAdd = selectedShifts.map(s => {
+        let note = `Scanned from roster: ${s.rosterJobName}`;
+        if (s.startTime && s.endTime) {
+          note = `Scanned: ${s.startTime}-${s.endTime}`;
+        }
+        
+        return {
+          id: s.id,
+          date: s.date,
+          type: s.mappedJobId!,
+          hours: s.totalHours ?? 0,
+          note,
+          ...(s.startTime ? { startTime: s.startTime } : {}),
+          ...(s.endTime ? { endTime: s.endTime } : {})
+        };
+      });
 
       await addMultipleShifts(shiftsToAdd);
-
       setAddedCount(shiftsToAdd.length);
       setShowSuccess(true);
 
-      // Auto-close after showing success
       setTimeout(() => {
         onClose();
       }, 2000);
@@ -251,6 +352,8 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
     }
   }, [parsedShifts, addMultipleShifts, onClose]);
 
+  const getStepIndex = (s: ExtendedScanStep) => STEP_ORDER.indexOf(s);
+
   if (!isRendered) return null;
 
   return (
@@ -259,14 +362,12 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
         "fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300",
         isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
-      onClick={onClose}
     >
       <div
         className={clsx(
           "glass-panel w-full max-w-lg mx-4 overflow-hidden transform transition-all duration-300",
           isOpen ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
         )}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
@@ -291,31 +392,29 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
         {!showSuccess && (
           <div className="px-6 py-3 border-b border-white/20 bg-white/10">
             <div className="flex items-center justify-between">
-              {(['upload', 'processing', 'mapping', 'confirmation'] as ScanStep[]).map((s, idx) => (
+              {STEP_ORDER.map((s, idx) => (
                 <div key={s} className="flex items-center">
                   <div
                     className={clsx(
                       "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
                       step === s
                         ? "bg-indigo-500 text-white"
-                        : ['upload', 'processing', 'mapping', 'confirmation'].indexOf(step) > idx
+                        : getStepIndex(step) > idx
                         ? "bg-emerald-500 text-white"
                         : "bg-slate-200 text-slate-400"
                     )}
                   >
-                    {['upload', 'processing', 'mapping', 'confirmation'].indexOf(step) > idx ? (
+                    {getStepIndex(step) > idx ? (
                       <Check className="w-3 h-3" />
                     ) : (
                       idx + 1
                     )}
                   </div>
-                  {idx < 3 && (
+                  {idx < STEP_ORDER.length - 1 && (
                     <div
                       className={clsx(
-                        "w-8 h-0.5 mx-1",
-                        ['upload', 'processing', 'mapping', 'confirmation'].indexOf(step) > idx
-                          ? "bg-emerald-500"
-                          : "bg-slate-200"
+                        "w-6 h-0.5 mx-0.5",
+                        getStepIndex(step) > idx ? "bg-emerald-500" : "bg-slate-200"
                       )}
                     />
                   )}
@@ -348,18 +447,33 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 onClear={handleClearFile}
                 onProcess={handleProcess}
                 isLoading={isLoading}
+                identifier={null}
+                onIdentifierChange={() => {}}
+                scanAll={true}
+                onScanAllChange={() => {}}
+                scanUsage={scanUsage}
               />
             )}
 
             {step === 'processing' && (
-      <ProcessingStep
-        error={error}
-        errorType={errorType}
-        scanLimit={scanLimit}
-        onRetry={handleRetry}
-        onBack={handleBackToUpload}
-        onReauth={handleReauth}
-      />
+              <ProcessingStep
+                error={error}
+                errorType={errorType}
+                scanLimit={scanLimit}
+                onRetry={handleRetry}
+                onBack={questions.length > 0 ? handleBackToQuestions : handleBackToUpload}
+                onReauth={handleReauth}
+              />
+            )}
+
+            {step === 'questions' && ocrData && (
+              <QuestionStep
+                questions={questions}
+                ocrData={ocrData}
+                onSubmit={handleQuestionSubmit}
+                onBack={handleBackToUpload}
+                isLoading={isLoading}
+              />
             )}
 
             {step === 'mapping' && (
@@ -367,7 +481,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 unmappedJobNames={unmappedJobNames}
                 jobConfigs={jobConfigs}
                 onComplete={handleMappingComplete}
-                onBack={() => setStep('upload')}
+                onBack={handleBackToQuestions}
                 onAddJob={handleAddJob}
               />
             )}
@@ -379,8 +493,10 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 existingShifts={existingShifts}
                 onShiftsChange={handleShiftsChange}
                 onConfirm={handleConfirm}
-                onBack={() => unmappedJobNames.length > 0 ? setStep('mapping') : setStep('upload')}
+                onBack={() => unmappedJobNames.length > 0 ? setStep('mapping') : handleBackToQuestions()}
                 isLoading={isLoading}
+                onAddJob={handleAddJob}
+                identifiedPerson={identifiedPerson}
               />
             )}
           </>

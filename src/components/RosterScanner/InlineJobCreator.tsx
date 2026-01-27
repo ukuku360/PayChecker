@@ -10,10 +10,15 @@ interface InlineJobCreatorProps {
   suggestedName?: string;
 }
 
+const DEFAULT_HOURLY_RATES = { weekday: 25, saturday: 30, sunday: 35, holiday: 40 };
+
 const DEFAULT_JOB_CONFIG = {
   defaultHours: { weekday: 8, weekend: 8 },
-  hourlyRates: { weekday: 25, saturday: 30, sunday: 35, holiday: 40 },
-  rateHistory: [] as any[]
+  hourlyRates: DEFAULT_HOURLY_RATES,
+  rateHistory: [{
+    effectiveDate: '2000-01-01',
+    rates: DEFAULT_HOURLY_RATES
+  }]
 };
 
 export function InlineJobCreator({ onJobCreated, onCancel, suggestedName = '' }: InlineJobCreatorProps) {

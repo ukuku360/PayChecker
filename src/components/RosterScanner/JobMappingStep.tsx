@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowRight, Save, HelpCircle, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { JobConfig } from '../../types';
@@ -29,6 +29,14 @@ export function JobMappingStep({
     return initial;
   });
 
+  // Local copy of job configs that includes newly created jobs
+  const [localJobConfigs, setLocalJobConfigs] = useState<JobConfig[]>(jobConfigs);
+
+  // Sync with parent jobConfigs when they change
+  useEffect(() => {
+    setLocalJobConfigs(jobConfigs);
+  }, [jobConfigs]);
+
   // Track which roster name is currently adding a new job
   const [creatingJobFor, setCreatingJobFor] = useState<string | null>(null);
 
@@ -42,6 +50,9 @@ export function JobMappingStep({
   };
 
   const handleJobCreated = async (rosterName: string, newJob: JobConfig) => {
+    // Add to local state immediately so it appears in the UI
+    setLocalJobConfigs(prev => [...prev, newJob]);
+    // Also persist to the store
     await onAddJob(newJob);
     // Auto-select the newly created job
     handleJobSelect(rosterName, newJob.id);
@@ -86,7 +97,7 @@ export function JobMappingStep({
         <div>
           <p className="font-medium">New job names detected</p>
           <p className="text-xs text-blue-500 mt-0.5">
-            {jobConfigs.length > 0
+            {localJobConfigs.length > 0
               ? 'Select an existing job or create a new one.'
               : 'Create a new job to map this roster name.'}
           </p>
@@ -121,7 +132,7 @@ export function JobMappingStep({
 
               {/* Existing jobs + New job button */}
               <div className="flex flex-wrap gap-2">
-                {jobConfigs.map(job => (
+                {localJobConfigs.map(job => (
                   <button
                     key={job.id}
                     type="button"

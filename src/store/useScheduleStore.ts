@@ -7,6 +7,9 @@ interface CopiedShiftData {
   type: string;
   hours: number;
   note?: string;
+  startTime?: string;
+  endTime?: string;
+  breakMinutes?: number;
 }
 
 interface ScheduleState {
@@ -132,6 +135,8 @@ export const useScheduleStore = create<ScheduleState>()(
              },
              rateHistory: j.rate_history || [],
              defaultBreakMinutes: j.default_break_minutes != null ? Number(j.default_break_minutes) : undefined,
+             defaultStartTime: j.default_start_time || undefined,
+             defaultEndTime: j.default_end_time || undefined,
            }));
            
            // Migration for existing data: if rateHistory is empty, seed it with current rates
@@ -163,6 +168,9 @@ export const useScheduleStore = create<ScheduleState>()(
             type: s.type,
             hours: Number(s.hours),
             note: s.note || undefined,
+            startTime: s.start_time || undefined,
+            endTime: s.end_time || undefined,
+            breakMinutes: s.break_minutes || 0,
           }));
           set({ shifts: mappedShifts });
         }
@@ -182,18 +190,20 @@ export const useScheduleStore = create<ScheduleState>()(
           });
         } else {
           // Profile doesn't exist - create one with defaults
-          // We can do this asynchronously without waiting
-          supabase.from('profiles').insert({
+          const { error: createError } = await supabase.from('profiles').insert({
             id: user.id,
             is_student_visa_holder: false,
             vacation_periods: [],
             savings_goal: 0,
             holidays: []
-          }).then(({ error }) => {
-             if (error) console.error('Error creating profile:', error);
           });
 
-          set({ 
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            // Still set defaults locally even if DB fails
+          }
+
+          set({
             isStudentVisaHolder: false,
             vacationPeriods: [],
             savingsGoal: 0,
@@ -219,7 +229,10 @@ export const useScheduleStore = create<ScheduleState>()(
              date: shift.date,
              type: shift.type,
              hours: shift.hours,
-             note: shift.note
+             note: shift.note,
+             start_time: shift.startTime,
+             end_time: shift.endTime,
+             break_minutes: shift.breakMinutes
           }, { onConflict: 'user_id, date, type' });
           if (error) console.error('Error adding shift:', error);
         }
@@ -227,6 +240,9 @@ export const useScheduleStore = create<ScheduleState>()(
 
       addMultipleShifts: async (newShifts) => {
         if (newShifts.length === 0) return;
+
+        // Save previous state for rollback
+        const previousShifts = get().shifts;
 
         // Optimistic update - remove any existing shifts with same date/type
         set((state) => {
@@ -247,7 +263,10 @@ export const useScheduleStore = create<ScheduleState>()(
             date: shift.date,
             type: shift.type,
             hours: shift.hours,
-            note: shift.note
+            note: shift.note,
+            start_time: shift.startTime,
+            end_time: shift.endTime,
+            break_minutes: shift.breakMinutes
           }));
 
           const { error } = await supabase.from('shifts').upsert(
@@ -257,6 +276,9 @@ export const useScheduleStore = create<ScheduleState>()(
 
           if (error) {
             console.error('Error adding multiple shifts:', error);
+            // Rollback on error
+            set({ shifts: previousShifts });
+            throw new Error('Failed to save shifts. Changes have been reverted.');
           }
         }
       },
@@ -271,6 +293,9 @@ export const useScheduleStore = create<ScheduleState>()(
           const { error } = await supabase.from('shifts').update({
              ...(updatedShift.hours !== undefined && { hours: updatedShift.hours }),
              ...(updatedShift.note !== undefined && { note: updatedShift.note }),
+             ...(updatedShift.startTime !== undefined && { start_time: updatedShift.startTime }),
+             ...(updatedShift.endTime !== undefined && { end_time: updatedShift.endTime }),
+             ...(updatedShift.breakMinutes !== undefined && { break_minutes: updatedShift.breakMinutes }),
           }).eq('id', id); 
           if (error) console.error('Error updating shift:', error);
         }
@@ -330,6 +355,8 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_holiday: fullConfig.hourlyRates.holiday,
              rate_history: fullConfig.rateHistory,
              default_break_minutes: fullConfig.defaultBreakMinutes || null,
+             default_start_time: fullConfig.defaultStartTime || null,
+             default_end_time: fullConfig.defaultEndTime || null,
            }).eq('config_id', id).eq('user_id', user.id);
            if (error) console.error('Error updating job config:', error);
         }
@@ -355,6 +382,8 @@ export const useScheduleStore = create<ScheduleState>()(
              hourly_rate_holiday: config.hourlyRates.holiday,
              rate_history: config.rateHistory,
              default_break_minutes: config.defaultBreakMinutes || null,
+             default_start_time: config.defaultStartTime || null,
+             default_end_time: config.defaultEndTime || null,
            });
            if (error) console.error('Error adding job config:', error);
         }

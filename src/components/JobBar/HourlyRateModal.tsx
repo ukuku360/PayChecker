@@ -10,9 +10,10 @@ interface HourlyRateModalProps {
   onClose: () => void;
   onSave: (id: string, config: Partial<JobConfig>) => void;
   onDelete?: (id: string) => void;
+  shiftCount?: number;
 }
 
-export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateModalProps) => {
+export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0 }: HourlyRateModalProps) => {
   const [rates, setRates] = useState(job.hourlyRates);
   const [defaultHours, setDefaultHours] = useState({
       weekday: job.defaultHours?.weekday ?? 0,
@@ -23,8 +24,26 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [breakHours, setBreakHours] = useState((job.defaultBreakMinutes ?? 0) / 60);
+  const [defaultStartTime, setDefaultStartTime] = useState(job.defaultStartTime || '');
+  const [defaultEndTime, setDefaultEndTime] = useState(job.defaultEndTime || '');
+  const [breakError, setBreakError] = useState<string | null>(null);
+
+  // Validate break time doesn't exceed shift duration
+  const validateBreakTime = (breakHrs: number) => {
+    const minShiftHours = Math.min(
+      defaultHours.weekday || Infinity,
+      defaultHours.weekend || Infinity
+    );
+    if (minShiftHours !== Infinity && breakHrs >= minShiftHours) {
+      setBreakError(`Break (${breakHrs}h) cannot exceed shift duration (${minShiftHours}h)`);
+      return false;
+    }
+    setBreakError(null);
+    return true;
+  };
 
   const handleSave = () => {
+    if (!validateBreakTime(breakHours)) return;
     // Logic:
     // 1. Create a RateHistoryItem for the current inputs
     const newHistoryItem: RateHistoryItem = {
@@ -52,6 +71,8 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
         defaultHours: defaultHours,
         rateHistory: updatedHistory,
         defaultBreakMinutes: breakHours > 0 ? breakHours * 60 : undefined,
+        defaultStartTime: defaultStartTime || undefined,
+        defaultEndTime: defaultEndTime || undefined,
     });
     onClose();
   };
@@ -81,13 +102,13 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
   const labelClass = "text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block";
 
   return (
-    <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300" onClick={onClose}>
+    <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
       <div 
         className="glass-panel w-full max-w-md mx-4 overflow-hidden shadow-2xl scale-100 animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/40">
+        <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
           <div className="flex items-center gap-3">
             <div className={clsx("w-3 h-3 rounded-full shadow-inner", dotColorMap[job.color] || 'bg-slate-500')} />
             <div>
@@ -95,7 +116,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
                 <p className="text-[10px] text-slate-500 font-medium tracking-wide uppercase">Configure rates & defaults</p>
             </div>
           </div>
-          <button onClick={onClose} className="neu-icon-btn w-8 h-8 !rounded-lg !p-0">
+          <button onClick={onClose} className="neu-icon-btn w-8 h-8 !rounded-lg !p-0" aria-label="Close modal">
             <X className="w-4 h-4 text-slate-500" />
           </button>
         </div>
@@ -139,6 +160,34 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
                   </div>
               </div>
           </div>
+          
+           {/* Default Times Configuration */}
+           <div className="neu-flat p-4 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500"><History className="w-3.5 h-3.5" /></div>
+                <h3 className="text-sm font-bold text-slate-700">Default Times (Optional)</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Start Time</label>
+                    <input
+                      type="time"
+                      value={defaultStartTime}
+                      onChange={(e) => setDefaultStartTime(e.target.value)}
+                      className={clsx(inputClass, "pl-3 bg-white/50 border-white/50 shadow-sm")}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>End Time</label>
+                    <input
+                      type="time"
+                      value={defaultEndTime}
+                      onChange={(e) => setDefaultEndTime(e.target.value)}
+                      className={clsx(inputClass, "pl-3 bg-white/50 border-white/50 shadow-sm")}
+                    />
+                  </div>
+              </div>
+          </div>
 
           {/* Break Time Configuration */}
           <div className="neu-flat p-4 rounded-xl space-y-3">
@@ -154,16 +203,24 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
                     min="0"
                     step="0.5"
                     value={breakHours}
-                    onChange={(e) => setBreakHours(Number(e.target.value) || 0)}
-                    className={clsx(inputClass, "pl-3 bg-white/50 border-white/50 shadow-sm")}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      setBreakHours(val);
+                      validateBreakTime(val);
+                    }}
+                    className={clsx(inputClass, "pl-3 bg-white/50 border-white/50 shadow-sm", breakError && "border-rose-300 focus:ring-rose-500")}
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">hrs</span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  {breakHours > 0
-                    ? `${breakHours}h will be deducted from paid hours`
-                    : 'No break deduction'}
-                </p>
+                {breakError ? (
+                  <p className="text-[10px] text-rose-500 mt-1.5 font-medium">{breakError}</p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    {breakHours > 0
+                      ? `${breakHours}h will be deducted from paid hours`
+                      : 'No break deduction'}
+                  </p>
+                )}
               </div>
           </div>
 
@@ -263,21 +320,28 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete }: HourlyRateMo
                   <span className="font-bold">Delete Job</span>
                 </button>
               ) : (
-                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    className="px-4 py-2 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors shadow-sm active:translate-y-0.5"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                  {shiftCount > 0 && (
+                    <p className="text-xs text-rose-600 font-medium">
+                      This will delete {shiftCount} shift{shiftCount !== 1 ? 's' : ''}!
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="px-4 py-2 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors shadow-sm active:translate-y-0.5"
+                    >
+                      {shiftCount > 0 ? 'Delete All' : 'Confirm'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

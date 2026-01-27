@@ -213,9 +213,9 @@ const GlobalSaveButton = () => {
         status === 'saving' && "animate-spin"
       )} />
       <span>
-        {status === 'saving' ? 'Syncing...' : 
-         status === 'saved' ? 'Synced!' : 
-         status === 'error' ? 'Error' : 'Save'}
+        {status === 'saving' ? 'Syncing...' :
+         status === 'saved' ? 'Synced!' :
+         status === 'error' ? 'Sync failed' : 'Save'}
       </span>
     </button>
   );

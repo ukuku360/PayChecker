@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
-import { Check, AlertTriangle, ChevronDown, ChevronUp, RefreshCcw } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Check, AlertTriangle, ChevronDown, ChevronUp, RefreshCcw, Plus, User, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format, parseISO, isValid } from 'date-fns';
-import type { ParsedShift, JobConfig, Shift } from '../../types';
+import type { ParsedShift, JobConfig, Shift, IdentifiedPerson } from '../../types';
 import { dotColorMap } from '../../utils/colorUtils';
 import { calculateTotalHours } from '../../utils/timeUtils';
+import { InlineJobCreator } from './InlineJobCreator';
 
 interface ConfirmationStepProps {
   shifts: ParsedShift[];
@@ -14,6 +15,8 @@ interface ConfirmationStepProps {
   onConfirm: () => void;
   onBack: () => void;
   isLoading: boolean;
+  onAddJob?: (job: JobConfig) => Promise<void>;
+  identifiedPerson?: IdentifiedPerson | null;
 }
 
 export function ConfirmationStep({
@@ -23,9 +26,20 @@ export function ConfirmationStep({
   onShiftsChange,
   onConfirm,
   onBack,
-  isLoading
+  isLoading,
+  onAddJob,
+  identifiedPerson
 }: ConfirmationStepProps) {
   const [expandedShift, setExpandedShift] = useState<string | null>(null);
+  const [creatingJobForShift, setCreatingJobForShift] = useState<string | null>(null);
+
+  // Local copy of job configs that includes newly created jobs
+  const [localJobConfigs, setLocalJobConfigs] = useState<JobConfig[]>(jobConfigs);
+
+  // Sync with parent jobConfigs when they change
+  useEffect(() => {
+    setLocalJobConfigs(jobConfigs);
+  }, [jobConfigs]);
 
   const formatShiftDate = (date: string) => {
     const parsed = parseISO(date);
@@ -52,6 +66,7 @@ export function ConfirmationStep({
   const totalCount = shiftsWithConflicts.length;
   const conflictCount = selectableShifts.filter(s => s.hasConflict && s.selected).length;
   const lowConfidenceCount = selectableShifts.filter(s => s.confidence < 0.8 && s.selected).length;
+  const missingTimeCount = selectableShifts.filter(s => s.selected && (!s.startTime || !s.endTime)).length;
 
   const handleToggleSelect = (shiftId: string) => {
     const updated = shifts.map(s =>
@@ -81,13 +96,16 @@ export function ConfirmationStep({
         return { ...s, date: value };
       }
       if (field === 'startTime' || field === 'endTime') {
-        const nextStart = field === 'startTime' ? value : s.startTime;
-        const nextEnd = field === 'endTime' ? value : s.endTime;
-        const recalculated = calculateTotalHours(nextStart, nextEnd);
+        // Handle empty string as null, otherwise use the value
+        const timeValue = value || null;
+        const nextStart = field === 'startTime' ? timeValue : s.startTime;
+        const nextEnd = field === 'endTime' ? timeValue : s.endTime;
+        // Only calculate if both times are present
+        const recalculated = (nextStart && nextEnd) ? calculateTotalHours(nextStart, nextEnd) : null;
         return {
           ...s,
-          ...(field === 'startTime' ? { startTime: value } : { endTime: value }),
-          ...(recalculated !== null ? { totalHours: recalculated } : {})
+          ...(field === 'startTime' ? { startTime: timeValue } : { endTime: timeValue }),
+          totalHours: recalculated
         };
       }
       return s;
@@ -97,24 +115,57 @@ export function ConfirmationStep({
 
   const getJobName = (jobId?: string) => {
     if (!jobId) return 'Unmapped';
-    const job = jobConfigs.find(j => j.id === jobId);
+    const job = localJobConfigs.find(j => j.id === jobId);
     return job?.name || jobId;
   };
 
   const getJobColor = (jobId?: string) => {
     if (!jobId) return 'slate';
-    const job = jobConfigs.find(j => j.id === jobId);
+    const job = localJobConfigs.find(j => j.id === jobId);
     return job?.color || 'slate';
   };
 
-  const formatTimeRange = (start: string, end: string) => {
+  const handleJobCreated = async (shiftId: string, newJob: JobConfig) => {
+    // Add to local state immediately so it appears in the UI
+    setLocalJobConfigs(prev => [...prev, newJob]);
+    // Persist to the store
+    if (onAddJob) {
+      await onAddJob(newJob);
+    }
+    // Auto-select the newly created job for this shift
+    handleFieldChange(shiftId, 'jobId', newJob.id);
+    // Close the creator
+    setCreatingJobForShift(null);
+  };
+
+  const formatTimeRange = (start: string | null, end: string | null) => {
+    if (!start && !end) return 'No time set';
+    if (!start) return `? - ${end}`;
+    if (!end) return `${start} - ?`;
     return `${start} - ${end}`;
   };
+
+  const hasMissingTime = (shift: ParsedShift) => !shift.startTime || !shift.endTime;
 
   return (
     <div className="flex flex-col h-full max-h-[70vh]">
       {/* Header summary */}
       <div className="p-4 border-b border-white/30 bg-white/10">
+        {/* Identified person banner */}
+        {identifiedPerson && (
+          <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
+            <User className="w-4 h-4 text-indigo-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-indigo-700">
+                Found: "{identifiedPerson.nameFound}"
+              </span>
+              <span className="text-xs text-indigo-500 ml-2">
+                ({identifiedPerson.location}, {Math.round(identifiedPerson.confidence * 100)}% match)
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div>
             <span className="text-sm font-bold text-slate-700">
@@ -136,8 +187,14 @@ export function ConfirmationStep({
         </div>
 
         {/* Warnings */}
-        {(conflictCount > 0 || lowConfidenceCount > 0) && (
-          <div className="flex gap-4 mt-2 text-xs">
+        {(conflictCount > 0 || lowConfidenceCount > 0 || missingTimeCount > 0) && (
+          <div className="flex flex-wrap gap-4 mt-2 text-xs">
+            {missingTimeCount > 0 && (
+              <span className="text-blue-600 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {missingTimeCount} need time input
+              </span>
+            )}
             {conflictCount > 0 && (
               <span className="text-amber-600 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
@@ -203,17 +260,26 @@ export function ConfirmationStep({
                     <span className="font-semibold text-sm text-slate-700">
                       {formatShiftDate(shift.date)}
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className={clsx(
+                      "text-xs",
+                      hasMissingTime(shift) ? "text-blue-500 font-medium" : "text-slate-400"
+                    )}>
                       {formatTimeRange(shift.startTime, shift.endTime)}
                     </span>
                   </div>
                   <div className="text-xs text-slate-500 truncate">
-                    {getJobName(shift.mappedJobId)} - {shift.totalHours}h
+                    {getJobName(shift.mappedJobId)} {shift.totalHours !== null ? `- ${shift.totalHours}h` : ''}
                   </div>
                 </div>
 
                 {/* Status badges */}
                 <div className="flex items-center gap-2">
+                  {hasMissingTime(shift) && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-bold rounded flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Time
+                    </span>
+                  )}
                   {shift.hasConflict && (
                     <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">
                       Replace
@@ -256,40 +322,79 @@ export function ConfirmationStep({
                     {/* Job */}
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase">Job</label>
-                      <select
-                        value={shift.mappedJobId || ''}
-                        onChange={(e) => handleFieldChange(shift.id, 'jobId', e.target.value)}
-                        className="w-full mt-1 px-2 py-1.5 text-sm rounded-lg neu-pressed border-none"
-                      >
-                        <option value="">-- Select Job --</option>
-                        {jobConfigs.map(job => (
-                          <option key={job.id} value={job.id}>{job.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex gap-2 mt-1">
+                        <select
+                          value={shift.mappedJobId || ''}
+                          onChange={(e) => handleFieldChange(shift.id, 'jobId', e.target.value)}
+                          className="flex-1 px-2 py-1.5 text-sm rounded-lg neu-pressed border-none"
+                        >
+                          <option value="">-- Select Job --</option>
+                          {localJobConfigs.map(job => (
+                            <option key={job.id} value={job.id}>{job.name}</option>
+                          ))}
+                        </select>
+                        {onAddJob && (
+                          <button
+                            type="button"
+                            onClick={() => setCreatingJobForShift(shift.id)}
+                            className="px-2 py-1.5 rounded-lg neu-flat hover:scale-105 transition-all"
+                            title="Create new job"
+                          >
+                            <Plus className="w-4 h-4 text-emerald-500" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Start time */}
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Start</label>
+                      <label className={clsx(
+                        "text-[10px] font-bold uppercase",
+                        !shift.startTime ? "text-blue-500" : "text-slate-400"
+                      )}>
+                        Start {!shift.startTime && "*"}
+                      </label>
                       <input
                         type="time"
-                        value={shift.startTime}
+                        value={shift.startTime || ''}
                         onChange={(e) => handleFieldChange(shift.id, 'startTime', e.target.value)}
-                        className="w-full mt-1 px-2 py-1.5 text-sm rounded-lg neu-pressed border-none"
+                        className={clsx(
+                          "w-full mt-1 px-2 py-1.5 text-sm rounded-lg neu-pressed border-none",
+                          !shift.startTime && "ring-2 ring-blue-300 bg-blue-50"
+                        )}
+                        placeholder="Enter time"
                       />
                     </div>
 
                     {/* End time */}
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">End</label>
+                      <label className={clsx(
+                        "text-[10px] font-bold uppercase",
+                        !shift.endTime ? "text-blue-500" : "text-slate-400"
+                      )}>
+                        End {!shift.endTime && "*"}
+                      </label>
                       <input
                         type="time"
-                        value={shift.endTime}
+                        value={shift.endTime || ''}
                         onChange={(e) => handleFieldChange(shift.id, 'endTime', e.target.value)}
-                        className="w-full mt-1 px-2 py-1.5 text-sm rounded-lg neu-pressed border-none"
+                        className={clsx(
+                          "w-full mt-1 px-2 py-1.5 text-sm rounded-lg neu-pressed border-none",
+                          !shift.endTime && "ring-2 ring-blue-300 bg-blue-50"
+                        )}
+                        placeholder="Enter time"
                       />
                     </div>
                   </div>
+
+                  {/* Inline job creator */}
+                  {creatingJobForShift === shift.id && onAddJob && (
+                    <InlineJobCreator
+                      suggestedName={shift.rosterJobName}
+                      onJobCreated={(job) => handleJobCreated(shift.id, job)}
+                      onCancel={() => setCreatingJobForShift(null)}
+                    />
+                  )}
 
                   {/* Conflict info */}
                   {shift.hasConflict && (

@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { format, isSameMonth, isToday, isWeekend } from 'date-fns';
-import { Copy, ClipboardPaste, StickyNote, X, Check, Plus as Plus_Lucide } from 'lucide-react';
+import { Copy, ClipboardPaste, StickyNote, X, Check, Plus as Plus_Lucide, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState, useRef, useEffect } from 'react';
 import type { Shift } from '../../types';
@@ -27,9 +27,16 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
   // State for Note Editing
   const [editingNoteShiftId, setEditingNoteShiftId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
+  
+  // State for Time Editing
+  const [editingTimeShiftId, setEditingTimeShiftId] = useState<string | null>(null);
+  const [tempStartTime, setTempStartTime] = useState('');
+  const [tempEndTime, setTempEndTime] = useState('');
+  const [tempBreakMinutes, setTempBreakMinutes] = useState(0);
 
   const pickerRef = useRef<HTMLDivElement>(null);
   const noteRef = useRef<HTMLDivElement>(null);
+  const timeInfoRef = useRef<HTMLDivElement>(null);
 
   const { setNodeRef, isOver } = useDroppable({
     id: `droppable-day-${dateStr}`,
@@ -44,10 +51,13 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
       if (noteRef.current && !noteRef.current.contains(event.target as Node)) {
         setEditingNoteShiftId(null);
       }
+      if (timeInfoRef.current && !timeInfoRef.current.contains(event.target as Node)) {
+        setEditingTimeShiftId(null);
+      }
     };
-    if (showJobPicker || editingNoteShiftId) document.addEventListener('mousedown', handleClickOutside);
+    if (showJobPicker || editingNoteShiftId || editingTimeShiftId) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showJobPicker, editingNoteShiftId]);
+  }, [showJobPicker, editingNoteShiftId, editingTimeShiftId]);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -60,8 +70,26 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
     if (!job) return;
     const isWeekendDay = isWeekend(date);
     const isHoliday = holidays.includes(dateStr);
-    const defaultHours = (isWeekendDay || isHoliday) ? job.defaultHours.weekend : job.defaultHours.weekday;
-    onAddShift({ id: `${dateStr}-${jobId}-${Date.now()}`, date: dateStr, type: jobId, hours: defaultHours, note: '' });
+    
+    let hours = (isWeekendDay || isHoliday) ? job.defaultHours.weekend : job.defaultHours.weekday;
+    let startTime = job.defaultStartTime;
+    let endTime = job.defaultEndTime;
+    let breakMinutes = job.defaultBreakMinutes || 0;
+
+    if (startTime && endTime) {
+        hours = calculateHours(startTime, endTime, breakMinutes);
+    }
+
+    onAddShift({ 
+        id: `${dateStr}-${jobId}-${Date.now()}`, 
+        date: dateStr, 
+        type: jobId, 
+        hours, 
+        note: '', 
+        startTime, 
+        endTime, 
+        breakMinutes 
+    });
     setShowJobPicker(false);
   };
 
@@ -76,11 +104,48 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
      setEditingNoteShiftId(shift.id);
   };
 
+  const handleTimeEditOpen = (shift: Shift) => {
+    const job = jobConfigs.find(j => j.id === shift.type);
+    setTempStartTime(shift.startTime || job?.defaultStartTime || '');
+    setTempEndTime(shift.endTime || job?.defaultEndTime || '');
+    setTempBreakMinutes(shift.breakMinutes ?? job?.defaultBreakMinutes ?? 0);
+    setEditingTimeShiftId(shift.id);
+    setShowJobPicker(false);
+  };
+
+  const calculateHours = (start: string, end: string, breakMins: number) => {
+    if (!start || !end) return 0;
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    let diff = (endH * 60 + endM) - (startH * 60 + startM);
+    if (diff < 0) diff += 24 * 60; // Handle overnight
+    diff -= breakMins;
+    return Math.max(0, Number((diff / 60).toFixed(2)));
+  };
+
+  const handleTimeSave = () => {
+    if (!editingTimeShiftId) return;
+    
+    const updates: Partial<Shift> = {
+      startTime: tempStartTime,
+      endTime: tempEndTime,
+      breakMinutes: tempBreakMinutes
+    };
+
+    if (tempStartTime && tempEndTime) {
+      updates.hours = calculateHours(tempStartTime, tempEndTime, tempBreakMinutes);
+    }
+
+    onUpdateShift(editingTimeShiftId, updates);
+    setEditingTimeShiftId(null);
+  };
+
   const isCurrentMonth = isSameMonth(date, currentMonth);
   const isTodayDate = isToday(date);
   const holidayInfo = getHolidayInfo(dateStr);
   const isHolidayDate = isPublicHoliday(dateStr);
   const getJobColor = (jobId: string) => jobConfigs.find(j => j.id === jobId)?.color || 'slate';
+  const getJobName = (jobId: string) => jobConfigs.find(j => j.id === jobId)?.name || jobId;
 
   return (
     <div ref={setNodeRef} onDoubleClick={handleDoubleClick}
@@ -152,6 +217,60 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
           </div>
       )}
 
+      {/* Time Editor Popover */}
+      {editingTimeShiftId && (
+          <div ref={timeInfoRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3">
+             <div className="flex items-center justify-between border-b pb-2">
+                 <span className="text-xs font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> Shift Time
+                 </span>
+                 <button onClick={(e) => { e.stopPropagation(); setEditingTimeShiftId(null); }} className="text-slate-400 hover:text-slate-600"><X className="w-3 h-3" /></button>
+             </div>
+             
+             <div className="flex gap-2 items-center">
+                <div className="flex flex-col gap-1 w-full">
+                    <label className="text-[10px] text-slate-400 font-medium">Start</label>
+                    <input 
+                        type="time" 
+                        value={tempStartTime} 
+                        onChange={(e) => setTempStartTime(e.target.value)}
+                        className="w-full text-xs border border-slate-200 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-100 outline-none"
+                    />
+                </div>
+                <div className="flex flex-col gap-1 w-full">
+                    <label className="text-[10px] text-slate-400 font-medium">End</label>
+                    <input 
+                        type="time" 
+                        value={tempEndTime} 
+                        onChange={(e) => setTempEndTime(e.target.value)}
+                        className="w-full text-xs border border-slate-200 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-100 outline-none"
+                    />
+                </div>
+             </div>
+
+             <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-slate-400 font-medium">Break (minutes)</label>
+                <div className="flex items-center gap-2">
+                    <input 
+                        type="number" 
+                        min="0"
+                        step="15"
+                        value={tempBreakMinutes} 
+                        onChange={(e) => setTempBreakMinutes(Number(e.target.value))}
+                        className="w-full text-xs border border-slate-200 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-100 outline-none"
+                    />
+                </div>
+             </div>
+
+             <button 
+                onClick={(e) => { e.stopPropagation(); handleTimeSave(); }}
+                className="w-full py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1 mt-1"
+             >
+                 <Check className="w-3 h-3" /> Save Changes
+             </button>
+          </div>
+      )}
+
       <div className="flex items-center justify-between relative">
         <span className={clsx('text-sm font-semibold w-6 h-6 flex items-center justify-center rounded-full transition-colors',
           isTodayDate ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : isHolidayDate ? 'text-rose-600' : (date.getDay() === 0 ? 'text-red-500' : date.getDay() === 6 ? 'text-blue-500' : 'text-slate-700'))}>
@@ -164,7 +283,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const shiftsToCopy = shifts.map(s => ({ type: s.type, hours: s.hours, note: s.note }));
+                const shiftsToCopy = shifts.map(s => ({ type: s.type, hours: s.hours, note: s.note, startTime: s.startTime, endTime: s.endTime, breakMinutes: s.breakMinutes }));
                 setCopiedShifts(shiftsToCopy);
               }}
               className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded"
@@ -184,7 +303,10 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
                     date: dateStr,
                     type: copied.type,
                     hours: copied.hours,
-                    note: copied.note
+                    note: copied.note,
+                    startTime: copied.startTime,
+                    endTime: copied.endTime,
+                    breakMinutes: copied.breakMinutes
                   });
                 });
               }}
@@ -206,11 +328,11 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
         {shifts.map((shift) => {
           const colors = colorMap[getJobColor(shift.type)] || colorMap.slate;
           return (
-            <div key={shift.id} className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative', colors.bg, colors.border, colors.text)}>
+            <div key={shift.id} onDoubleClick={(e) => { e.stopPropagation(); handleTimeEditOpen(shift); }} className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative', colors.bg, colors.border, colors.text)}>
               <div className="flex justify-between items-center w-full">
                 <div className="flex flex-col gap-0.5 w-full">
                   <div className="flex justify-between items-center pr-4">
-                      <span className="font-semibold truncate max-w-[50px]">{shift.type}</span>
+                      <span className="font-semibold truncate max-w-[50px]">{getJobName(shift.type)}</span>
                        {/* Note Indicator Button */}
                        <button
                             onClick={(e) => handleNoteOpen(shift, e)}

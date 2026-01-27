@@ -3,10 +3,10 @@
  */
 
 export const PROCESSING_MESSAGES = [
-  'Analyzing roster image...',
-  'Detecting shift patterns...',
-  'Extracting dates and times...',
-  'Matching job names...',
+  'Reading roster image...',
+  'Extracting table structure...',
+  'Finding your shifts...',
+  'Formatting data...',
   'Almost done...'
 ] as const;
 
@@ -50,6 +50,22 @@ export const ERROR_MESSAGES: Record<string, { title: string; description: string
   not_roster: {
     title: 'Not a roster',
     description: "This doesn't appear to be a work roster. Please upload a schedule image."
+  },
+  identifier_not_found: {
+    title: 'Person not found',
+    description: 'Could not find shifts matching your identifier. Try a different name, or scan all shifts.'
+  },
+  ocr_failed: {
+    title: 'Could not read image',
+    description: 'Failed to extract text from the image. Please try with a clearer photo.'
+  },
+  filter_failed: {
+    title: 'Processing failed',
+    description: 'Found the roster but failed to extract your shifts. Please try again.'
+  },
+  no_table: {
+    title: 'No table found',
+    description: 'Could not find a table/schedule in this image. Make sure the roster is clearly visible.'
   },
   unknown: {
     title: 'Something went wrong',

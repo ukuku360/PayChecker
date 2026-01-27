@@ -20,17 +20,19 @@ import { FeedbackModal } from './components/Feedback/FeedbackModal';
 import { AdminFeedbackList } from './components/Feedback/AdminFeedbackList';
 import { RosterScannerModal } from './components/RosterScanner/RosterScannerModal';
 import { FeatureHelpTrigger } from './components/FeatureHelp/FeatureHelpTrigger';
+import { ReadmeModal } from './components/Help/ReadmeModal';
 import { useFeatureHelpStore } from './store/useFeatureHelpStore';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, BookOpen } from 'lucide-react';
 
 function App() {
-  const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData, clearData } = useScheduleStore();
+  const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData, clearData, shifts } = useScheduleStore();
   const [activeType, setActiveType] = useState<JobType | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
   const [showAddJobModal, setShowAddJobModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showReadmeModal, setShowReadmeModal] = useState(false);
   const [showAdminFeedback, setShowAdminFeedback] = useState(false);
   const [showRosterScanner, setShowRosterScanner] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -219,11 +221,20 @@ function App() {
             </button>
             <FeatureHelpTrigger />
             <button 
+               onClick={() => setShowReadmeModal(true)}
+               className="text-slate-500 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5"
+               title="User Guide"
+            >
+               <BookOpen className="w-5 h-5" />
+               <span className="text-sm font-medium">README</span>
+            </button>
+            <button 
                onClick={() => setShowFeedbackModal(true)}
-               className="text-slate-500 hover:text-indigo-500 transition-colors p-2"
+               className="text-slate-500 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5"
                title="Feedback"
             >
                <MessageSquare className="w-5 h-5" />
+               <span className="text-sm font-medium">Feedback</span>
             </button>
             <button 
                onClick={() => setShowProfileModal(true)}
@@ -283,14 +294,16 @@ function App() {
             onClose={() => setSelectedJob(null)}
             onSave={updateJobConfig}
             onDelete={removeJobConfig}
+            shiftCount={shifts.filter(s => s.type === selectedJob.id).length}
           />
         )}
 
         {/* Add Job Modal */}
-        <AddJobModal 
-          isOpen={showAddJobModal} 
-          onClose={() => setShowAddJobModal(false)} 
+        <AddJobModal
+          isOpen={showAddJobModal}
+          onClose={() => setShowAddJobModal(false)}
           onAdd={handleAddJob}
+          existingJobIds={jobConfigs.map(j => j.id)}
         />
 
         {/* Export Modal */}
@@ -320,10 +333,14 @@ function App() {
           onClose={() => setShowAdminFeedback(false)}
         />
 
-        {/* Roster Scanner Modal */}
         <RosterScannerModal
           isOpen={showRosterScanner}
           onClose={() => setShowRosterScanner(false)}
+        />
+
+        <ReadmeModal
+          isOpen={showReadmeModal}
+          onClose={() => setShowReadmeModal(false)}
         />
         
         {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}
