@@ -4,6 +4,8 @@ import { X, Trash2, Calendar, History, Coffee, Info } from 'lucide-react';
 import { clsx } from 'clsx';
 import { dotColorMap } from '../../utils/colorUtils';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import { useCurrency } from '../../hooks/useCurrency';
 
 interface HourlyRateModalProps {
   job: JobConfig;
@@ -14,6 +16,8 @@ interface HourlyRateModalProps {
 }
 
 export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0 }: HourlyRateModalProps) => {
+  const { t } = useTranslation();
+  const { symbol } = useCurrency();
   const [rates, setRates] = useState(job.hourlyRates);
   const [defaultHours, setDefaultHours] = useState({
       weekday: job.defaultHours?.weekday ?? 0,
@@ -112,8 +116,8 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
           <div className="flex items-center gap-3">
             <div className={clsx("w-3 h-3 rounded-full shadow-inner", dotColorMap[job.color] || 'bg-slate-500')} />
             <div>
-                <h2 className="text-lg font-bold text-slate-700">{job.name} Settings</h2>
-                <p className="text-[10px] text-slate-500 font-medium tracking-wide uppercase">Configure rates & defaults</p>
+                <h2 className="text-lg font-bold text-slate-700">{job.name} {t('hourlyRateModal.settings')}</h2>
+                <p className="text-[10px] text-slate-500 font-medium tracking-wide uppercase">{t('hourlyRateModal.configureRates')}</p>
             </div>
           </div>
           <button onClick={onClose} className="neu-icon-btn w-8 h-8 !rounded-lg !p-0" aria-label="Close modal">
@@ -127,11 +131,11 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
           <div className="neu-flat p-4 rounded-xl space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <div className="p-1.5 bg-blue-50 rounded-lg text-blue-500"><History className="w-3.5 h-3.5" /></div>
-                <h3 className="text-sm font-bold text-slate-700">Default Duration</h3>
+                <h3 className="text-sm font-bold text-slate-700">{t('hourlyRateModal.defaultDuration')}</h3>
               </div>
               <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className={labelClass}>Weekday</label>
+                    <label className={labelClass}>{t('hourlyRateModal.weekday')}</label>
                     <div className="relative">
                       <input
                         type="number"
@@ -145,7 +149,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                     </div>
                   </div>
                   <div>
-                    <label className={labelClass}>Weekend</label>
+                    <label className={labelClass}>{t('hourlyRateModal.weekend')}</label>
                     <div className="relative">
                       <input
                         type="number"
@@ -165,11 +169,11 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
            <div className="neu-flat p-4 rounded-xl space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500"><History className="w-3.5 h-3.5" /></div>
-                <h3 className="text-sm font-bold text-slate-700">Default Times (Optional)</h3>
+                <h3 className="text-sm font-bold text-slate-700">{t('hourlyRateModal.defaultTimes')}</h3>
               </div>
               <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className={labelClass}>Start Time</label>
+                    <label className={labelClass}>{t('hourlyRateModal.startTime')}</label>
                     <input
                       type="time"
                       value={defaultStartTime}
@@ -178,7 +182,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>End Time</label>
+                    <label className={labelClass}>{t('hourlyRateModal.endTime')}</label>
                     <input
                       type="time"
                       value={defaultEndTime}
@@ -193,18 +197,18 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
           <div className="neu-flat p-4 rounded-xl space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <div className="p-1.5 bg-amber-50 rounded-lg text-amber-500"><Coffee className="w-3.5 h-3.5" /></div>
-                <h3 className="text-sm font-bold text-slate-700">Unpaid Break</h3>
+                <h3 className="text-sm font-bold text-slate-700">{t('hourlyRateModal.unpaidBreak')}</h3>
                 <div className="group relative ml-auto">
                   <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
                   <div className="absolute right-0 top-full mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                    <p className="font-medium mb-1">휴식 시간 차감 방식</p>
-                    <p className="text-slate-300">예: 8시간 근무 × 30분 휴식 = <strong>7.5시간 급여</strong></p>
+                    <p className="font-medium mb-1">{t('hourlyRateModal.breakTooltipTitle')}</p>
+                    <p className="text-slate-300" dangerouslySetInnerHTML={{ __html: t('hourlyRateModal.breakTooltipExample').replace('7.5h', '<strong>7.5h</strong>') }} />
                     <div className="absolute -top-1.5 right-4 w-3 h-3 bg-slate-800 rotate-45" />
                   </div>
                 </div>
               </div>
               <div>
-                <label className={labelClass}>Break Time</label>
+                <label className={labelClass}>{t('hourlyRateModal.breakTime')}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -225,8 +229,8 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                 ) : (
                   <p className="text-[10px] text-slate-400 mt-1.5">
                     {breakHours > 0
-                      ? `${breakHours}h will be deducted from paid hours`
-                      : 'No break deduction'}
+                      ? t('hourlyRateModal.breakDeductionActive', { hours: breakHours })
+                      : t('hourlyRateModal.noBreakDeduction')}
                   </p>
                 )}
               </div>
@@ -239,23 +243,23 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                     <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500"><Calendar className="w-3.5 h-3.5" /></div>
                     <div className="flex flex-col">
                         <div className="flex items-center gap-1.5">
-                          <h3 className="text-sm font-bold text-slate-700">Hourly Rates</h3>
+                          <h3 className="text-sm font-bold text-slate-700">{t('hourlyRateModal.hourlyRates')}</h3>
                           <div className="group relative">
                             <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
                             <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                              <p className="font-medium mb-2">🎯 Penalty Rates 예시</p>
+                              <p className="font-medium mb-2">{t('hourlyRateModal.penaltyRatesTooltipTitle')}</p>
                               <div className="space-y-1 text-slate-300">
-                                <p>평일 시급: <strong>$25</strong></p>
-                                <p>토요일 (1.25x): <strong>$31.25</strong></p>
-                                <p>일요일 (1.5x): <strong>$37.50</strong></p>
-                                <p>공휴일 (2.5x): <strong>$62.50</strong></p>
+                                <p>{t('hourlyRateModal.weekday')}: <strong>{symbol}25</strong></p>
+                                <p>{t('hourlyRateModal.saturday')} (1.25x): <strong>{symbol}31.25</strong></p>
+                                <p>{t('hourlyRateModal.sunday')} (1.5x): <strong>{symbol}37.50</strong></p>
+                                <p>{t('hourlyRateModal.holiday')} (2.5x): <strong>{symbol}62.50</strong></p>
                               </div>
-                              <p className="text-slate-400 mt-2 text-[10px]">* 업종별 Award에 따라 다를 수 있습니다</p>
+                              <p className="text-slate-400 mt-2 text-[10px]">{t('hourlyRateModal.penaltyRatesTooltipNote')}</p>
                               <div className="absolute -top-1.5 left-4 w-3 h-3 bg-slate-800 rotate-45" />
                             </div>
                           </div>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">Effective Date</span>
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">{t('hourlyRateModal.effectiveDate')}</span>
                     </div>
                 </div>
                 <input 
@@ -268,15 +272,15 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
               
               <div className="grid grid-cols-2 gap-4">
                 {[
-                    { label: 'Weekday', key: 'weekday' },
-                    { label: 'Saturday', key: 'saturday' },
-                    { label: 'Sunday', key: 'sunday' },
-                    { label: 'Holiday', key: 'holiday' }
+                    { label: t('hourlyRateModal.weekday'), key: 'weekday' },
+                    { label: t('hourlyRateModal.saturday'), key: 'saturday' },
+                    { label: t('hourlyRateModal.sunday'), key: 'sunday' },
+                    { label: t('hourlyRateModal.holiday'), key: 'holiday' }
                 ].map((item) => (
                     <div key={item.key}>
                     <label className={labelClass}>{item.label}</label>
                     <div className="relative group">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium group-focus-within:text-emerald-500 transition-colors">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium group-focus-within:text-emerald-500 transition-colors">{symbol}</span>
                         <input
                         type="number"
                         min="0"
@@ -299,13 +303,13 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                           className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-500 flex items-center justify-center gap-2 transition-all"
                       >
                           <History className="w-3.5 h-3.5" />
-                          {showHistory ? 'Hide Rate History' : `View Rate History (${rateHistory.length})`}
+                          {showHistory ? t('hourlyRateModal.hideHistory') : t('hourlyRateModal.viewHistory', { count: rateHistory.length })}
                       </button>
                       <div className="group relative">
                         <Info className="w-4 h-4 text-slate-400 cursor-help" />
                         <div className="absolute right-0 top-full mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                          <p className="font-medium mb-1">📅 Rate History란?</p>
-                          <p className="text-slate-300">급여 인상 시 이전 요율을 기록합니다. 과거 날짜의 시프트에는 해당 시점의 요율이 자동 적용됩니다.</p>
+                          <p className="font-medium mb-1">{t('hourlyRateModal.rateHistoryTooltipTitle')}</p>
+                          <p className="text-slate-300">{t('hourlyRateModal.rateHistoryTooltipDesc')}</p>
                           <div className="absolute -top-1.5 right-4 w-3 h-3 bg-slate-800 rotate-45" />
                         </div>
                       </div>
@@ -328,9 +332,9 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                                         <span className={clsx("text-xs font-bold", effectiveDate === h.effectiveDate ? "text-emerald-700" : "text-slate-700")}>
                                             {format(new Date(h.effectiveDate), 'MMM d, yyyy')}
                                         </span>
-                                        <span className="text-[10px] text-slate-400">Weekday: ${h.rates.weekday}</span>
+                                        <span className="text-[10px] text-slate-400">{t('hourlyRateModal.weekday')}: {symbol}{h.rates.weekday}</span>
                                     </div>
-                                    {effectiveDate === h.effectiveDate && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Active Edit</span>}
+                                    {effectiveDate === h.effectiveDate && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">{t('hourlyRateModal.activeEdit')}</span>}
                                  </button>
                              ))}
                         </div>
@@ -351,13 +355,13 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                   className="px-4 py-2 text-sm font-medium text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-colors flex items-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span className="font-bold">Delete Job</span>
+                  <span className="font-bold">{t('hourlyRateModal.deleteJob')}</span>
                 </button>
               ) : (
                 <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
                   {shiftCount > 0 && (
                     <p className="text-xs text-rose-600 font-medium">
-                      This will delete {shiftCount} shift{shiftCount !== 1 ? 's' : ''}!
+                      {t('hourlyRateModal.deleteShiftsWarning', { count: shiftCount })}
                     </p>
                   )}
                   <div className="flex items-center gap-2">
@@ -366,7 +370,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                       onClick={handleDelete}
                       className="px-4 py-2 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-lg transition-colors shadow-sm active:translate-y-0.5"
                     >
-                      {shiftCount > 0 ? 'Delete All' : 'Confirm'}
+                      {shiftCount > 0 ? t('hourlyRateModal.deleteAll') : t('hourlyRateModal.confirm')}
                     </button>
                     <button
                       type="button"
@@ -389,14 +393,14 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                   onClick={onClose}
                   className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="button"
                   onClick={handleSave}
                   className="neu-btn !bg-indigo-500 !text-white !shadow-lg !shadow-indigo-500/20 hover:!bg-indigo-600 hover:!shadow-indigo-500/30 flex items-center gap-2 px-6"
                 >
-                  Save Changes
+                  {t('hourlyRateModal.saveChanges')}
                 </button>
               </>
             )}

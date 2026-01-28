@@ -26,3 +26,28 @@ export function calculateTotalHours(start: string, end: string): number | null {
 
   return Math.round((diff / 60) * 100) / 100;
 }
+
+/**
+ * Format minutes from midnight to HH:MM string
+ */
+export function formatMinutesToTime(minutes: number): string {
+  let adjustedMinutes = Math.round(minutes);
+  // Handle overflow (> 24h) or underflow
+  adjustedMinutes = adjustedMinutes % (24 * 60);
+  if (adjustedMinutes < 0) adjustedMinutes += 24 * 60;
+  
+  const h = Math.floor(adjustedMinutes / 60);
+  const m = adjustedMinutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Add hours to a time string
+ */
+export function addHoursToTime(time: string, hoursToAdd: number): string | null {
+  const startMinutes = parseTimeToMinutes(time);
+  if (startMinutes === null) return null;
+  
+  const totalMinutes = startMinutes + (hoursToAdd * 60);
+  return formatMinutesToTime(totalMinutes);
+}

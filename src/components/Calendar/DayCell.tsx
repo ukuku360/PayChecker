@@ -6,8 +6,9 @@ import { useState, useRef, useEffect } from 'react';
 import type { Shift } from '../../types';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { colorMap } from '../../utils/colorUtils';
-import { getHolidayInfo, isPublicHoliday } from '../../data/australianHolidays';
+import { getHolidayInfo, isPublicHoliday } from '../../data/holidays';
 import { calculatePaidHours } from '../../utils/calculatePay';
+import { useCountry } from '../../hooks/useCountry';
 
 interface DayCellProps {
   date: Date;
@@ -21,6 +22,7 @@ interface DayCellProps {
 
 export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShift, onAddShift, onAddJobAddNewJob }: DayCellProps) => {
   const { jobConfigs, holidays, copiedShifts, setCopiedShifts } = useScheduleStore();
+  const { country } = useCountry();
   const dateStr = format(date, 'yyyy-MM-dd');
   const [showJobPicker, setShowJobPicker] = useState(false);
   
@@ -72,12 +74,11 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
     const isHoliday = holidays.includes(dateStr);
     
     let hours = (isWeekendDay || isHoliday) ? job.defaultHours.weekend : job.defaultHours.weekday;
-    let startTime = job.defaultStartTime;
-    let endTime = job.defaultEndTime;
-    let breakMinutes = job.defaultBreakMinutes || 0;
+    const startTime = job.defaultStartTime;
+    const endTime = job.defaultEndTime;
 
     if (startTime && endTime) {
-        hours = calculateHours(startTime, endTime, breakMinutes);
+        hours = calculateHours(startTime, endTime);
     }
 
     onAddShift({ 
@@ -87,8 +88,8 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
         hours, 
         note: '', 
         startTime, 
-        endTime, 
-        breakMinutes 
+        endTime,
+        // Don't set breakMinutes - let calculatePaidHours use job default
     });
     setShowJobPicker(false);
   };
@@ -108,32 +109,38 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
     const job = jobConfigs.find(j => j.id === shift.type);
     setTempStartTime(shift.startTime || job?.defaultStartTime || '');
     setTempEndTime(shift.endTime || job?.defaultEndTime || '');
-    setTempBreakMinutes(shift.breakMinutes ?? job?.defaultBreakMinutes ?? 0);
+    // Convert minutes to hours for display
+    const breakMins = shift.breakMinutes ?? job?.defaultBreakMinutes ?? 0;
+    setTempBreakMinutes(breakMins / 60);
     setEditingTimeShiftId(shift.id);
     setShowJobPicker(false);
   };
 
-  const calculateHours = (start: string, end: string, breakMins: number) => {
+  const calculateHours = (start: string, end: string) => {
     if (!start || !end) return 0;
     const [startH, startM] = start.split(':').map(Number);
     const [endH, endM] = end.split(':').map(Number);
     let diff = (endH * 60 + endM) - (startH * 60 + startM);
     if (diff < 0) diff += 24 * 60; // Handle overnight
-    diff -= breakMins;
+    // Don't subtract break here - break is handled by calculatePaidHours for display
     return Math.max(0, Number((diff / 60).toFixed(2)));
   };
 
   const handleTimeSave = () => {
     if (!editingTimeShiftId) return;
     
+    // Convert hours back to minutes for storage
+    const breakMinutesValue = Math.round(tempBreakMinutes * 60);
+    
     const updates: Partial<Shift> = {
       startTime: tempStartTime,
       endTime: tempEndTime,
-      breakMinutes: tempBreakMinutes
+      breakMinutes: breakMinutesValue
     };
 
     if (tempStartTime && tempEndTime) {
-      updates.hours = calculateHours(tempStartTime, tempEndTime, tempBreakMinutes);
+      // Calculate total hours (without break deduction - that's done by calculatePaidHours)
+      updates.hours = calculateHours(tempStartTime, tempEndTime);
     }
 
     onUpdateShift(editingTimeShiftId, updates);
@@ -142,14 +149,14 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
 
   const isCurrentMonth = isSameMonth(date, currentMonth);
   const isTodayDate = isToday(date);
-  const holidayInfo = getHolidayInfo(dateStr);
-  const isHolidayDate = isPublicHoliday(dateStr);
+  const holidayInfo = getHolidayInfo(dateStr, country);
+  const isHolidayDate = isPublicHoliday(dateStr, country);
   const getJobColor = (jobId: string) => jobConfigs.find(j => j.id === jobId)?.color || 'slate';
   const getJobName = (jobId: string) => jobConfigs.find(j => j.id === jobId)?.name || jobId;
 
   return (
     <div ref={setNodeRef} onDoubleClick={handleDoubleClick}
-      title={shifts.length === 0 ? "더블클릭으로 시프트 추가" : undefined}
+                title={shifts.length === 0 ? "Double-click to add shift" : undefined}
       className={clsx(
         'min-h-[120px] p-2 flex flex-col gap-2 transition-all relative border-b border-r border-slate-50 last:border-r-0 cursor-pointer group/cell',
         !isCurrentMonth && 'bg-slate-50/30 text-slate-300',
@@ -196,7 +203,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
 
       {/* Note Editor Popover */}
       {editingNoteShiftId && (
-          <div ref={noteRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2">
+          <div ref={noteRef} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[60] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2">
              <div className="flex items-center justify-between">
                  <span className="text-[10px] font-bold text-yellow-600 uppercase tracking-wide">Shift Note</span>
                  <button onClick={(e) => { e.stopPropagation(); setEditingNoteShiftId(null); }} className="text-yellow-400 hover:text-yellow-600"><X className="w-3 h-3" /></button>
@@ -220,7 +227,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
 
       {/* Time Editor Popover */}
       {editingTimeShiftId && (
-          <div ref={timeInfoRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3">
+          <div ref={timeInfoRef} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[60] bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3">
              <div className="flex items-center justify-between border-b pb-2">
                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
                     <Clock className="w-3 h-3" /> Shift Time
@@ -250,12 +257,12 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
              </div>
 
              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-slate-400 font-medium">Break (minutes)</label>
+                <label className="text-[10px] text-slate-400 font-medium">Break (hours)</label>
                 <div className="flex items-center gap-2">
                     <input 
                         type="number" 
                         min="0"
-                        step="15"
+                        step="0.25"
                         value={tempBreakMinutes} 
                         onChange={(e) => setTempBreakMinutes(Number(e.target.value))}
                         className="w-full text-xs border border-slate-200 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-100 outline-none"
@@ -329,7 +336,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
         {shifts.map((shift) => {
           const colors = colorMap[getJobColor(shift.type)] || colorMap.slate;
           return (
-            <div key={shift.id} onDoubleClick={(e) => { e.stopPropagation(); handleTimeEditOpen(shift); }} title="더블클릭으로 시간 편집" className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative', colors.bg, colors.border, colors.text)}>
+            <div key={shift.id} onDoubleClick={(e) => { e.stopPropagation(); handleTimeEditOpen(shift); }} title="Double-click to edit time" className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative', colors.bg, colors.border, colors.text)}>
               <div className="flex justify-between items-center w-full">
                 <div className="flex flex-col gap-0.5 w-full">
                   <div className="flex justify-between items-center pr-4">
@@ -351,7 +358,12 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
                       type="number"
                       min="0"
                       step="0.5"
-                      value={shift.hours}
+                      value={(() => {
+                        if (shift.hours > 0) return shift.hours;
+                        const job = jobConfigs.find(j => j.id === shift.type);
+                        const isWknd = isWeekend(date);
+                        return job ? (isWknd ? job.defaultHours.weekend : job.defaultHours.weekday) : 0;
+                      })()}
                       onChange={(e) => { e.stopPropagation(); onUpdateShift(shift.id, { hours: parseFloat(e.target.value) || 0 }); }}
                       onClick={(e) => e.stopPropagation()}
                       className="w-10 text-sm bg-white/50 border border-current/20 rounded px-1 py-0.5 focus:ring-1 focus:ring-current/30 text-center font-bold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

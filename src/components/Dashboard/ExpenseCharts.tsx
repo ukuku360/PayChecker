@@ -1,4 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { useTranslation } from 'react-i18next';
+import { useCurrency } from '../../hooks/useCurrency';
 
 const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#14b8a6', '#f59e0b', '#3b82f6', '#ef4444', '#64748b'];
 
@@ -6,14 +8,14 @@ interface ChartProps {
   data: any[];
 }
 
-const formatCurrency = (amount: number) => 
-  new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(amount);
-
 export const ExpensePieChart = ({ data }: ChartProps) => {
+  const { t } = useTranslation();
+  const { formatCurrency } = useCurrency();
+
   if (data.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center text-slate-400 text-sm">
-        No expense data available
+        {t('charts.noExpenseData')}
       </div>
     );
   }
@@ -52,6 +54,9 @@ export const ExpensePieChart = ({ data }: ChartProps) => {
 };
 
 export const RealIncomeChart = ({ data }: ChartProps) => {
+  const { t } = useTranslation();
+  const { formatCurrency } = useCurrency();
+
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -90,7 +95,7 @@ export const RealIncomeChart = ({ data }: ChartProps) => {
           <Area 
             type="monotone" 
             dataKey="netIncome" 
-            name="Net Income"
+            name={t('charts.netIncome')}
             stroke="#6366f1" 
             strokeWidth={2}
             fillOpacity={1} 
@@ -99,7 +104,7 @@ export const RealIncomeChart = ({ data }: ChartProps) => {
           <Area 
             type="monotone" 
             dataKey="realIncome" 
-            name="Real Income"
+            name={t('charts.realIncome')}
             stroke="#10b981" 
             strokeWidth={2}
             fillOpacity={1} 

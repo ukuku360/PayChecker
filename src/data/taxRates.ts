@@ -1,85 +1,36 @@
 /**
- * Australian Tax Rates - 2025-26 Financial Year
- * 
- * Stage 3 Tax Cuts applied (effective from 1 July 2024)
- * Reference: https://www.ato.gov.au/tax-rates-and-codes/tax-rates-australian-residents
+ * Tax Rates Module
+ *
+ * This file re-exports from the modular tax rates structure for backward compatibility.
+ * New code should import from './taxRates/index' directly.
  */
 
-export interface TaxBracket {
-  min: number;
-  max: number | null; // null means no upper limit
-  rate: number; // as decimal (e.g., 0.30 for 30%)
-  baseTax: number; // cumulative tax from lower brackets
-}
+import type { CountryCode } from './countries';
+import type { PayPeriod } from './taxRates/types';
+import { calculateTakeHome as auCalculateTakeHome, calculateIncomeTax as auCalculateIncomeTax } from './taxRates/australia';
 
-// ATO 2025-26 Tax Brackets for Australian Residents
-export const TAX_BRACKETS_2025_26: TaxBracket[] = [
-  { min: 0, max: 18200, rate: 0, baseTax: 0 },
-  { min: 18201, max: 45000, rate: 0.16, baseTax: 0 },
-  { min: 45001, max: 135000, rate: 0.30, baseTax: 4288 },
-  { min: 135001, max: 190000, rate: 0.37, baseTax: 31288 },
-  { min: 190001, max: null, rate: 0.45, baseTax: 51638 },
-];
-
-// Tax-free threshold
-export const TAX_FREE_THRESHOLD = 18200;
-
-// Medicare Levy (2%)
-export const MEDICARE_LEVY_RATE = 0.02;
-export const MEDICARE_LEVY_THRESHOLD = 26000; // Low-income threshold (approx)
+// Re-export everything from the new modular structure
+export * from './taxRates/index';
 
 /**
- * Calculate annual income tax based on ATO 2025-26 rates
- * @param annualIncome - Gross annual income
- * @returns Tax amount (excluding Medicare Levy)
+ * Calculates generic annual income tax for residents.
+ * Wrapper to support country code.
  */
-export const calculateIncomeTax = (annualIncome: number): number => {
-  if (annualIncome <= 0) return 0;
-  
-  for (const bracket of TAX_BRACKETS_2025_26) {
-    const max = bracket.max ?? Infinity;
-    if (annualIncome <= max) {
-      const taxableInBracket = annualIncome - bracket.min;
-      return bracket.baseTax + taxableInBracket * bracket.rate;
-    }
+export const calculateIncomeTax = (annualGross: number, country: CountryCode = 'AU'): number => {
+  if (country === 'AU') {
+    return auCalculateIncomeTax(annualGross);
   }
-  
-  // Should never reach here, but fallback to top bracket
-  const topBracket = TAX_BRACKETS_2025_26[TAX_BRACKETS_2025_26.length - 1];
-  const taxableInBracket = annualIncome - topBracket.min;
-  return topBracket.baseTax + taxableInBracket * topBracket.rate;
+  // Placeholder for KR: No tax calculation logic yet
+  return 0;
 };
 
-/**
- * Calculate Medicare Levy
- * @param annualIncome - Gross annual income
- * @returns Medicare Levy amount
- */
-export const calculateMedicareLevy = (annualIncome: number): number => {
-  if (annualIncome <= MEDICARE_LEVY_THRESHOLD) return 0;
-  return annualIncome * MEDICARE_LEVY_RATE;
-};
-
-/**
- * Calculate total tax (Income Tax + Medicare Levy)
- */
-export const calculateTotalTax = (annualIncome: number): number => {
-  return calculateIncomeTax(annualIncome) + calculateMedicareLevy(annualIncome);
-};
-
-export type PayPeriod = 'weekly' | 'fortnightly' | 'monthly' | 'annual';
-
-/**
- * Calculate take-home pay after tax
- * @param grossPay - Gross pay amount for the specified period
- * @param period - Pay period (default: 'fortnightly')
- * @param excludeMedicare - Whether to exclude Medicare Levy (e.g. for some student visas)
- * @returns Object with tax breakdown
- */
+// Legacy compatibility: export the old interface for calculateTakeHome
+// Some components expect medicareLevy instead of socialContributions
 export const calculateTakeHome = (
   grossPay: number,
   period: PayPeriod = 'fortnightly',
-  excludeMedicare = false
+  excludeMedicare = false,
+  country: CountryCode = 'AU'
 ): {
   grossPay: number;
   incomeTax: number;
@@ -88,54 +39,35 @@ export const calculateTakeHome = (
   netPay: number;
   effectiveRate: number;
 } => {
-  // Annualize income based on period
-  let annualIncome = 0;
-  let scale = 1;
+  if (country === 'AU') {
+      const result = auCalculateTakeHome(grossPay, period, excludeMedicare);
+      const medicareLevy = result.socialContributions.find(c => c.nameKey === 'dashboard.includesMedicare')?.amount ?? 0;
 
-  switch (period) {
-    case 'weekly':
-      annualIncome = grossPay * 52;
-      scale = 1 / 52;
-      break;
-    case 'fortnightly':
-      annualIncome = grossPay * 26;
-      scale = 1 / 26;
-      break;
-    case 'monthly':
-      annualIncome = grossPay * 12;
-      scale = 1 / 12;
-      break;
-    case 'annual':
-      annualIncome = grossPay;
-      scale = 1;
-      break;
+      return {
+        grossPay: result.grossPay,
+        incomeTax: result.incomeTax,
+        medicareLevy,
+        totalTax: result.totalDeductions,
+        netPay: result.netPay,
+        effectiveRate: result.effectiveRate,
+      };
   }
-  
-  const incomeTax = calculateIncomeTax(annualIncome);
-  const medicareLevy = excludeMedicare ? 0 : calculateMedicareLevy(annualIncome);
-  const totalTax = incomeTax + medicareLevy;
-  const netPay = annualIncome - totalTax;
-  const effectiveRate = annualIncome > 0 ? totalTax / annualIncome : 0;
 
+  // Non-AU (e.g., KR) - Return 0 tax for now
   return {
     grossPay,
-    incomeTax: incomeTax * scale,
-    medicareLevy: medicareLevy * scale,
-    totalTax: totalTax * scale,
-    netPay: netPay * scale,
-    effectiveRate,
+    incomeTax: 0,
+    medicareLevy: 0,
+    totalTax: 0,
+    netPay: grossPay,
+    effectiveRate: 0,
   };
 };
 
-/**
- * Get marginal tax rate for a given income
- */
-export const getMarginalRate = (annualIncome: number): number => {
-  for (const bracket of TAX_BRACKETS_2025_26) {
-    const max = bracket.max ?? Infinity;
-    if (annualIncome <= max) {
-      return bracket.rate;
-    }
-  }
-  return TAX_BRACKETS_2025_26[TAX_BRACKETS_2025_26.length - 1].rate;
-};
+// Re-export constants that are needed for backward compatibility
+export { TAX_FREE_THRESHOLD } from './taxRates/australia';
+
+// Alias for backward compatibility
+import { AU_MEDICARE_LEVY_RATE, AU_MEDICARE_LEVY_THRESHOLD } from './taxRates/australia';
+export const MEDICARE_LEVY_RATE = AU_MEDICARE_LEVY_RATE;
+export const MEDICARE_LEVY_THRESHOLD = AU_MEDICARE_LEVY_THRESHOLD;

@@ -4,11 +4,12 @@ import { calculateTotalPay } from '../../utils/calculatePay';
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Target, TrendingUp, Edit2, Check, X } from 'lucide-react';
 import { clsx } from 'clsx';
-
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
+import { useTranslation } from 'react-i18next';
+import { useCurrency } from '../../hooks/useCurrency';
 
 export const SavingsGoal = () => {
+  const { t } = useTranslation();
+  const { formatCurrency, symbol } = useCurrency();
   const { shifts, jobConfigs, holidays, savingsGoal, updateSavingsGoal } = useScheduleStore();
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -61,7 +62,7 @@ export const SavingsGoal = () => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
           <Target className="w-4 h-4" />
-          Savings Goal
+          {t('savingsGoal.title')}
         </h3>
         
         {!isEditing ? (
@@ -88,7 +89,7 @@ export const SavingsGoal = () => {
       <div className="mb-6">
         {isEditing ? (
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold text-slate-400">$</span>
+            <span className="text-2xl font-bold text-slate-400">{symbol}</span>
             <input
               type="number"
               value={inputValue}
@@ -106,10 +107,10 @@ export const SavingsGoal = () => {
             )}
             onClick={() => savingsGoal === 0 && setIsEditing(true)}
           >
-            {savingsGoal > 0 ? formatCurrency(savingsGoal) : 'Set a goal →'}
+            {savingsGoal > 0 ? formatCurrency(savingsGoal) : `${t('savingsGoal.setGoal')} →`}
           </p>
         )}
-        <p className="text-[10px] text-slate-400 mt-1">Target savings amount</p>
+        <p className="text-[10px] text-slate-400 mt-1">{t('savingsGoal.targetAmount')}</p>
       </div>
 
       {savingsGoal > 0 && (
@@ -117,7 +118,7 @@ export const SavingsGoal = () => {
           {/* Progress Bar */}
           <div className="mb-6">
             <div className="flex items-center justify-between text-xs mb-2">
-              <span className="text-slate-500 font-medium">{progress.toFixed(1)}% complete</span>
+              <span className="text-slate-500 font-medium">{progress.toFixed(1)}% {t('savingsGoal.complete')}</span>
               <span className="text-slate-400">{formatCurrency(totalEarnings)} / {formatCurrency(savingsGoal)}</span>
             </div>
             <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
@@ -134,17 +135,17 @@ export const SavingsGoal = () => {
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 rounded-xl bg-slate-50/50">
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Remaining</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('savingsGoal.remaining')}</p>
               <p className={clsx(
                 "text-xl font-bold",
                 remaining === 0 ? "text-emerald-500" : "text-slate-700"
               )}>
-                {remaining === 0 ? '🎉 Goal Reached!' : formatCurrency(remaining)}
+                {remaining === 0 ? t('savingsGoal.goalReached') : formatCurrency(remaining)}
               </p>
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50/50">
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Avg Monthly</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('savingsGoal.avgMonthly')}</p>
               <p className="text-xl font-bold text-slate-700">{formatCurrency(avgMonthlyEarnings)}</p>
             </div>
           </div>
@@ -155,20 +156,20 @@ export const SavingsGoal = () => {
               <TrendingUp className="w-5 h-5 text-indigo-500 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-slate-700">
-                  At this rate, you'll reach your goal in{' '}
+                  {t('savingsGoal.prediction')}
                   <span className="font-bold text-indigo-600">
-                    {monthsToGoal} month{monthsToGoal !== 1 ? 's' : ''}
+                    {monthsToGoal} {t('savingsGoal.months')}
                   </span>
                 </p>
-                <p className="text-[10px] text-slate-400">Based on your 3-month average</p>
+                <p className="text-[10px] text-slate-400">{t('savingsGoal.predictionBase')}</p>
               </div>
             </div>
           )}
 
           {progress >= 100 && (
             <div className="mt-4 p-4 rounded-lg bg-emerald-50/50 border border-emerald-200/30 text-center">
-              <p className="text-lg font-bold text-emerald-600">🎉 Congratulations!</p>
-              <p className="text-sm text-slate-600">You've reached your savings goal!</p>
+              <p className="text-lg font-bold text-emerald-600">{t('savingsGoal.congrats')}</p>
+              <p className="text-sm text-slate-600">{t('savingsGoal.reachedMsg')}</p>
             </div>
           )}
         </>

@@ -9,8 +9,12 @@ create table if not exists profiles (
   savings_goal numeric default 0,
   holidays jsonb default '[]'::jsonb,
   expenses jsonb default '[]'::jsonb,
+  country varchar(2) default null, -- 'AU' (Australia) or 'KR' (Korea), null means not selected
   updated_at timestamptz default now()
 );
+
+-- Migration for existing tables (run if table already exists)
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country VARCHAR(2) DEFAULT NULL;
 
 alter table profiles enable row level security;
 

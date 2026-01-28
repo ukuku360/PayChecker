@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabaseClient';
 import {
   getAuthErrorMessage,
@@ -7,6 +8,9 @@ import {
   validatePasswordConfirmation,
   PASSWORD_REQUIREMENTS
 } from './authErrors';
+import type { CountryCode } from '../../data/countries';
+import { COUNTRIES } from '../../data/countries';
+import i18n from '../../i18n';
 
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
 
@@ -17,14 +21,22 @@ interface FormErrors {
 }
 
 export function Auth() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [mode, setMode] = useState<AuthMode>('signIn');
   const [isStudentVisa, setIsStudentVisa] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<CountryCode>('AU');
   const [message, setMessage] = useState<{ type: 'error' | 'success'; title?: string; text: string } | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // Update language when country changes
+  useEffect(() => {
+    const language = selectedCountry === 'KR' ? 'ko' : 'en';
+    i18n.changeLanguage(language);
+  }, [selectedCountry]);
 
   // Clear form errors and message when switching modes
   const handleModeSwitch = (newMode: AuthMode) => {
@@ -99,8 +111,8 @@ export function Auth() {
 
         setMessage({
           type: 'success',
-          title: 'Password reset email sent',
-          text: 'Check your inbox for a link to reset your password.'
+          title: t('auth.passwordResetSent'),
+          text: t('auth.checkInbox')
         });
       } else if (mode === 'signUp') {
         const { data, error } = await supabase.auth.signUp({
@@ -112,11 +124,13 @@ export function Auth() {
         });
         if (error) throw error;
 
-        if (data.user && isStudentVisa) {
+        // Create profile with country and optional student visa
+        if (data.user) {
           try {
             await supabase.from('profiles').upsert({
               id: data.user.id,
-              is_student_visa_holder: true
+              is_student_visa_holder: selectedCountry === 'AU' ? isStudentVisa : false,
+              country: selectedCountry
             });
           } catch (profileError) {
             // Log but don't fail signup for profile creation errors
@@ -126,8 +140,8 @@ export function Auth() {
 
         setMessage({
           type: 'success',
-          title: 'Registration successful!',
-          text: 'Please check your email to verify your account, then sign in.'
+          title: t('auth.registrationSuccess'),
+          text: t('auth.verifyEmail')
         });
         handleModeSwitch('signIn');
       } else {
@@ -152,23 +166,23 @@ export function Auth() {
   const getSubtitle = () => {
     switch (mode) {
       case 'signUp':
-        return 'Create an account to get started';
+        return t('auth.signUpSubtitle');
       case 'forgotPassword':
-        return 'Enter your email to receive a reset link';
+        return t('auth.forgotPasswordSubtitle');
       default:
-        return 'Sign in to manage your schedule';
+        return t('auth.signInSubtitle');
     }
   };
 
   const getButtonText = () => {
-    if (loading) return 'Processing...';
+    if (loading) return t('auth.processing');
     switch (mode) {
       case 'signUp':
-        return 'Create Account';
+        return t('auth.createAccount');
       case 'forgotPassword':
-        return 'Send Reset Link';
+        return t('auth.sendResetLink');
       default:
-        return 'Sign In';
+        return t('auth.signIn');
     }
   };
 
@@ -181,10 +195,39 @@ export function Auth() {
         </div>
 
         <form onSubmit={handleAuth} className="space-y-5">
+          {/* Country Selector (Sign Up only) */}
+          {mode === 'signUp' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
+                {t('auth.selectCountry')}
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {(Object.keys(COUNTRIES) as CountryCode[]).map((code) => {
+                  const country = COUNTRIES[code];
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => setSelectedCountry(code)}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                        selectedCountry === code
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <span className="text-xl">{country.flag}</span>
+                      <span className="font-medium">{country.nameNative}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Email Field */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
-              Email
+              {t('common.email')}
             </label>
             <input
               type="email"
@@ -205,7 +248,7 @@ export function Auth() {
           {mode !== 'forgotPassword' && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
-                Password
+                {t('common.password')}
               </label>
               <input
                 type="password"
@@ -232,7 +275,7 @@ export function Auth() {
           {mode === 'signUp' && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
-                Confirm Password
+                {t('auth.confirmPassword')}
               </label>
               <input
                 type="password"
@@ -250,8 +293,8 @@ export function Auth() {
             </div>
           )}
 
-          {/* Student Visa Checkbox (Sign Up only) */}
-          {mode === 'signUp' && (
+          {/* Student Visa Checkbox (Sign Up only, Australia only) */}
+          {mode === 'signUp' && selectedCountry === 'AU' && (
             <div className="flex items-center gap-3 pl-1">
               <input
                 type="checkbox"
@@ -261,7 +304,7 @@ export function Auth() {
                 className="w-4 h-4 text-indigo-600 bg-slate-200 border-none rounded focus:ring-indigo-500"
               />
               <label htmlFor="studentVisa" className="text-sm text-slate-600">
-                I am an international student on a Student Visa
+                {t('auth.studentVisa')}
               </label>
             </div>
           )}
@@ -274,7 +317,7 @@ export function Auth() {
                 onClick={() => handleModeSwitch('forgotPassword')}
                 className="text-xs text-slate-500 hover:text-indigo-600 transition-colors"
               >
-                Forgot password?
+                {t('auth.forgotPassword')}
               </button>
             </div>
           )}
@@ -318,14 +361,14 @@ export function Auth() {
               onClick={() => handleModeSwitch('signIn')}
               className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
             >
-              Back to Sign In
+              {t('auth.backToSignIn')}
             </button>
           ) : (
             <button
               onClick={() => handleModeSwitch(mode === 'signUp' ? 'signIn' : 'signUp')}
               className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
             >
-              {mode === 'signUp' ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
+              {mode === 'signUp' ? t('auth.alreadyHaveAccount') : t('auth.needAccount')}
             </button>
           )}
         </div>

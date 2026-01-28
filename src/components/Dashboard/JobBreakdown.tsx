@@ -2,19 +2,17 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { calculateTotalPay } from '../../utils/calculatePay';
 import { Briefcase, Clock, Wallet } from 'lucide-react';
+import { useCurrency } from '../../hooks/useCurrency';
 
 const COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#f43f5e', '#06b6d4'];
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
-
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload, formatter }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
       <div className="glass-panel p-3">
         <p className="font-semibold text-slate-700 text-sm">{data.name}</p>
-        <p className="text-xs text-slate-500">{formatCurrency(data.value)}</p>
+        <p className="text-xs text-slate-500">{formatter ? formatter(data.value) : data.value}</p>
         <p className="text-xs text-slate-400">{data.hours}h worked</p>
       </div>
     );
@@ -24,6 +22,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 
 export const JobBreakdown = () => {
   const { shifts, jobConfigs, holidays } = useScheduleStore();
+  const { formatCurrency } = useCurrency();
 
   const jobData = jobConfigs.map((job, index) => {
     const jobShifts = shifts.filter(s => s.type === job.id);
@@ -75,7 +74,7 @@ export const JobBreakdown = () => {
                   <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip formatter={formatCurrency} />} />
               <Legend 
                 iconType="circle"
                 iconSize={8}

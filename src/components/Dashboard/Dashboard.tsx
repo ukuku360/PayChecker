@@ -1,6 +1,6 @@
-import { useScheduleStore, SUPER_RATE } from '../../store/useScheduleStore';
+import { useScheduleStore } from '../../store/useScheduleStore';
 import { calculateTotalPay, calculateFortnightlyHours } from '../../utils/calculatePay';
-import { calculateTakeHome } from '../../data/taxRates';
+import { getTaxCalculator } from '../../data/taxRates';
 import type { JobType, JobConfig } from '../../types';
 import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, DollarSign, Sparkles, Briefcase, Calendar } from 'lucide-react';
 import { format, addDays, startOfMonth, endOfMonth } from 'date-fns';
@@ -16,6 +16,9 @@ import { SavingsGoal } from './SavingsGoal';
 import { ExpensesView } from './ExpensesView';
 import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
 import { EmptyState } from '../EmptyState';
+import { useTranslation } from 'react-i18next';
+import { useCurrency } from '../../hooks/useCurrency';
+import { useCountry } from '../../hooks/useCountry';
 
 interface DashboardProps {
   currentMonth: Date;
@@ -70,8 +73,14 @@ const DraggableJobCard = ({
 };
 
 export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, onAIScan, onViewModeChange }: DashboardProps) => {
+  const { t } = useTranslation();
+  const { formatCurrency } = useCurrency();
+  const { country, isAustralia } = useCountry();
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
+
+  // Get country-specific tax calculator
+  const taxCalculator = getTaxCalculator(country);
 
   const handleViewModeChange = (mode: 'monthly' | 'fiscal' | 'budget') => {
     setViewMode(mode);
@@ -99,11 +108,8 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
   
   const monthlyPay = calculateTotalPay(monthlyShifts, jobConfigs, holidays);
   
-  const getHoursByType = (type: JobType) => 
+  const getHoursByType = (type: JobType) =>
     monthlyShifts.filter(s => s.type === type).reduce((acc, s) => acc + (s.hours || 0), 0);
-
-  const formatCurrency = (amount: number) => 
-    new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
 
   return (
     <div className="space-y-6 mb-6">
@@ -118,11 +124,11 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
             )}
           >
             <CalendarRange className="w-3.5 h-3.5" />
-            Monthly
+            {t('dashboard.monthly')}
           </button>
           <FeatureHelpTarget
-             message="View detailed breakdown of your fiscal year earnings, tax estimates, and savings goals."
-             title="Fiscal Details"
+             message={t('featureHelp.fiscalDetails')}
+             title={t('dashboard.details')}
              position="bottom"
              guidance={true}
           >
@@ -134,13 +140,13 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
              )}
            >
              <Calculator className="w-3.5 h-3.5" />
-             Details
+             {t('dashboard.details')}
            </button>
           </FeatureHelpTarget>
 
           <FeatureHelpTarget
-             message="Track your expenses and manage your budget allocation."
-             title="Budget & Expenses"
+             message={t('featureHelp.budgetExpenses')}
+             title={t('dashboard.budget')}
              position="bottom"
              guidance={true}
           >
@@ -151,8 +157,12 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
                viewMode === 'budget' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
              )}
            >
-             <DollarSign className="w-3.5 h-3.5" />
-             Budget
+             {country === 'KR' ? (
+               <span className="text-sm font-bold w-3.5 text-center flex items-center justify-center leading-none">₩</span>
+             ) : (
+               <DollarSign className="w-3.5 h-3.5" />
+             )}
+             {t('dashboard.budget')}
            </button>
           </FeatureHelpTarget>
         </div>
@@ -170,118 +180,120 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
         <ExpensesView />
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-wrap gap-4 items-center">
+          {/* Row 1: Unified Pay Summary & Action Buttons */}
+          <div className="flex flex-wrap gap-2 md:gap-3 items-center">
             {/* Estimated Pay Card */}
-            <div className="neu-flat px-6 py-4 flex items-center gap-4">
-              <div className="p-2 rounded-full neu-pressed">
-                <Wallet className="w-5 h-5 text-indigo-500" />
+            <div className="neu-flat px-4 py-3 flex items-center gap-3">
+              <div className="p-1.5 rounded-full neu-pressed">
+                <Wallet className="w-4 h-4 text-indigo-500" />
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Est. Pay</span>
-                  <span className="text-lg font-bold text-slate-700">{formatCurrency(monthlyPay)}</span>
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">{t('dashboard.estPay')}</span>
+                  <span className="text-base font-bold text-slate-700">{formatCurrency(monthlyPay)}</span>
                 </div>
-                <span className="text-[10px] text-slate-400">Gross Income</span>
               </div>
             </div>
 
-            {/* Superannuation Card */}
-            <div className="neu-flat px-6 py-4 flex items-center gap-4">
-              <div className="p-2 rounded-full neu-pressed">
-                <PiggyBank className="w-5 h-5 text-indigo-500" />
+            {/* Superannuation / National Pension Card */}
+            <div className="neu-flat px-4 py-3 flex items-center gap-3">
+              <div className="p-1.5 rounded-full neu-pressed">
+                <PiggyBank className="w-4 h-4 text-indigo-500" />
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Super</span>
-                  <span className="text-lg font-bold text-slate-700">
-                    {formatCurrency(monthlyPay * SUPER_RATE)}
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">
+                    {t(taxCalculator.getRetirementNameKey())}
+                  </span>
+                  <span className="text-base font-bold text-slate-700">
+                    {formatCurrency(monthlyPay * taxCalculator.getRetirementRate())}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400">11.5% Rate</span>
               </div>
             </div>
 
             {/* After-Tax Pay Card */}
-            <div className="neu-flat px-6 py-4 flex items-center gap-4">
-              <div className="p-2 rounded-full neu-pressed">
-                <Receipt className="w-5 h-5 text-emerald-500" />
+            <div className="neu-flat px-4 py-3 flex items-center gap-3">
+              <div className="p-1.5 rounded-full neu-pressed">
+                <Receipt className="w-4 h-4 text-emerald-500" />
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Net Pay</span>
-                  <span className="text-lg font-bold text-emerald-600">
-                    {formatCurrency(calculateTakeHome(monthlyPay, 'monthly', isStudentVisaHolder).netPay)}
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">{t('dashboard.netPay')}</span>
+                  <span className="text-base font-bold text-emerald-600">
+                    {formatCurrency(taxCalculator.calculateTakeHome(monthlyPay, 'monthly', isStudentVisaHolder).netPay)}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400">
-                  {isStudentVisaHolder ? 'Student Visa' : 'Includes Medicare'}
-                </span>
               </div>
             </div>
 
-            {/* Job Cards - Draggable + Double-click for settings */}
-            {jobConfigs.map((job) => (
-              <DraggableJobCard
-                key={job.id}
-                job={job}
-                hours={getHoursByType(job.id)}
-                onDoubleClick={() => onJobDoubleClick?.(job)}
-              />
-            ))}
-
-            {/* Add Job Button */}
-            {onAddJob && (
-              <button
-                onClick={onAddJob}
-                className="neu-icon-btn w-12 h-12 rounded-xl !p-0"
-                title="Add new job"
-              >
-                <Plus className="w-5 h-5 text-slate-500" />
-              </button>
-            )}
-
-            {/* AI Scan Button */}
-            {onAIScan && (
-              <FeatureHelpTarget 
-                message="Automatically import your schedule by uploading a photo or PDF of your roster. We'll scan it and add shifts for you!" 
-                title="Smart Roster Scan"
-                position="left"
-                guidance={true}
-              >
+            {/* Action Buttons - Grouped closely */}
+            <div className="flex gap-2 items-center ml-auto md:ml-0">
+              {onAddJob && (
                 <button
-                  onClick={onAIScan}
-                  className="neu-icon-btn w-12 h-12 rounded-xl !p-0 group"
-                  title="Scan roster with AI"
+                  onClick={onAddJob}
+                  className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
+                  title={t('dashboard.addNewJob')}
                 >
-                  <Sparkles className="w-5 h-5 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
+                  <Plus className="w-4 h-4 text-slate-500" />
                 </button>
-              </FeatureHelpTarget>
-            )}
+              )}
 
-            {/* Export Button */}
-            {onExport && (
-              <FeatureHelpTarget 
-                message="Download your timesheet data as CSV or PDF reports, or sync your shifts directly to your calendar (ICS)." 
-                title="Export & Sync"
-                position="right"
-                guidance={true}
-              >
-                <button
-                  onClick={onExport}
-                  className="neu-icon-btn w-12 h-12 rounded-xl !p-0"
-                  title="Export report"
+              {onAIScan && (
+                <FeatureHelpTarget
+                  message={t('featureHelp.smartRosterScan')}
+                  title={t('rosterScanner.scanRoster')}
+                  position="bottom"
+                  guidance={true}
                 >
-                  <Download className="w-5 h-5 text-slate-500" />
-                </button>
-              </FeatureHelpTarget>
-            )}
+                  <button
+                    onClick={onAIScan}
+                    className="neu-icon-btn w-10 h-10 rounded-xl !p-0 group"
+                    title={t('dashboard.scanRoster')}
+                  >
+                    <Sparkles className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
+                  </button>
+                </FeatureHelpTarget>
+              )}
+
+              {onExport && (
+                <FeatureHelpTarget
+                  message={t('featureHelp.exportSync')}
+                  title={t('dashboard.exportReport')}
+                  position="bottom"
+                  guidance={true}
+                >
+                  <button
+                    onClick={onExport}
+                    className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
+                    title={t('dashboard.exportReport')}
+                  >
+                    <Download className="w-4 h-4 text-slate-500" />
+                  </button>
+                </FeatureHelpTarget>
+              )}
+            </div>
           </div>
 
-          {isStudentVisaHolder && fortnightlyHours.length > 0 && (
+          {/* Row 2: Job Cards - Draggable + Double-click for settings */}
+          {jobConfigs.length > 0 && (
+            <div className="flex flex-wrap gap-4 items-center">
+              {jobConfigs.map((job) => (
+                <DraggableJobCard
+                  key={job.id}
+                  job={job}
+                  hours={getHoursByType(job.id)}
+                  onDoubleClick={() => onJobDoubleClick?.(job)}
+                />
+              ))}
+            </div>
+          )}
+
+          {isStudentVisaHolder && isAustralia && fortnightlyHours.length > 0 && (
             <div className="neu-flat px-4 py-3 flex items-center gap-4 overflow-x-auto">
               <div className="flex items-center gap-2 text-slate-500 shrink-0">
                 <Clock className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase">Visa Hours</span>
+                <span className="text-xs font-bold uppercase">{t('dashboard.visaHours')}</span>
               </div>
               <div className="flex gap-3">
                 {fortnightlyHours.sort((a, b) => a.periodStart.localeCompare(b.periodStart)).map((period) => {
@@ -323,9 +335,9 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
             <div className="neu-flat">
               <EmptyState
                 icon={Briefcase}
-                title="첫 번째 직업을 추가하세요!"
-                description="직업을 등록하면 시프트를 추가하고 급여를 계산할 수 있습니다."
-                actionLabel="직업 추가하기"
+                title={t('emptyState.addFirstJob')}
+                description={t('emptyState.addFirstJobDescription')}
+                actionLabel={t('emptyState.addJob')}
                 onAction={onAddJob}
               />
             </div>
@@ -336,9 +348,9 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
             <div className="neu-flat">
               <EmptyState
                 icon={Calendar}
-                title="이번 달 시프트가 없습니다"
-                description="로스터 스캐너로 시프트를 쉽게 추가하거나, 캘린더에서 더블클릭으로 직접 추가하세요!"
-                actionLabel="로스터 스캔하기"
+                title={t('emptyState.noShiftsThisMonth')}
+                description={t('emptyState.noShiftsDescription')}
+                actionLabel={t('emptyState.scanRoster')}
                 onAction={onAIScan}
                 variant="subtle"
               />

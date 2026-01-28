@@ -9,8 +9,13 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { useMonthlyTrends } from '../../hooks/useMonthlyTrends';
+import { useCurrency } from '../../hooks/useCurrency';
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+import { useTranslation } from 'react-i18next';
+
+const CustomTooltip = ({ active, payload, label, formatter }: any) => {
+  const { t } = useTranslation();
+  
   if (active && payload && payload.length) {
     const total = payload.reduce((sum: number, entry: any) => sum + (entry.value || 0), 0);
     
@@ -23,14 +28,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <div className="w-2.5 h-2.5 rounded-full ring-2 ring-white/50" style={{ backgroundColor: entry.color }} />
                 <span className="text-slate-600 font-medium text-xs uppercase tracking-wide opacity-80">{entry.name}</span>
                 <span className="font-mono font-semibold ml-auto text-slate-700">
-                ${entry.value.toLocaleString()}
+                {formatter ? formatter(entry.value) : entry.value}
                 </span>
             </div>
             ))}
         </div>
         <div className="border-t border-slate-200/50 mt-3 pt-2 flex items-center justify-between font-bold text-slate-800 text-sm">
-            <span>Total</span>
-            <span>${total.toLocaleString()}</span>
+            <span>{t('charts.total')}</span>
+            <span>{formatter ? formatter(total) : total}</span>
         </div>
       </div>
     );
@@ -40,6 +45,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export const IncomeChart = () => {
   const { chartData, jobs } = useMonthlyTrends(12);
+  const { t } = useTranslation();
+  const { formatCurrency, symbol } = useCurrency();
 
   if (chartData.length === 0) {
     return (
@@ -74,8 +81,8 @@ export const IncomeChart = () => {
     <div className="neu-flat p-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-center justify-between mb-8 px-2">
          <div>
-            <h3 className="text-lg font-bold text-slate-700 tracking-tight">Income Trends</h3>
-            <p className="text-xs text-slate-400 font-medium mt-0.5 uppercase tracking-wider">Last 12 Months</p>
+            <h3 className="text-lg font-bold text-slate-700 tracking-tight">{t('charts.incomeTrends')}</h3>
+            <p className="text-xs text-slate-400 font-medium mt-0.5 uppercase tracking-wider">{t('charts.last12Months')}</p>
          </div>
          {/* Optional: Add a filter or total summary here conceptually */}
       </div>
@@ -104,11 +111,11 @@ export const IncomeChart = () => {
                 axisLine={false} 
                 tickLine={false} 
                 tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 500 }}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => `${symbol}${value}`}
                 dx={-10}
             />
             <Tooltip 
-                content={<CustomTooltip />} 
+                content={<CustomTooltip formatter={formatCurrency} />} 
                 cursor={{ fill: '#f8fafc', opacity: 0.5 }} 
             />
             <Legend 

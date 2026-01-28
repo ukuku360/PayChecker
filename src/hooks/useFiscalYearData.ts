@@ -4,10 +4,13 @@ import { calculateTotalPay } from '../utils/calculatePay';
 import { calculateTakeHome, calculateIncomeTax, calculateMedicareLevy } from '../data/taxRates';
 import { getFiscalYearRange, groupShiftsByFortnightYTD } from '../utils/fiscalYearUtils';
 
+import { useCountry } from './useCountry';
+
 export const useFiscalYearData = () => {
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
+  const { country } = useCountry();
 
-  const { start: fyStart, end: fyEnd, label: fyLabel } = getFiscalYearRange(new Date());
+  const { start: fyStart, end: fyEnd, label: fyLabel } = getFiscalYearRange(new Date(), country);
 
   const data = useMemo(() => {
     // 1. Group shifts
@@ -28,7 +31,7 @@ export const useFiscalYearData = () => {
         
         // Calculate tax for this specific fortnight period
         // Treat it as a fortnightly pay cycle
-        const taxDetails = calculateTakeHome(periodGross, 'fortnightly', isStudentVisaHolder);
+        const taxDetails = calculateTakeHome(periodGross, 'fortnightly', isStudentVisaHolder, country);
         
         ytdGrossPay += periodGross;
         ytdEstimatedTaxWithheld += taxDetails.totalTax;
@@ -36,8 +39,8 @@ export const useFiscalYearData = () => {
 
     // 3. Calculate Actual Liability (Annualized Calculation on Total YTD)
     // If we want "True Liability at end of year", we take YTD Gross and run it through Annual Tax tables.
-    const annualIncomeTax = calculateIncomeTax(ytdGrossPay);
-    const annualMedicare = isStudentVisaHolder ? 0 : calculateMedicareLevy(ytdGrossPay);
+    const annualIncomeTax = calculateIncomeTax(ytdGrossPay, country);
+    const annualMedicare = (country === 'AU' && !isStudentVisaHolder) ? calculateMedicareLevy(ytdGrossPay) : 0;
     const actualTaxLiability = annualIncomeTax + annualMedicare;
 
     // 4. Refund / Bill
@@ -55,7 +58,7 @@ export const useFiscalYearData = () => {
       estimatedRefund,
       fortnights
     };
-  }, [shifts, jobConfigs, holidays, isStudentVisaHolder, fyStart]);
+  }, [shifts, jobConfigs, holidays, isStudentVisaHolder, fyStart, country]);
 
   return data;
 };

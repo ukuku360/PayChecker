@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Shift, JobConfig, VacationPeriod, Expense } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import type { CountryCode } from '../data/countries';
+import i18n from '../i18n';
 
 interface CopiedShiftData {
   type: string;
@@ -21,6 +23,8 @@ interface ScheduleState {
   vacationPeriods: VacationPeriod[];
   savingsGoal: number;
   expenses: Expense[];
+  country: CountryCode | null; // null = not selected (existing users need to choose)
+  isLoaded: boolean;
 
   hasSeenHelp: boolean;
   markHelpSeen: () => Promise<void>;
@@ -43,6 +47,7 @@ interface ScheduleState {
   addExpense: (expense: Expense) => Promise<void>;
   updateExpense: (id: string, expense: Partial<Expense>) => Promise<void>;
   removeExpense: (id: string) => Promise<void>;
+  setCountry: (country: CountryCode) => Promise<void>;
 }
 
 const DEFAULT_JOB_CONFIGS: JobConfig[] = [];
@@ -58,6 +63,8 @@ export const useScheduleStore = create<ScheduleState>()(
       vacationPeriods: [],
       savingsGoal: 0,
       expenses: [],
+      country: null,
+      isLoaded: false,
       hasSeenHelp: false,
 
       markHelpSeen: async () => {
@@ -90,7 +97,22 @@ export const useScheduleStore = create<ScheduleState>()(
           vacationPeriods: [],
           savingsGoal: 0,
           expenses: [],
+          country: null,
+          isLoaded: false,
         });
+      },
+
+      setCountry: async (country: CountryCode) => {
+        set({ country });
+        // Update i18n language based on country
+        const language = country === 'KR' ? 'ko' : 'en';
+        i18n.changeLanguage(language);
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { error } = await supabase.from('profiles').update({ country }).eq('id', user.id);
+          if (error) console.error('Error updating country:', error);
+        }
       },
 
       fetchData: async (userId?: string) => {
@@ -113,7 +135,7 @@ export const useScheduleStore = create<ScheduleState>()(
         ] = await Promise.all([
           supabase.from('job_configs').select('*'),
           supabase.from('shifts').select('*'),
-          supabase.from('profiles').select('is_student_visa_holder, vacation_periods, savings_goal, holidays, expenses').eq('id', user.id).maybeSingle()
+          supabase.from('profiles').select('is_student_visa_holder, vacation_periods, savings_goal, holidays, expenses, country').eq('id', user.id).maybeSingle()
         ]);
         
         // Handle Job Configs
@@ -171,7 +193,7 @@ export const useScheduleStore = create<ScheduleState>()(
             note: s.note || undefined,
             startTime: s.start_time || undefined,
             endTime: s.end_time || undefined,
-            breakMinutes: s.break_minutes || 0,
+            breakMinutes: s.break_minutes != null ? Number(s.break_minutes) : undefined,
           }));
           set({ shifts: mappedShifts });
         }
@@ -182,13 +204,20 @@ export const useScheduleStore = create<ScheduleState>()(
         }
         
         if (profileData) {
-          set({ 
+          const country = profileData.country as CountryCode | null;
+          set({
             isStudentVisaHolder: profileData.is_student_visa_holder ?? false,
             vacationPeriods: profileData.vacation_periods || [],
             savingsGoal: Number(profileData.savings_goal) || 0,
             holidays: profileData.holidays || [],
-            expenses: profileData.expenses || []
+            expenses: profileData.expenses || [],
+            country: country
           });
+          // Update i18n language based on country
+          if (country) {
+            const language = country === 'KR' ? 'ko' : 'en';
+            i18n.changeLanguage(language);
+          }
         } else {
           // Profile doesn't exist - create one with defaults
           const { error: createError } = await supabase.from('profiles').insert({
@@ -209,13 +238,16 @@ export const useScheduleStore = create<ScheduleState>()(
             vacationPeriods: [],
             savingsGoal: 0,
             holidays: [],
-            expenses: []
+            expenses: [],
+            country: null
           });
         }
+        
+        set({ isLoaded: true });
       },
 
       addShift: async (shift) => {
-        // Optimistic update
+        // Optimistic update with temporary ID
         set((state) => ({
           shifts: [
             ...state.shifts.filter(s => !(s.date === shift.date && s.type === shift.type)),
@@ -225,7 +257,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { error } = await supabase.from('shifts').upsert({
+          const { data, error } = await supabase.from('shifts').upsert({
              user_id: user.id,
              date: shift.date,
              type: shift.type,
@@ -234,8 +266,20 @@ export const useScheduleStore = create<ScheduleState>()(
              start_time: shift.startTime,
              end_time: shift.endTime,
              break_minutes: shift.breakMinutes
-          }, { onConflict: 'user_id, date, type' });
-          if (error) console.error('Error adding shift:', error);
+          }, { onConflict: 'user_id, date, type' }).select('id').single();
+
+          if (error) {
+            console.error('Error adding shift:', error);
+          } else if (data) {
+            // Update local state with the actual UUID from database
+            set((state) => ({
+              shifts: state.shifts.map(s =>
+                (s.date === shift.date && s.type === shift.type)
+                  ? { ...s, id: data.id }
+                  : s
+              )
+            }));
+          }
         }
       },
 
@@ -270,16 +314,26 @@ export const useScheduleStore = create<ScheduleState>()(
             break_minutes: shift.breakMinutes
           }));
 
-          const { error } = await supabase.from('shifts').upsert(
+          const { data, error } = await supabase.from('shifts').upsert(
             shiftsToUpsert,
             { onConflict: 'user_id, date, type' }
-          );
+          ).select('id, date, type');
 
           if (error) {
             console.error('Error adding multiple shifts:', error);
             // Rollback on error
             set({ shifts: previousShifts });
             throw new Error('Failed to save shifts. Changes have been reverted.');
+          }
+
+          // Update local state with actual UUIDs from database
+          if (data && data.length > 0) {
+            set((state) => ({
+              shifts: state.shifts.map(s => {
+                const dbShift = data.find(d => d.date === s.date && d.type === s.type);
+                return dbShift ? { ...s, id: dbShift.id } : s;
+              })
+            }));
           }
         }
       },
@@ -486,6 +540,10 @@ export const useScheduleStore = create<ScheduleState>()(
     }),
     {
       name: 'paychecker-storage-v2',
+      partialize: (state) => {
+        const { isLoaded, ...rest } = state;
+        return rest;
+      },
     }
   )
 );

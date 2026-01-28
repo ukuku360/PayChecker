@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DndContext, DragOverlay, useSensor, useSensors, MouseSensor, TouchSensor } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { CalendarGrid } from './components/Calendar/CalendarGrid';
@@ -7,6 +8,7 @@ import { AddJobModal } from './components/Dashboard/AddJobModal';
 import { HourlyRateModal } from './components/JobBar/HourlyRateModal';
 import { ExportModal } from './components/Export/ExportModal';
 import { ProfileModal } from './components/Profile/ProfileModal';
+import { CountrySelectionModal } from './components/CountrySelectionModal';
 import { useScheduleStore } from './store/useScheduleStore';
 import type { JobConfig, JobType } from './types';
 import { v4 as uuidv4 } from 'uuid';
@@ -14,7 +16,7 @@ import { clsx } from 'clsx';
 import { isSaturday, isSunday } from 'date-fns';
 import { dotColorMap } from './utils/colorUtils';
 import { supabase } from './lib/supabaseClient';
-import { Auth } from './components/Auth/Auth'; // Import Auth component
+import { Auth } from './components/Auth/Auth';
 import { GoogleAd } from './components/GoogleAd';
 import { FeedbackModal } from './components/Feedback/FeedbackModal';
 import { AdminFeedbackList } from './components/Feedback/AdminFeedbackList';
@@ -23,9 +25,11 @@ import { FeatureHelpTrigger } from './components/FeatureHelp/FeatureHelpTrigger'
 import { ReadmeModal } from './components/Help/ReadmeModal';
 import { useFeatureHelpStore } from './store/useFeatureHelpStore';
 import { MessageSquare, BookOpen } from 'lucide-react';
+import './i18n';
 
 function App() {
-  const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData, clearData, shifts } = useScheduleStore();
+  const { t } = useTranslation();
+  const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData, clearData, shifts, country, isLoaded } = useScheduleStore();
   const [activeType, setActiveType] = useState<JobType | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
   const [showAddJobModal, setShowAddJobModal] = useState(false);
@@ -205,7 +209,7 @@ function App() {
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen p-6 md:p-12 font-sans text-slate-700 pb-20">
-        <header className="mb-8 max-w-7xl mx-auto flex justify-between items-center glass-panel px-6 py-4 sticky top-4 z-40">
+        <header className="mb-8 max-w-7xl mx-auto flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-6 py-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-700 tracking-tight">
               PayChecker
@@ -213,11 +217,11 @@ function App() {
             <p className="text-slate-500 text-sm">Manage scheduling and track earnings.</p>
           </div>
           <div className="flex items-center gap-4">
-            <button 
+            <button
                onClick={handleLogout}
                className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
             >
-              Sign Out
+              {t('auth.signOut')}
             </button>
             <FeatureHelpTrigger />
             <button 
@@ -270,7 +274,7 @@ function App() {
 
             {/* Vertical Ad Sidebar (Desktop only) */}
             <div className="hidden lg:block w-[160px] xl:w-[300px] shrink-0">
-               <div className="sticky top-24">
+               <div>
                   <div className="text-xs font-bold text-slate-300 uppercase text-center mb-2">Ad</div>
                   <GoogleAd slot="6494384759" style={{ minHeight: '600px' }} />
                </div>
@@ -342,7 +346,10 @@ function App() {
           isOpen={showReadmeModal}
           onClose={() => setShowReadmeModal(false)}
         />
-        
+
+        {/* Country Selection Modal for existing users */}
+        <CountrySelectionModal isOpen={session && !loading && isLoaded && country === null} />
+
         {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}
         {/* Alternatively, add it to the profile modal or just check email here */}
         {/* For simplicity, let's put a subtle trigger in the footer or near the ad */}

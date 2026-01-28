@@ -10,7 +10,8 @@ export const calculatePaidHours = (shift: Shift, jobConfigs: JobConfig[]): numbe
   const job = jobConfigs.find(j => j.id === shift.type);
   if (!job) return shift.hours;
 
-  const breakMinutes = job.defaultBreakMinutes || 0;
+  // Use event-level breakMinutes override if set, otherwise fall back to job default
+  const breakMinutes = shift.breakMinutes ?? job.defaultBreakMinutes ?? 0;
   if (breakMinutes === 0) {
     return shift.hours;
   }

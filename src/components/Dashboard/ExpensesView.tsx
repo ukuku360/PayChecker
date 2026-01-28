@@ -11,10 +11,14 @@ import { startOfMonth, endOfMonth, format, subMonths } from 'date-fns';
 import { ExpensePieChart, RealIncomeChart } from './ExpenseCharts';
 import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
+import { useTranslation } from 'react-i18next';
+import { useCurrency } from '../../hooks/useCurrency';
+
+// Format currency helper removed, use useCurrency instead
 
 export const ExpensesView = () => {
+  const { t } = useTranslation();
+  const { formatCurrency, symbol } = useCurrency();
   const { shifts, jobConfigs, holidays, expenses, addExpense, updateExpense, removeExpense, isStudentVisaHolder } = useScheduleStore();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -132,35 +136,35 @@ export const ExpensesView = () => {
         <div className="neu-flat p-5 flex flex-col gap-2">
           <div className="flex items-center gap-2 text-emerald-500">
             <Wallet className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase text-slate-400">Net Income</span>
+            <span className="text-xs font-bold uppercase text-slate-400">{t('dashboard.netPay')}</span>
           </div>
           <span className="text-2xl font-bold text-slate-700">{formatCurrency(netMonthlyIncome)}</span>
-          <span className="text-[10px] text-slate-400">After tax this month</span>
+          <span className="text-[10px] text-slate-400">{t('dashboard.monthly')}</span>
         </div>
 
         <div className="neu-flat p-5 flex flex-col gap-2">
           <div className="flex items-center gap-2 text-rose-500">
             <TrendingDown className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase text-slate-400">Fixed Expenses</span>
+            <span className="text-xs font-bold uppercase text-slate-400">{t('expenses.fixedExpenses')}</span>
           </div>
           <span className="text-2xl font-bold text-rose-600">{formatCurrency(totalExpenses)}</span>
-          <span className="text-[10px] text-slate-400">{visibleExpenses.length} items monthly</span>
+          <span className="text-[10px] text-slate-400">{visibleExpenses.length} {t('expenses.itemsMonthly')}</span>
         </div>
 
         <FeatureHelpTarget
-            message="Your actual disposable income after tax and fixed expenses are deducted."
-            title="Real Income"
+            message={t('expenses.realIncomeHelp')}
+            title={t('expenses.realIncome')}
             position="left"
         >
             <div className={clsx("neu-flat p-5 flex flex-col gap-2 border-l-4 h-full", realIncome >= 0 ? "border-emerald-400" : "border-rose-400")}>
               <div className="flex items-center gap-2">
                 <Receipt className={clsx("w-5 h-5", realIncome >= 0 ? "text-emerald-500" : "text-rose-500")} />
-                <span className="text-xs font-bold uppercase text-slate-400">Real Income</span>
+                <span className="text-xs font-bold uppercase text-slate-400">{t('expenses.realIncome')}</span>
               </div>
               <span className={clsx("text-2xl font-bold", realIncome >= 0 ? "text-emerald-600" : "text-rose-600")}>
                 {formatCurrency(realIncome)}
               </span>
-              <span className="text-[10px] text-slate-400">After fixed expenses</span>
+              <span className="text-[10px] text-slate-400">{t('expenses.afterFixedExpenses')}</span>
             </div>
         </FeatureHelpTarget>
       </div>
@@ -173,11 +177,11 @@ export const ExpensesView = () => {
       {/* Expense List */}
       <div className="neu-flat p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Monthly Fixed Expenses</h3>
+          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('expenses.monthlyFixedExpenses')}</h3>
           {!isAdding && (
             <FeatureHelpTarget
-                message="Add your recurring monthly costs (like rent or subscriptions) to track your real disposable income."
-                title="Add Expenses"
+                message={t('expenses.addExpensesHelp')}
+                title={t('expenses.addExpenses')}
                 position="left"
             >
                 <button
@@ -185,7 +189,7 @@ export const ExpensesView = () => {
                 className="neu-icon-btn !p-2 flex items-center gap-2"
                 >
                 <Plus className="w-4 h-4 text-slate-500" />
-                <span className="text-xs font-bold text-slate-500">Add</span>
+                <span className="text-xs font-bold text-slate-500">{t('common.add')}</span>
                 </button>
             </FeatureHelpTarget>
           )}
@@ -204,7 +208,7 @@ export const ExpensesView = () => {
                 autoFocus
               />
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{symbol}</span>
                 <input
                   type="number"
                   placeholder="Amount"
@@ -257,8 +261,8 @@ export const ExpensesView = () => {
         {visibleExpenses.length === 0 && !isAdding && (
           <div className="text-center py-8 text-slate-400">
             <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No expenses for this month</p>
-            <p className="text-xs">Add recurring or one-time expenses</p>
+            <p className="text-sm">{t('expenses.noExpenses')}</p>
+            <p className="text-xs">{t('expenses.addRecurring')}</p>
           </div>
         )}
 
@@ -282,7 +286,7 @@ export const ExpensesView = () => {
                         className="px-2 py-1 border border-slate-200 rounded text-sm flex-1 min-w-[100px]"
                       />
                       <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">{symbol}</span>
                         <input
                           type="number"
                           value={formData.amount}

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { X, Send, MessageSquare, Bug, Lightbulb } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Feedback, FeedbackReply } from '../../types';
+import { useTranslation } from 'react-i18next';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface FeedbackModalProps {
 type FeedbackType = 'feedback' | 'feature_request' | 'bug';
 
 export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps) => {
+  const { t } = useTranslation();
   const [message, setMessage] = useState('');
   const [type, setType] = useState<FeedbackType>('feedback');
   const [loading, setLoading] = useState(false);
@@ -99,11 +101,11 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
     }
   };
 
-  const getTypeLabel = (t: FeedbackType) => {
-    switch (t) {
-      case 'bug': return 'Bug Report';
-      case 'feature_request': return 'Feature Request';
-      default: return 'General Feedback';
+  const getTypeLabel = (tType: FeedbackType) => {
+    switch (tType) {
+      case 'bug': return t('feedback.bug');
+      case 'feature_request': return t('feedback.feature');
+      default: return t('feedback.general');
     }
   };
 
@@ -116,13 +118,13 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
               onClick={() => setActiveTab('write')}
               className={clsx("text-sm font-bold transition-colors", activeTab === 'write' ? "text-slate-700" : "text-slate-400 hover:text-slate-600")}
             >
-              Write
+              {t('feedback.write')}
             </button>
             <button 
               onClick={() => setActiveTab('history')}
               className={clsx("text-sm font-bold transition-colors", activeTab === 'history' ? "text-slate-700" : "text-slate-400 hover:text-slate-600")}
             >
-              My History
+              {t('feedback.history')}
             </button>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -137,13 +139,13 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
                  <div className="w-12 h-12 bg-emerald-100/50 rounded-full flex items-center justify-center mx-auto text-emerald-600 mb-2">
                     <Send className="w-6 h-6" />
                  </div>
-                 <h4 className="text-xl font-bold text-slate-700">Thank You!</h4>
-                 <p className="text-slate-500 text-sm">Your feedback has been sent to the developer.</p>
+                 <h4 className="text-xl font-bold text-slate-700">{t('feedback.success')}</h4>
+                 <p className="text-slate-500 text-sm">{t('feedback.successMsg')}</p>
                  <button 
                    onClick={() => setSuccess(false)}
                    className="mt-4 text-xs font-bold text-indigo-500 hover:text-indigo-600"
                  >
-                   Send Another
+                   {t('feedback.sendAnother')}
                  </button>
               </div>
             ) : (
@@ -169,13 +171,13 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Message
+                    {t('feedback.message')}
                   </label>
                   <textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     className="neu-pressed w-full h-32 px-4 py-3 rounded-xl border-none focus:ring-0 text-slate-700 text-sm placeholder-slate-400 resize-none bg-[#e0e5ec] shadow-inner"
-                    placeholder="Tell us what you think..."
+                    placeholder={t('feedback.placeholder')}
                     required
                   />
                 </div>
@@ -193,11 +195,11 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
                     className="neu-btn w-full flex items-center justify-center gap-2 !bg-indigo-500 !text-white !py-3 hover:!bg-indigo-600"
                   >
                     {loading ? (
-                      <span className="opacity-80">Sending...</span>
+                      <span className="opacity-80">{t('feedback.sending')}</span>
                     ) : (
                       <>
                         <Send className="w-4 h-4 ml-0.5" />
-                        <span>Send Feedback</span>
+                        <span>{t('feedback.send')}</span>
                       </>
                     )}
                   </button>
@@ -207,9 +209,9 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
           ) : (
             <div className="p-4 space-y-3">
               {loadingHistory ? (
-                <div className="text-center py-8 text-slate-400 text-sm">Loading history...</div>
+                <div className="text-center py-8 text-slate-400 text-sm">{t('feedback.loadingHistory')}</div>
               ) : myFeedback.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-sm">No feedback sent yet.</div>
+                <div className="text-center py-8 text-slate-400 text-sm">{t('feedback.noHistory')}</div>
               ) : (
                 myFeedback.map((item) => (
                   <FeedbackHistoryItem key={item.id} item={item} />
@@ -224,6 +226,7 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
 };
 
 const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [replies, setReplies] = useState<FeedbackReply[]>([]);
   const [replyMessage, setReplyMessage] = useState('');
@@ -287,7 +290,7 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
             </span>
           </div>
           <button className="text-xs text-indigo-500 font-bold">
-            {expanded ? 'Hide' : 'View'}
+            {expanded ? t('feedback.hide') : t('feedback.view')}
           </button>
       </div>
       
@@ -303,7 +306,7 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
       {item.admin_reply && !expanded && (
         <div className="mt-3 flex justify-end">
           <div className="max-w-[85%] bg-indigo-500 rounded-2xl rounded-tr-none p-3 text-sm text-white shadow-md shadow-indigo-500/20">
-            <p className="text-[10px] text-indigo-200 font-bold mb-1">Developer</p>
+            <p className="text-[10px] text-indigo-200 font-bold mb-1">{t('feedback.developer')}</p>
             <span className="truncate block">{item.admin_reply}</span>
           </div>
         </div>

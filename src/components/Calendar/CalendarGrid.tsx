@@ -2,6 +2,7 @@ import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, ad
 import { ChevronLeft, ChevronRight, Save, X, GripVertical, MousePointerClick, Lightbulb, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DayCell } from './DayCell';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { VisaWarningModal } from './VisaWarningModal';
@@ -11,6 +12,7 @@ import type { Shift } from '../../types';
 const CALENDAR_HINTS_DISMISSED_KEY = 'paychecker_calendar_hints_dismissed';
 
 const CalendarHintBanner = () => {
+  const { t } = useTranslation();
   const [isDismissed, setIsDismissed] = useState(true);
   
   useEffect(() => {
@@ -33,15 +35,15 @@ const CalendarHintBanner = () => {
             <Lightbulb className="w-4 h-4 text-indigo-500" />
           </div>
           <div className="space-y-2">
-            <h4 className="text-sm font-bold text-slate-700">캘린더 사용 팁</h4>
+            <h4 className="text-sm font-bold text-slate-700">{t('calendar.tips.title')}</h4>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <GripVertical className="w-3 h-3 text-indigo-400" />
-                <span><strong>드래그 앤 드롭:</strong> 상단의 일정 카드를 캘린더 날짜로 드래그하세요</span>
+                <span>{t('calendar.tips.dragDrop')}</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <MousePointerClick className="w-3 h-3 text-indigo-400" />
-                <span><strong>더블클릭:</strong> 빈 날짜를 더블클릭하면 시프트 추가, 시프트를 더블클릭하면 시간 편집</span>
+                <span>{t('calendar.tips.doubleClick')}</span>
               </div>
             </div>
           </div>
@@ -49,7 +51,7 @@ const CalendarHintBanner = () => {
         <button 
           onClick={handleDismiss}
           className="p-1 hover:bg-white/50 rounded-lg transition-colors shrink-0"
-          aria-label="닫기"
+          aria-label={t('common.close')}
         >
           <X className="w-4 h-4 text-slate-400" />
         </button>
@@ -233,6 +235,7 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
 };
 
 const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd: Date }) => {
+  const { t } = useTranslation();
   const { shifts, removeShiftsInRange } = useScheduleStore();
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -270,10 +273,10 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
             "neu-btn flex items-center gap-2 !bg-rose-50 !text-rose-700 border border-rose-100",
             monthShiftCount === 0 ? "opacity-50 !cursor-not-allowed" : "hover:!bg-rose-100"
           )}
-          title="이번 달 시프트 전체 삭제"
+          title={t('calendar.deleteMonth')}
         >
           <Trash2 className="w-4 h-4" />
-          <span>이번 달 삭제</span>
+          <span>{t('calendar.deleteMonth')}</span>
         </button>
       ) : (
         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -286,13 +289,13 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
               clearing && "opacity-70"
             )}
           >
-            {clearing ? '삭제 중...' : `전체 삭제 (${monthShiftCount})`}
+            {clearing ? t('calendar.deleting') : `${t('calendar.deleteAll')} (${monthShiftCount})`}
           </button>
           <button
             type="button"
             onClick={() => setConfirming(false)}
             className="neu-icon-btn w-9 h-9 !rounded-lg text-slate-500 hover:text-slate-700"
-            aria-label="삭제 취소"
+            aria-label={t('calendar.cancelDelete')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -303,6 +306,7 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
 };
 
 const GlobalSaveButton = () => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const { fetchData } = useScheduleStore();
   
@@ -336,9 +340,9 @@ const GlobalSaveButton = () => {
         status === 'saving' && "animate-spin"
       )} />
       <span>
-        {status === 'saving' ? 'Syncing...' :
-         status === 'saved' ? 'Synced!' :
-         status === 'error' ? 'Sync failed' : 'Save'}
+        {status === 'saving' ? t('calendar.syncing') :
+         status === 'saved' ? t('calendar.synced') :
+         status === 'error' ? t('calendar.syncFailed') : t('calendar.save')}
       </span>
     </button>
   );

@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import { isWeekend } from 'date-fns';
 import { X, Sparkles, Check } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { processRosterPhase1, processRosterPhase2, saveJobAliases, getJobAliases, getRosterScanUsage } from '../../lib/rosterApi';
 import { supabase } from '../../lib/supabaseClient';
 import { compressImage, createPreviewUrl, isPDF } from '../../utils/imageUtils';
+import { addHoursToTime } from '../../utils/timeUtils';
 import { extractFirstPageAsImage } from '../../utils/pdfUtils';
 import type { ParsedShift, JobAlias, IdentifiedPerson, SmartQuestion, QuestionAnswer, OcrResult } from '../../types';
 import type { ScanStep, JobMapping } from './types';
@@ -22,25 +25,26 @@ interface RosterScannerModalProps {
 // Extended step type to include questions
 type ExtendedScanStep = ScanStep | 'questions';
 
-const STEP_TITLES: Record<ExtendedScanStep, string> = {
-  upload: 'Scan Roster',
-  processing: 'Analyzing',
-  questions: 'Quick Question',
-  mapping: 'Map Jobs',
-  confirmation: 'Confirm Shifts'
+const STEP_TITLE_KEYS: Record<ExtendedScanStep, string> = {
+  upload: 'rosterScanner.scanRoster',
+  processing: 'rosterScanner.analyzing',
+  questions: 'rosterScanner.quickQuestion',
+  mapping: 'rosterScanner.mapJobs',
+  confirmation: 'rosterScanner.confirmShifts'
 };
 
-const STEP_DESCRIPTIONS: Record<ExtendedScanStep, string> = {
-  upload: '로스터 이미지나 PDF를 업로드하세요',
-  processing: 'AI가 시프트 정보를 추출하고 있습니다',
-  questions: '정확한 추출을 위해 몇 가지 질문에 답해주세요',
-  mapping: '로스터의 직업명을 앱의 Job과 연결합니다',
-  confirmation: '추출된 시프트를 확인하고 캘린더에 추가합니다'
+const STEP_DESCRIPTION_KEYS: Record<ExtendedScanStep, string> = {
+  upload: 'rosterScanner.uploadDescription',
+  processing: 'rosterScanner.processingDescription',
+  questions: 'rosterScanner.questionsDescription',
+  mapping: 'rosterScanner.mappingDescription',
+  confirmation: 'rosterScanner.confirmDescription'
 };
 
 const STEP_ORDER: ExtendedScanStep[] = ['upload', 'processing', 'questions', 'mapping', 'confirmation'];
 
 export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps) {
+  const { t } = useTranslation();
   const { jobConfigs, shifts: existingShifts, addMultipleShifts, addJobConfig } = useScheduleStore();
   const [isRendered, setIsRendered] = useState(false);
 
@@ -334,14 +338,39 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
           note = `Scanned: ${s.startTime}-${s.endTime}`;
         }
         
+        // Calculate default hours/times if missing
+        const jobConfig = jobConfigs.find(j => j.id === s.mappedJobId);
+        let hours = s.totalHours ?? 0;
+        let startTime = s.startTime;
+        let endTime = s.endTime;
+
+        if (jobConfig) {
+          const dateObj = new Date(s.date);
+          const isWknd = isWeekend(dateObj);
+          const defaultDuration = isWknd ? jobConfig.defaultHours.weekend : jobConfig.defaultHours.weekday;
+
+          // 1. If hours is 0, use default duration
+          if (!hours && defaultDuration > 0) {
+            hours = defaultDuration;
+          }
+
+          // 2. If startTime exists but endTime is missing, calculate it
+          if (startTime && !endTime) {
+            const calculatedEnd = addHoursToTime(startTime, hours);
+            if (calculatedEnd) {
+              endTime = calculatedEnd;
+            }
+          }
+        }
+
         return {
           id: s.id,
           date: s.date,
           type: s.mappedJobId!,
-          hours: s.totalHours ?? 0,
+          hours: hours,
           note,
-          ...(s.startTime ? { startTime: s.startTime } : {}),
-          ...(s.endTime ? { endTime: s.endTime } : {})
+          ...(startTime ? { startTime: startTime } : {}),
+          ...(endTime ? { endTime: endTime } : {})
         };
       });
 
@@ -384,7 +413,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
               <Sparkles className="w-5 h-5 text-indigo-500" />
             </div>
             <h2 className="text-lg font-bold text-slate-700">
-              {STEP_TITLES[step]}
+              {t(STEP_TITLE_KEYS[step])}
             </h2>
           </div>
           <button
@@ -429,7 +458,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 </div>
               ))}
             </div>
-            <p className="text-center text-xs text-slate-500 mt-2">{STEP_DESCRIPTIONS[step]}</p>
+            <p className="text-center text-xs text-slate-500 mt-2">{t(STEP_DESCRIPTION_KEYS[step])}</p>
           </div>
         )}
 

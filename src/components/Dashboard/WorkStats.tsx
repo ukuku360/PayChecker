@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { startOfMonth, endOfMonth, subMonths, addMonths, format, getDay, parseISO } from 'date-fns';
+import { enAU, ko } from 'date-fns/locale';
 import { Clock, Calendar, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+import { useTranslation } from 'react-i18next';
+import { useCountry } from '../../hooks/useCountry';
 
 export const WorkStats = () => {
   const { shifts } = useScheduleStore();
+  const { t } = useTranslation();
+  const { isKorea } = useCountry();
+  const dateLocale = isKorea ? ko : enAU;
   const [selectedDate, setSelectedDate] = useState(new Date());
   
   const selectedMonthStart = startOfMonth(selectedDate);
@@ -91,7 +95,7 @@ export const WorkStats = () => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
           <Clock className="w-4 h-4" />
-          Work Statistics
+          {t('stats.title')}
         </h3>
         
         {/* Month Selector */}
@@ -109,7 +113,7 @@ export const WorkStats = () => {
               isCurrentMonth ? "neu-pressed text-indigo-500" : "text-slate-500 hover:text-slate-700"
             )}
           >
-            {format(selectedDate, 'MMM yyyy')}
+            {format(selectedDate, 'MMM yyyy', { locale: dateLocale })}
           </button>
           <button 
             onClick={goToNextMonth}
@@ -124,7 +128,7 @@ export const WorkStats = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Selected Month Hours */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{format(selectedDate, 'MMMM')}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{format(selectedDate, 'MMMM', { locale: dateLocale })}</p>
           <p className="text-2xl font-bold text-slate-700">{selectedMonthHours}h</p>
           <div className={clsx(
             "flex items-center gap-1 mt-1 text-xs font-medium",
@@ -137,31 +141,36 @@ export const WorkStats = () => {
 
         {/* Previous Month Hours */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Previous</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('stats.previous')}</p>
           <p className="text-2xl font-bold text-slate-500">{prevMonthHours}h</p>
-          <p className="text-[10px] text-slate-400 mt-1">{format(prevMonthStart, 'MMMM')}</p>
+          <p className="text-[10px] text-slate-400 mt-1">{format(prevMonthStart, 'MMMM', { locale: dateLocale })}</p>
         </div>
 
         {/* Average per Day */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Avg/Day</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('stats.avgDay')}</p>
           <p className="text-2xl font-bold text-slate-700">{avgHoursPerDay.toFixed(1)}h</p>
-          <p className="text-[10px] text-slate-400 mt-1">{selectedMonthWorkDays} work days</p>
+          <p className="text-[10px] text-slate-400 mt-1">{selectedMonthWorkDays} {t('stats.workDays')}</p>
         </div>
 
         {/* Most Worked Day of Week */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Busiest Day</p>
-          <p className="text-2xl font-bold text-indigo-500">{maxAvgHours > 0 ? DAY_NAMES[mostWorkedDayOfWeek] : '-'}</p>
-          <p className="text-[10px] text-slate-400 mt-1">{maxAvgHours.toFixed(1)}h avg</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('stats.busiestDay')}</p>
+          <p className="text-2xl font-bold text-indigo-500">
+            {maxAvgHours > 0 
+              ? [t('stats.sun'), t('stats.mon'), t('stats.tue'), t('stats.wed'), t('stats.thu'), t('stats.fri'), t('stats.sat')][mostWorkedDayOfWeek] 
+              : '-'
+            }
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1">{maxAvgHours.toFixed(1)}h {t('stats.avg')}</p>
         </div>
       </div>
 
       {/* Day of Week Breakdown - Now showing AVERAGE */}
       <div className="mt-6">
-        <p className="text-[10px] font-bold text-slate-400 uppercase mb-3">Average Hours by Day of Week</p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase mb-3">{t('stats.avgByDay')}</p>
         <div className="flex gap-2">
-          {DAY_NAMES.map((day, index) => {
+          {[t('stats.sun'), t('stats.mon'), t('stats.tue'), t('stats.wed'), t('stats.thu'), t('stats.fri'), t('stats.sat')].map((day, index) => {
             const avgHours = dayOfWeekAvgHours[index];
             const heightPercent = maxAvgHours > 0 ? (avgHours / maxAvgHours) * 100 : 0;
             const isMax = index === mostWorkedDayOfWeek && avgHours > 0;
@@ -194,9 +203,9 @@ export const WorkStats = () => {
           <Calendar className="w-5 h-5 text-amber-500" />
           <div>
             <p className="text-xs font-medium text-slate-600">
-              Busiest Day: <span className="font-bold">{format(parseISO(busiestDay), 'MMM d, yyyy')}</span>
+              {t('stats.busiestDay')}: <span className="font-bold">{format(parseISO(busiestDay), 'MMM d, yyyy', { locale: dateLocale })}</span>
             </p>
-            <p className="text-[10px] text-slate-400">{busiestDayHours}h worked</p>
+            <p className="text-[10px] text-slate-400">{busiestDayHours}h {t('stats.worked')}</p>
           </div>
         </div>
       )}
