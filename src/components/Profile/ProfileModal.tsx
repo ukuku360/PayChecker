@@ -1,4 +1,4 @@
-import { X, User, GraduationCap, Plus, Trash2, Calendar, Globe } from 'lucide-react';
+import { X, User, GraduationCap, Plus, Trash2, Calendar } from 'lucide-react';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
