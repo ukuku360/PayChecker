@@ -113,9 +113,62 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
 
   return (
     <div className="space-y-6 mb-6">
-      {/* View Toggle */}
-      <div className="flex justify-end -mt-2 mb-6">
-        <div className="neu-flat p-1 flex gap-1 rounded-xl">
+      {/* Unified Header Row */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 min-h-[52px]">
+        {/* Left Side: Pay Summary (Visible only in Monthly view) */}
+        <div className="flex flex-wrap gap-2 md:gap-3 items-center">
+          {viewMode === 'monthly' && (
+            <>
+              {/* Estimated Pay Card */}
+              <div className="neu-flat px-4 py-3 flex items-center gap-3">
+                <div className="p-1.5 rounded-full neu-pressed">
+                  <Wallet className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">{t('dashboard.estPay')}</span>
+                    <span className="text-base font-bold text-slate-700">{formatCurrency(monthlyPay)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Superannuation / National Pension Card */}
+              <div className="neu-flat px-4 py-3 flex items-center gap-3">
+                <div className="p-1.5 rounded-full neu-pressed">
+                  <PiggyBank className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">
+                      {t(taxCalculator.getRetirementNameKey())}
+                    </span>
+                    <span className="text-base font-bold text-slate-700">
+                      {formatCurrency(monthlyPay * taxCalculator.getRetirementRate())}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* After-Tax Pay Card */}
+              <div className="neu-flat px-4 py-3 flex items-center gap-3">
+                <div className="p-1.5 rounded-full neu-pressed">
+                  <Receipt className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">{t('dashboard.netPay')}</span>
+                    <span className="text-base font-bold text-emerald-600">
+                      {formatCurrency(taxCalculator.calculateTakeHome(monthlyPay, 'monthly', isStudentVisaHolder).netPay)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Right Side: View Toggle */}
+        <div className="neu-flat p-1 flex gap-1 rounded-xl ml-auto">
           <button
             onClick={() => handleViewModeChange('monthly')}
             className={clsx(
@@ -180,104 +233,58 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
         <ExpensesView />
       ) : (
         <div className="space-y-6">
-          {/* Row 1: Unified Pay Summary & Action Buttons */}
-          <div className="flex flex-wrap gap-2 md:gap-3 items-center">
-            {/* Estimated Pay Card */}
-            <div className="neu-flat px-4 py-3 flex items-center gap-3">
-              <div className="p-1.5 rounded-full neu-pressed">
-                <Wallet className="w-4 h-4 text-indigo-500" />
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">{t('dashboard.estPay')}</span>
-                  <span className="text-base font-bold text-slate-700">{formatCurrency(monthlyPay)}</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Superannuation / National Pension Card */}
-            <div className="neu-flat px-4 py-3 flex items-center gap-3">
-              <div className="p-1.5 rounded-full neu-pressed">
-                <PiggyBank className="w-4 h-4 text-indigo-500" />
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">
-                    {t(taxCalculator.getRetirementNameKey())}
-                  </span>
-                  <span className="text-base font-bold text-slate-700">
-                    {formatCurrency(monthlyPay * taxCalculator.getRetirementRate())}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* After-Tax Pay Card */}
-            <div className="neu-flat px-4 py-3 flex items-center gap-3">
-              <div className="p-1.5 rounded-full neu-pressed">
-                <Receipt className="w-4 h-4 text-emerald-500" />
-              </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">{t('dashboard.netPay')}</span>
-                  <span className="text-base font-bold text-emerald-600">
-                    {formatCurrency(taxCalculator.calculateTakeHome(monthlyPay, 'monthly', isStudentVisaHolder).netPay)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons - Grouped closely */}
-            <div className="flex gap-2 items-center ml-auto md:ml-0">
-              {onAddJob && (
-                <button
-                  onClick={onAddJob}
-                  className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
-                  title={t('dashboard.addNewJob')}
-                >
-                  <Plus className="w-4 h-4 text-slate-500" />
-                </button>
-              )}
-
-              {onAIScan && (
-                <FeatureHelpTarget
-                  message={t('featureHelp.smartRosterScan')}
-                  title={t('rosterScanner.scanRoster')}
-                  position="bottom"
-                  guidance={true}
-                >
-                  <button
-                    onClick={onAIScan}
-                    className="neu-icon-btn w-10 h-10 rounded-xl !p-0 group"
-                    title={t('dashboard.scanRoster')}
-                  >
-                    <Sparkles className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-                  </button>
-                </FeatureHelpTarget>
-              )}
-
-              {onExport && (
-                <FeatureHelpTarget
-                  message={t('featureHelp.exportSync')}
-                  title={t('dashboard.exportReport')}
-                  position="bottom"
-                  guidance={true}
-                >
-                  <button
-                    onClick={onExport}
-                    className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
-                    title={t('dashboard.exportReport')}
-                  >
-                    <Download className="w-4 h-4 text-slate-500" />
-                  </button>
-                </FeatureHelpTarget>
-              )}
-            </div>
-          </div>
 
           {/* Row 2: Job Cards - Draggable + Double-click for settings */}
           {jobConfigs.length > 0 && (
             <div className="flex flex-wrap gap-4 items-center">
+              {/* Action Buttons - Moved here */}
+              <div className="flex gap-2 items-center">
+                {onAddJob && (
+                  <button
+                    onClick={onAddJob}
+                    className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
+                    title={t('dashboard.addNewJob')}
+                  >
+                    <Plus className="w-4 h-4 text-slate-500" />
+                  </button>
+                )}
+
+                {onAIScan && (
+                  <FeatureHelpTarget
+                    message={t('featureHelp.smartRosterScan')}
+                    title={t('rosterScanner.scanRoster')}
+                    position="bottom"
+                    guidance={true}
+                  >
+                    <button
+                      onClick={onAIScan}
+                      className="neu-icon-btn w-10 h-10 rounded-xl !p-0 group"
+                      title={t('dashboard.scanRoster')}
+                    >
+                      <Sparkles className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
+                    </button>
+                  </FeatureHelpTarget>
+                )}
+
+                {onExport && (
+                  <FeatureHelpTarget
+                    message={t('featureHelp.exportSync')}
+                    title={t('dashboard.exportReport')}
+                    position="bottom"
+                    guidance={true}
+                  >
+                    <button
+                      onClick={onExport}
+                      className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
+                      title={t('dashboard.exportReport')}
+                    >
+                      <Download className="w-4 h-4 text-slate-500" />
+                    </button>
+                  </FeatureHelpTarget>
+                )}
+              </div>
+
               {jobConfigs.map((job) => (
                 <DraggableJobCard
                   key={job.id}
