@@ -294,7 +294,7 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
           title={t('calendar.deleteMonth')}
         >
           <Trash2 className="w-4 h-4" />
-          <span>{t('calendar.deleteMonth')}</span>
+          <span className="hidden md:inline">{t('calendar.deleteMonth')}</span>
         </button>
       ) : (
         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -307,7 +307,12 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
               clearing && "opacity-70"
             )}
           >
-            {clearing ? t('calendar.deleting') : `${t('calendar.deleteAll')} (${monthShiftCount})`}
+            {clearing ? <span className="hidden md:inline">{t('calendar.deleting')}</span> : (
+              <>
+                <span className="md:hidden">{monthShiftCount}</span>
+                <span className="hidden md:inline">{t('calendar.deleteAll')} ({monthShiftCount})</span>
+              </>
+            )}
           </button>
           <button
             type="button"
@@ -357,7 +362,7 @@ const GlobalSaveButton = () => {
         status === 'error' ? "text-red-600" : "text-slate-500",
         status === 'saving' && "animate-spin"
       )} />
-      <span>
+      <span className="hidden md:inline">
         {status === 'saving' ? t('calendar.syncing') :
          status === 'saved' ? t('calendar.synced') :
          status === 'error' ? t('calendar.syncFailed') : t('calendar.save')}

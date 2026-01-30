@@ -209,7 +209,7 @@ function App() {
       onDragStart={handleDragStart} 
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen p-2 md:p-12 font-sans text-slate-700 pb-20">
+      <div className="min-h-screen p-2 md:p-12 font-sans text-slate-700 pb-20 overflow-x-hidden w-full">
         <header className="mb-6 md:mb-8 max-w-7xl mx-auto flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-4 py-3 md:px-6 md:py-4 sticky top-0 md:static z-50">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-slate-700 tracking-tight">
