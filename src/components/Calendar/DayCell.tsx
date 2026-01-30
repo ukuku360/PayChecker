@@ -462,16 +462,28 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
                  <Check className="w-3 h-3" /> Save Changes
              </button>
              
-             <div className="pt-2 mt-1 border-t border-slate-100">
+             <div className="pt-2 mt-1 border-t border-slate-100 flex gap-2">
                 <button 
                     onClick={(e) => { 
                         e.stopPropagation(); 
                         const shift = shifts.find(s => s.id === editingTimeShiftId);
                         if (shift) handleSaveAsTemplate(shift); 
                     }}
-                    className="w-full py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                    className="flex-1 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
                 >
-                    <Bookmark className="w-3 h-3" /> Save as Template
+                    <Bookmark className="w-3 h-3" /> Template
+                </button>
+                <button 
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (confirm('Delete this shift?')) {
+                            onRemoveShift(editingTimeShiftId);
+                            setEditingTimeShiftId(null);
+                        }
+                    }}
+                    className="flex-1 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                    <X className="w-3 h-3" /> Delete
                 </button>
              </div>
           </div>
