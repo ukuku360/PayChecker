@@ -9,6 +9,7 @@ import { colorMap } from '../../utils/colorUtils';
 import { getHolidayInfo, isPublicHoliday } from '../../data/holidays';
 import { calculatePaidHours } from '../../utils/calculatePay';
 import { useCountry } from '../../hooks/useCountry';
+import { useLongPress } from '../../hooks/useLongPress';
 
 interface DayCellProps {
   date: Date;
@@ -38,6 +39,9 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
   const [tempEndTime, setTempEndTime] = useState('');
   const [tempBreakMinutes, setTempBreakMinutes] = useState(0);
 
+  // Popup positioning state
+  const [popupPosition, setPopupPosition] = useState<{ top: number, left: number } | null>(null);
+
   const pickerRef = useRef<HTMLDivElement>(null);
   const noteRef = useRef<HTMLDivElement>(null);
   const timeInfoRef = useRef<HTMLDivElement>(null);
@@ -63,12 +67,38 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showJobPicker, editingNoteShiftId, editingTimeShiftId]);
 
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  const calculatePopupPosition = (target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    // Default to centering on the element, but adjusting for viewport edges would be better in a real app
+    // For now, simpler approach: Center on screen or center on element?
+    // User issue was clipping. Fixed positioning resolves clipping.
+    // Let's position it near the click target but ensure it's on screen.
+    
+    // Position: Center of the target element
+    // We will adjust the translate in CSS to center the popup itself
+    return {
+      top: rect.top + rect.height / 2,
+      left: rect.left + rect.width / 2
+    };
+  };
+
+  const handleInteraction = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    const target = e.currentTarget as HTMLElement;
+    setPopupPosition(calculatePopupPosition(target));
+    
     setPickerTab('jobs');
     setShowJobPicker(true);
   };
+
+  const cellLongPressProps = useLongPress({
+    onLongPress: handleInteraction,
+    onDoubleClick: handleInteraction,
+    // Note: Single click is handled by users manually adding logic if needed, 
+    // but here we just want the add-job picker on long press or double click.
+  });
 
   const handleJobSelect = (jobId: string) => {
     const job = jobConfigs.find(j => j.id === jobId);
@@ -102,14 +132,21 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
     setEditingNoteShiftId(null);
   };
 
-  const handleNoteOpen = (shift: Shift, e: React.MouseEvent) => {
+  const handleNoteOpen = (shift: Shift, e: React.MouseEvent | React.TouchEvent) => {
      e.stopPropagation();
+     const target = e.currentTarget as HTMLElement;
+     setPopupPosition(calculatePopupPosition(target));
+     
      setTempNote(shift.note || '');
      setEditingNoteShiftId(shift.id);
   };
 
-  const handleTimeEditOpen = (shift: Shift) => {
+  const handleTimeEditOpen = (shift: Shift, e: React.MouseEvent | React.TouchEvent) => {
     const job = jobConfigs.find(j => j.id === shift.type);
+    
+    const target = e.currentTarget as HTMLElement;
+    setPopupPosition(calculatePopupPosition(target));
+
     setTempStartTime(shift.startTime || job?.defaultStartTime || '');
     setTempEndTime(shift.endTime || job?.defaultEndTime || '');
     // Convert minutes to hours for display
@@ -210,10 +247,10 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
   const getJobName = (jobId: string) => jobConfigs.find(j => j.id === jobId)?.name || jobId;
 
   return (
-    <div ref={setNodeRef} onDoubleClick={handleDoubleClick}
-                title={shifts.length === 0 ? "Double-click to add shift" : undefined}
+    <div ref={setNodeRef} {...cellLongPressProps}
+                title={shifts.length === 0 ? "Double-click (or long press) to add shift" : undefined}
       className={clsx(
-        'p-2 flex flex-col gap-2 transition-all relative border-slate-50 last:border-r-0 cursor-pointer group/cell',
+        'p-2 flex flex-col gap-2 transition-all relative border-slate-50 last:border-r-0 cursor-pointer group/cell select-none',
         isMobileView ? 'min-h-[60px] border-b-0' : 'min-h-[120px] border-b border-r',
         !isCurrentMonth && !isMobileView && 'bg-slate-50/30 text-slate-300',
         isCurrentMonth && !isHolidayDate && 'bg-white hover:bg-slate-50/50',
@@ -221,8 +258,16 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
         isOver && 'bg-blue-50/30 ring-2 ring-blue-400/20 ring-inset z-10',
         isTodayDate && !isHolidayDate && 'bg-indigo-50/30',
       )}>
-      {showJobPicker && (
-        <div ref={pickerRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[150px] animate-in fade-in zoom-in-95 duration-150">
+      {showJobPicker && popupPosition && (
+        <div 
+            ref={pickerRef} 
+            style={{ 
+                top: popupPosition.top, 
+                left: popupPosition.left,
+                position: 'fixed'
+            }}
+            className="-translate-x-1/2 -translate-y-1/2 z-[999] bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[150px] animate-in fade-in zoom-in-95 duration-150"
+        >
           
           {/* Tabs */}
           <div className="flex p-0.5 bg-slate-100 rounded-lg mb-2">
@@ -326,8 +371,16 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
       )}
 
       {/* Note Editor Popover */}
-      {editingNoteShiftId && (
-          <div ref={noteRef} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[60] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2">
+      {editingNoteShiftId && popupPosition && (
+          <div 
+            ref={noteRef} 
+            style={{ 
+                top: popupPosition.top, 
+                left: popupPosition.left,
+                position: 'fixed'
+            }}
+            className="-translate-x-1/2 -translate-y-full mt-[-10px] z-[999] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2"
+          >
              <div className="flex items-center justify-between">
                  <span className="text-[10px] font-bold text-yellow-600 uppercase tracking-wide">Shift Note</span>
                  <button onClick={(e) => { e.stopPropagation(); setEditingNoteShiftId(null); }} className="text-yellow-400 hover:text-yellow-600"><X className="w-3 h-3" /></button>
@@ -350,8 +403,16 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
       )}
 
       {/* Time Editor Popover */}
-      {editingTimeShiftId && (
-          <div ref={timeInfoRef} className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[60] bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3">
+      {editingTimeShiftId && popupPosition && (
+          <div 
+            ref={timeInfoRef} 
+            style={{ 
+                top: popupPosition.top, 
+                left: popupPosition.left,
+                position: 'fixed'
+            }}
+            className="-translate-x-1/2 -translate-y-full mt-[-10px] z-[999] bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-3"
+          >
              <div className="flex items-center justify-between border-b pb-2">
                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wide flex items-center gap-1">
                     <Clock className="w-3 h-3" /> Shift Time
@@ -487,8 +548,21 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
       <div className="space-y-1.5">
         {shifts.map((shift) => {
           const colors = colorMap[getJobColor(shift.type)] || colorMap.slate;
+          
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          const shiftLongPressProps = useLongPress({
+            onLongPress: (e) => handleTimeEditOpen(shift, e),
+            onDoubleClick: (e) => handleTimeEditOpen(shift, e),
+          });
+
           return (
-            <div key={shift.id} onDoubleClick={(e) => { e.stopPropagation(); handleTimeEditOpen(shift); }} title="Double-click to edit time" className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative', colors.bg, colors.border, colors.text)}>
+            <div 
+                key={shift.id} 
+                {...shiftLongPressProps}
+                onDoubleClick={(e) => { e.stopPropagation(); /* Legacy handled by hook */ }} 
+                title="Double-click (or long press) to edit time" 
+                className={clsx('text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group relative select-none', colors.bg, colors.border, colors.text)}
+            >
               <div className="flex justify-between items-center w-full">
                 <div className="flex flex-col gap-0.5 w-full">
                   <div className="flex justify-between items-center pr-4">

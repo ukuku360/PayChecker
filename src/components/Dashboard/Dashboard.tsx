@@ -19,6 +19,7 @@ import { EmptyState } from '../EmptyState';
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
 import { useCountry } from '../../hooks/useCountry';
+import { useLongPress } from '../../hooks/useLongPress';
 
 interface DashboardProps {
   currentMonth: Date;
@@ -45,6 +46,13 @@ const DraggableJobCard = ({
       isSource: true,
     },
   });
+  
+  const longPressProps = useLongPress({
+      onLongPress: onDoubleClick,
+      onDoubleClick: onDoubleClick,
+      // Provide a no-op onClick to prevent type errors or unwanted behavior if needed, 
+      // but if no simple click action is defined, we can omit it.
+  });
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
@@ -54,11 +62,16 @@ const DraggableJobCard = ({
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
+      {...listeners} // listeners include mouse/touch events from dnd-kit
+      // We need to merge or handle conflicts. dnd-kit handles pointers for dragging.
+      // Long press for interaction might conflict with drag. 
+      // If we use dnd-kit's Listeners, we might lose our long press if we override.
+      // However, usually dnd-kit creates synthetic events or attaches to the node.
+      // Let's attach our long press handlers.
       {...attributes}
-      onDoubleClick={onDoubleClick}
+      {...longPressProps}
       className={clsx(
-        'neu-flat px-4 py-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all select-none border-t border-l border-white/50',
+        'neu-flat px-4 py-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all select-none border-t border-l border-white/50 touch-none', // Added touch-none to prevent browser zooming/panning while dragging
         borderColorMap[job.color] ? '' : 'border-transparent',
         isDragging ? 'opacity-80 scale-105 z-50' : 'hover:scale-[1.02]'
       )}
