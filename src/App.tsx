@@ -25,7 +25,7 @@ import { FeatureHelpTrigger } from './components/FeatureHelp/FeatureHelpTrigger'
 import { ReadmeModal } from './components/Help/ReadmeModal';
 import { ToastContainer } from './components/Toast/ToastContainer';
 import { useFeatureHelpStore } from './store/useFeatureHelpStore';
-import { MessageSquare, BookOpen } from 'lucide-react';
+import { MessageSquare, BookOpen, LogOut, User } from 'lucide-react';
 import './i18n';
 
 function App() {
@@ -209,43 +209,47 @@ function App() {
       onDragStart={handleDragStart} 
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen p-6 md:p-12 font-sans text-slate-700 pb-20">
-        <header className="mb-8 max-w-7xl mx-auto flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-6 py-4">
+      <div className="min-h-screen p-4 md:p-12 font-sans text-slate-700 pb-20">
+        <header className="mb-6 md:mb-8 max-w-7xl mx-auto flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-4 py-3 md:px-6 md:py-4 sticky top-0 md:static z-50">
           <div>
-            <h1 className="text-2xl font-bold text-slate-700 tracking-tight">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-700 tracking-tight">
               PayChecker
             </h1>
-            <p className="text-slate-500 text-sm">Manage scheduling and track earnings.</p>
+            <p className="text-slate-500 text-sm hidden md:block">Manage scheduling and track earnings.</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 md:gap-4">
             <button
                onClick={handleLogout}
-               className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+               className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-50"
+               title={t('auth.signOut')}
             >
-              {t('auth.signOut')}
+              <span className="hidden md:inline text-sm">{t('auth.signOut')}</span>
+              <LogOut className="w-5 h-5 md:hidden" />
             </button>
             <FeatureHelpTrigger />
             <button 
                onClick={() => setShowReadmeModal(true)}
-               className="text-slate-500 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5"
+               className="text-slate-400 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5 rounded-lg hover:bg-slate-50"
                title="User Guide"
             >
                <BookOpen className="w-5 h-5" />
-               <span className="text-sm font-medium">README</span>
+               <span className="text-sm font-medium hidden md:inline">README</span>
             </button>
             <button 
                onClick={() => setShowFeedbackModal(true)}
-               className="text-slate-500 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5"
+               className="text-slate-400 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5 rounded-lg hover:bg-slate-50"
                title="Feedback"
             >
                <MessageSquare className="w-5 h-5" />
-               <span className="text-sm font-medium">Feedback</span>
+               <span className="text-sm font-medium hidden md:inline">Feedback</span>
             </button>
             <button 
                onClick={() => setShowProfileModal(true)}
-               className="neu-btn text-sm"
+               className="neu-btn text-sm px-3 md:px-4 py-2 flex items-center gap-2"
+               title="Profile"
             >
-               Profile
+               <span className="hidden md:inline">Profile</span>
+               <User className="w-4 h-4 md:hidden" />
             </button>
           </div>
         </header>
