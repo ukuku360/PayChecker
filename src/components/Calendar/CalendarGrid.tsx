@@ -174,15 +174,17 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
 
   return (
     <div className="neu-flat overflow-hidden">
-      <div className="p-6 flex items-center justify-between border-b border-white/50 bg-[#e0e5ec]">
+      <div className="p-4 md:p-6 flex flex-col md:flex-row items-center md:justify-between gap-4 md:gap-0 border-b border-white/50 bg-[#e0e5ec]">
         <MonthYearPicker 
           currentDate={currentDate} 
           onMonthChange={onMonthChange} 
         />
-          <div className="flex items-center gap-4">
-            <GlobalSaveButton />
-            <ClearMonthButton monthStart={monthStart} monthEnd={monthEnd} />
-            <div className="flex gap-3">
+          <div className="flex items-center justify-between md:justify-end gap-3 md:gap-4 w-full md:w-auto px-1 md:px-0">
+            <div className="flex items-center gap-2 md:gap-4">
+              <GlobalSaveButton />
+              <ClearMonthButton monthStart={monthStart} monthEnd={monthEnd} />
+            </div>
+            <div className="flex gap-2 md:gap-3">
               <button 
                 onClick={() => onMonthChange(subMonths(currentDate, 1))}
                 className="neu-icon-btn w-10 h-10 !rounded-lg"
