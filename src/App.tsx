@@ -217,7 +217,7 @@ function App() {
             </h1>
             <p className="text-slate-500 text-sm hidden md:block">Manage scheduling and track earnings.</p>
           </div>
-          <div className="flex items-center gap-1.5 md:gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
             <button
                onClick={handleLogout}
                className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-50"
