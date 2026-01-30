@@ -36,7 +36,7 @@ interface ScheduleState {
   removeTemplate: (id: string) => void;
 
   // Data Persistence
-  fetchData: () => Promise<void>;
+  fetchData: (userId?: string) => Promise<void>;
   saveData: () => Promise<void>;
   clearData: () => void;
   addShift: (shift: Shift) => Promise<void>;

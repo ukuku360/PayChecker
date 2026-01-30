@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { format, isSameMonth, isToday, isWeekend } from 'date-fns';
-import { Copy, ClipboardPaste, StickyNote, X, Check, Plus as Plus_Lucide, Clock, Bookmark, LayoutTemplate } from 'lucide-react';
+import { Copy, ClipboardPaste, StickyNote, X, Check, Plus as Plus_Lucide, Clock, Bookmark } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState, useRef, useEffect } from 'react';
 import type { Shift } from '../../types';
@@ -290,7 +290,6 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
                         <div className="flex flex-col gap-1">
                             {templates.map(t => {
                                 const job = jobConfigs.find(j => j.id === t.jobId);
-                                const colors = colorMap[job?.color || 'slate'] || colorMap.slate;
                                 return (
                                     <div key={t.id} className="group/item relative">
                                         <button 
