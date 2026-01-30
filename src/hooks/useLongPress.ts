@@ -5,13 +5,15 @@ interface Options {
   onLongPress: (e: React.MouseEvent | React.TouchEvent) => void;
   onClick?: (e: React.MouseEvent | React.TouchEvent) => void;
   onDoubleClick?: (e: React.MouseEvent | React.TouchEvent) => void;
+  shouldStopPropagation?: boolean;
 }
 
 export const useLongPress = ({ 
   onLongPress, 
   onClick, 
   onDoubleClick, 
-  threshold = 500 
+  threshold = 500,
+  shouldStopPropagation = false
 }: Options) => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
@@ -19,6 +21,9 @@ export const useLongPress = ({
   const clickCountRef = useRef(0);
 
   const start = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (shouldStopPropagation) {
+      e.stopPropagation();
+    }
     // Only left click or touch
     if ('button' in e && e.button !== 0) return;
 
@@ -27,7 +32,7 @@ export const useLongPress = ({
       isLongPressRef.current = true;
       onLongPress(e);
     }, threshold);
-  }, [onLongPress, threshold]);
+  }, [onLongPress, threshold, shouldStopPropagation]);
 
   const clear = useCallback(() => {
     if (timerRef.current) {
@@ -37,6 +42,9 @@ export const useLongPress = ({
   }, []);
 
   const end = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (shouldStopPropagation) {
+      e.stopPropagation();
+    }
     clear();
     
     // If it wasn't a long press, it's a click or double click
@@ -59,7 +67,7 @@ export const useLongPress = ({
             onClick(e);
         }
     }
-  }, [clear, onClick, onDoubleClick]);
+  }, [clear, onClick, onDoubleClick, shouldStopPropagation]);
 
   return {
     onMouseDown: start,

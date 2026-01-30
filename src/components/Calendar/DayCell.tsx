@@ -553,6 +553,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
           const shiftLongPressProps = useLongPress({
             onLongPress: (e) => handleTimeEditOpen(shift, e),
             onDoubleClick: (e) => handleTimeEditOpen(shift, e),
+            shouldStopPropagation: true,
           });
 
           return (
