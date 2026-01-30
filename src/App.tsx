@@ -23,6 +23,7 @@ import { AdminFeedbackList } from './components/Feedback/AdminFeedbackList';
 import { RosterScannerModal } from './components/RosterScanner/RosterScannerModal';
 import { FeatureHelpTrigger } from './components/FeatureHelp/FeatureHelpTrigger';
 import { ReadmeModal } from './components/Help/ReadmeModal';
+import { ToastContainer } from './components/Toast/ToastContainer';
 import { useFeatureHelpStore } from './store/useFeatureHelpStore';
 import { MessageSquare, BookOpen } from 'lucide-react';
 import './i18n';
@@ -349,6 +350,9 @@ function App() {
 
         {/* Country Selection Modal for existing users */}
         <CountrySelectionModal isOpen={session && !loading && isLoaded && country === null} />
+
+        {/* Toast Notifications */}
+        <ToastContainer />
 
         {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}
         {/* Alternatively, add it to the profile modal or just check email here */}

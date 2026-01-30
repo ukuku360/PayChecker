@@ -64,7 +64,7 @@ export const VisaWarningModal = ({ isOpen, onClose, onConfirm, overageAmount }: 
               onClick={onClose}
               className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-50 rounded-lg transition-colors text-sm"
             >
-              Cancel
+              Don't Add Shift
             </button>
             <button
               onClick={onConfirm}
@@ -73,6 +73,9 @@ export const VisaWarningModal = ({ isOpen, onClose, onConfirm, overageAmount }: 
               Add Anyway
             </button>
           </div>
+          <p className="text-[10px] text-slate-400 mt-3 text-center">
+            Closing this dialog will not add the shift.
+          </p>
         </div>
       </div>
     </div>

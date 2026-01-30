@@ -66,9 +66,13 @@ export const ExpensesView = () => {
     
     // Filter shifts robustly by parsing Year and Month from YYYY-MM-DD string
     // This handles potential format differences (e.g. 2024-9-1 vs 2024-09-01)
+    // Fixed: Added validation to prevent silent failures on malformed dates
     const mShifts = shifts.filter(s => {
-      if (!s.date) return false;
-      const [year, month] = s.date.split('-').map(Number);
+      if (!s.date || typeof s.date !== 'string') return false;
+      const parts = s.date.split('-');
+      if (parts.length !== 3) return false;
+      const [year, month] = parts.map(Number);
+      if (isNaN(year) || isNaN(month)) return false;
       return year === d.getFullYear() && (month - 1) === d.getMonth();
     });
     

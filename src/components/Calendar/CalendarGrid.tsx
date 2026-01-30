@@ -4,8 +4,11 @@ import { clsx } from 'clsx';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DayCell } from './DayCell';
+import { WeekView } from './WeekView';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { VisaWarningModal } from './VisaWarningModal';
+import { MonthYearPicker } from './MonthYearPicker';
 import { calculateFortnightlyHours } from '../../utils/calculatePay';
 import type { Shift } from '../../types';
 
@@ -68,6 +71,7 @@ interface CalendarGridProps {
 
 export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarGridProps) => {
   const { shifts, removeShift, updateShift, addShift, isStudentVisaHolder, vacationPeriods } = useScheduleStore();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const [isWarningOpen, setIsWarningOpen] = useState(false);
   const [overageAmount, setOverageAmount] = useState(0);
   const [pendingAction, setPendingAction] = useState<{ type: 'add' | 'update', data: any } | null>(null);
@@ -171,9 +175,10 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
   return (
     <div className="neu-flat overflow-hidden">
       <div className="p-6 flex items-center justify-between border-b border-white/50 bg-[#e0e5ec]">
-        <h2 className="text-2xl font-bold text-slate-700 tracking-tight">
-          {format(currentDate, 'MMMM yyyy')}
-        </h2>
+        <MonthYearPicker 
+          currentDate={currentDate} 
+          onMonthChange={onMonthChange} 
+        />
           <div className="flex items-center gap-4">
             <GlobalSaveButton />
             <ClearMonthButton monthStart={monthStart} monthEnd={monthEnd} />
@@ -197,32 +202,43 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
       <CalendarHintBanner />
 
       <div className="grid grid-cols-7 border-b border-white/50 bg-slate-100/30">
-        {weekDays.map((day) => (
+        {!isMobile && weekDays.map((day) => (
           <div key={day} className="py-4 text-center text-xs font-bold text-slate-500/70 uppercase tracking-widest">
             {day}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7">
-        {calendarDays.map((day) => {
-          const dateKey = format(day, 'yyyy-MM-dd');
-          const dayShifts = shifts.filter(s => s.date === dateKey);
+      {isMobile ? (
+        <WeekView
+          currentDate={currentDate}
+          onDateChange={onMonthChange}
+          onAddJob={onAddJob}
+          onRemoveShift={removeShift}
+          onUpdateShift={handleUpdateShift}
+          onAddShift={handleAddShift}
+        />
+      ) : (
+        <div className="grid grid-cols-7">
+          {calendarDays.map((day) => {
+            const dateKey = format(day, 'yyyy-MM-dd');
+            const dayShifts = shifts.filter(s => s.date === dateKey);
 
-          return (
-            <DayCell
-              key={day.toISOString()}
-              date={day}
-              currentMonth={currentDate}
-              shifts={dayShifts}
-              onRemoveShift={removeShift}
-              onUpdateShift={handleUpdateShift}
-              onAddShift={handleAddShift}
-              onAddJobAddNewJob={onAddJob}
-            />
-          );
-        })}
-      </div>
+            return (
+              <DayCell
+                key={day.toISOString()}
+                date={day}
+                currentMonth={currentDate}
+                shifts={dayShifts}
+                onRemoveShift={removeShift}
+                onUpdateShift={handleUpdateShift}
+                onAddShift={handleAddShift}
+                onAddJobAddNewJob={onAddJob}
+              />
+            );
+          })}
+        </div>
+      )}
       
       <VisaWarningModal 
         isOpen={isWarningOpen}

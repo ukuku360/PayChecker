@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { isWeekend } from 'date-fns';
+import { isWeekend, format, parseISO } from 'date-fns';
 import { X, Sparkles, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useScheduleStore } from '../../store/useScheduleStore';
+import { toast } from '../../store/useToastStore';
 import { processRosterPhase1, processRosterPhase2, saveJobAliases, getJobAliases, getRosterScanUsage } from '../../lib/rosterApi';
 import { supabase } from '../../lib/supabaseClient';
 import { compressImage, createPreviewUrl, isPDF } from '../../utils/imageUtils';
@@ -315,6 +316,8 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
         setJobAliases(newAliases);
       } catch (err) {
         console.error('Failed to save aliases:', err);
+        // Fixed: Show warning to user instead of silent failure
+        toast.warning('Alias preferences could not be saved. They will need to be re-mapped next time.');
       }
     }
 
@@ -327,7 +330,12 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
 
   const handleConfirm = useCallback(async () => {
     const selectedShifts = parsedShifts.filter(s => s.selected && s.mappedJobId);
-    if (selectedShifts.length === 0) return;
+    if (selectedShifts.length === 0) {
+      // Fixed: Show error message instead of silent return
+      setError('Please select at least one shift to add.');
+      setErrorType('unknown');
+      return;
+    }
 
     setIsLoading(true);
 
@@ -365,7 +373,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
 
         return {
           id: s.id,
-          date: s.date,
+          date: format(parseISO(s.date), 'yyyy-MM-dd'),
           type: s.mappedJobId!,
           hours: hours,
           note,

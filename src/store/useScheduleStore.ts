@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Shift, JobConfig, VacationPeriod, Expense } from '../types';
+import type { Shift, JobConfig, VacationPeriod, Expense, ShiftTemplate } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import type { CountryCode } from '../data/countries';
 import i18n from '../i18n';
+import { toast } from './useToastStore';
 
 interface CopiedShiftData {
   type: string;
@@ -29,7 +30,14 @@ interface ScheduleState {
   hasSeenHelp: boolean;
   markHelpSeen: () => Promise<void>;
 
-  fetchData: (userId?: string) => Promise<void>;
+  // Shift Templates
+  templates: ShiftTemplate[];
+  addTemplate: (template: ShiftTemplate) => void;
+  removeTemplate: (id: string) => void;
+
+  // Data Persistence
+  fetchData: () => Promise<void>;
+  saveData: () => Promise<void>;
   clearData: () => void;
   addShift: (shift: Shift) => Promise<void>;
   addMultipleShifts: (shifts: Shift[]) => Promise<void>;
@@ -66,6 +74,12 @@ export const useScheduleStore = create<ScheduleState>()(
       country: null,
       isLoaded: false,
       hasSeenHelp: false,
+
+      templates: [],
+
+      addTemplate: (template) => set((state) => ({ templates: [...state.templates, template] })),
+      removeTemplate: (id) => set((state) => ({ templates: state.templates.filter((t) => t.id !== id) })),
+      saveData: async () => {}, // Placeholder for now
 
       markHelpSeen: async () => {
          set({ hasSeenHelp: true });
@@ -247,6 +261,9 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       addShift: async (shift) => {
+        // Save previous state for rollback
+        const previousShifts = get().shifts;
+
         // Optimistic update with temporary ID
         set((state) => ({
           shifts: [
@@ -270,6 +287,8 @@ export const useScheduleStore = create<ScheduleState>()(
 
           if (error) {
             console.error('Error adding shift:', error);
+            set({ shifts: previousShifts }); // Rollback
+            toast.error('Failed to save shift. Please try again.');
           } else if (data) {
             // Update local state with the actual UUID from database
             set((state) => ({
@@ -323,6 +342,7 @@ export const useScheduleStore = create<ScheduleState>()(
             console.error('Error adding multiple shifts:', error);
             // Rollback on error
             set({ shifts: previousShifts });
+            toast.error('Failed to save shifts. Changes have been reverted.');
             throw new Error('Failed to save shifts. Changes have been reverted.');
           }
 
@@ -339,6 +359,7 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       updateShift: async (id, updatedShift) => {
+        const previousShifts = get().shifts;
         set((state) => ({
           shifts: state.shifts.map((s) => (s.id === id ? { ...s, ...updatedShift } : s)),
         }));
@@ -351,20 +372,29 @@ export const useScheduleStore = create<ScheduleState>()(
              ...(updatedShift.startTime !== undefined && { start_time: updatedShift.startTime }),
              ...(updatedShift.endTime !== undefined && { end_time: updatedShift.endTime }),
              ...(updatedShift.breakMinutes !== undefined && { break_minutes: updatedShift.breakMinutes }),
-          }).eq('id', id); 
-          if (error) console.error('Error updating shift:', error);
+          }).eq('id', id);
+          if (error) {
+            console.error('Error updating shift:', error);
+            set({ shifts: previousShifts }); // Rollback
+            toast.error('Failed to update shift. Please try again.');
+          }
         }
       },
 
       removeShift: async (id) => {
+        const previousShifts = get().shifts;
         set((state) => ({
           shifts: state.shifts.filter((s) => s.id !== id),
         }));
-        
+
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { error } = await supabase.from('shifts').delete().eq('id', id);
-          if (error) console.error('Error removing shift:', error);
+          if (error) {
+            console.error('Error removing shift:', error);
+            set({ shifts: previousShifts }); // Rollback
+            toast.error('Failed to delete shift. Please try again.');
+          }
         }
       },
 
@@ -385,7 +415,8 @@ export const useScheduleStore = create<ScheduleState>()(
           .lte('date', endDate);
         if (error) {
           console.error('Error removing shifts in range:', error);
-          set({ shifts: previousShifts });
+          set({ shifts: previousShifts }); // Rollback
+          toast.error('Failed to clear shifts. Please try again.');
         }
       },
 
@@ -505,36 +536,50 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       addExpense: async (expense) => {
-        set((state) => ({ expenses: [...state.expenses, expense] }));
+        const previousExpenses = get().expenses;
+        const newExpenses = [...previousExpenses, expense];
+        set({ expenses: newExpenses });
+
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const expenses = get().expenses;
-          const { error } = await supabase.from('profiles').update({ expenses }).eq('id', user.id);
-          if (error) console.error('Error adding expense:', error);
+          const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', user.id);
+          if (error) {
+            console.error('Error adding expense:', error);
+            set({ expenses: previousExpenses }); // Rollback
+            toast.error('Failed to save expense. Please try again.');
+          }
         }
       },
 
       updateExpense: async (id, updatedExpense) => {
-        set((state) => ({
-          expenses: state.expenses.map((e) => (e.id === id ? { ...e, ...updatedExpense } : e)),
-        }));
+        const previousExpenses = get().expenses;
+        const newExpenses = previousExpenses.map((e) => (e.id === id ? { ...e, ...updatedExpense } : e));
+        set({ expenses: newExpenses });
+
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const expenses = get().expenses;
-          const { error } = await supabase.from('profiles').update({ expenses }).eq('id', user.id);
-          if (error) console.error('Error updating expense:', error);
+          const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', user.id);
+          if (error) {
+            console.error('Error updating expense:', error);
+            set({ expenses: previousExpenses }); // Rollback
+            toast.error('Failed to update expense. Please try again.');
+          }
         }
       },
 
       removeExpense: async (id) => {
-        set((state) => ({
-          expenses: state.expenses.filter((e) => e.id !== id),
-        }));
+        const previousExpenses = get().expenses;
+        const newExpenses = previousExpenses.filter((e) => e.id !== id);
+        set({ expenses: newExpenses });
+
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const expenses = get().expenses;
-          const { error } = await supabase.from('profiles').update({ expenses }).eq('id', user.id);
-          if (error) console.error('Error removing expense:', error);
+          const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', user.id);
+          if (error) {
+            console.error('Error removing expense:', error);
+            set({ expenses: previousExpenses }); // Rollback
+            toast.error('Failed to delete expense. Please try again.');
+          }
         }
       },
     }),

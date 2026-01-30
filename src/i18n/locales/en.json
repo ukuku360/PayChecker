@@ -113,7 +113,22 @@
     "save": "Save",
     "syncing": "Syncing...",
     "synced": "Synced!",
-    "syncFailed": "Sync failed"
+    "syncFailed": "Sync failed",
+    "today": "Today",
+    "months": {
+      "january": "January",
+      "february": "February",
+      "march": "March",
+      "april": "April",
+      "may": "May",
+      "june": "June",
+      "july": "July",
+      "august": "August",
+      "september": "September",
+      "october": "October",
+      "november": "November",
+      "december": "December"
+    }
   },
   "profile": {
     "title": "Profile",

@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { format, isSameMonth, isToday, isWeekend } from 'date-fns';
-import { Copy, ClipboardPaste, StickyNote, X, Check, Plus as Plus_Lucide, Clock } from 'lucide-react';
+import { Copy, ClipboardPaste, StickyNote, X, Check, Plus as Plus_Lucide, Clock, Bookmark, LayoutTemplate } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState, useRef, useEffect } from 'react';
 import type { Shift } from '../../types';
@@ -18,13 +18,15 @@ interface DayCellProps {
   onUpdateShift: (id: string, shift: Partial<Shift>) => void;
   onAddShift: (shift: Shift) => void;
   onAddJobAddNewJob?: () => void;
+  isMobileView?: boolean;
 }
 
-export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShift, onAddShift, onAddJobAddNewJob }: DayCellProps) => {
-  const { jobConfigs, holidays, copiedShifts, setCopiedShifts } = useScheduleStore();
+export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShift, onAddShift, onAddJobAddNewJob, isMobileView }: DayCellProps) => {
+  const { jobConfigs, holidays, copiedShifts, setCopiedShifts, templates, addTemplate, removeTemplate } = useScheduleStore();
   const { country } = useCountry();
   const dateStr = format(date, 'yyyy-MM-dd');
   const [showJobPicker, setShowJobPicker] = useState(false);
+  const [pickerTab, setPickerTab] = useState<'jobs' | 'templates'>('jobs');
   
   // State for Note Editing
   const [editingNoteShiftId, setEditingNoteShiftId] = useState<string | null>(null);
@@ -64,6 +66,7 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setPickerTab('jobs');
     setShowJobPicker(true);
   };
 
@@ -147,6 +150,58 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
     setEditingTimeShiftId(null);
   };
 
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+    
+    // Recalculate hours based on template times
+    const hours = calculateHours(template.startTime, template.endTime);
+
+    onAddShift({
+      id: `${dateStr}-${template.jobId}-${Date.now()}`,
+      date: dateStr,
+      type: template.jobId,
+      hours, 
+      note: '', // Can be extended to save note in template later
+      startTime: template.startTime,
+      endTime: template.endTime,
+      breakMinutes: template.breakMinutes
+    });
+    setShowJobPicker(false);
+  };
+
+  const handleSaveAsTemplate = (shift: Shift) => {
+    // Simple prompt for now
+    // In a real app, use a proper modal
+    const name = prompt("Enter template name (e.g., 'Morning Shift')");
+    if (!name) return;
+
+    // Ensure we have time data. If not, fallback to defaults or 0
+    // But usually we are editing a shift that has times or defaults.
+    const job = jobConfigs.find(j => j.id === shift.type);
+    const startTime = shift.startTime || job?.defaultStartTime || "09:00";
+    const endTime = shift.endTime || job?.defaultEndTime || "17:00";
+    const breakMinutes = shift.breakMinutes ?? job?.defaultBreakMinutes ?? 0;
+
+    addTemplate({
+      id: `tpl-${Date.now()}`,
+      name,
+      jobId: shift.type,
+      startTime,
+      endTime,
+      breakMinutes
+    });
+    
+    // Optional: Toast message
+  };
+
+  const handleDeleteTemplate = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      if (confirm('Delete this template?')) {
+          removeTemplate(id);
+      }
+  };
+
   const isCurrentMonth = isSameMonth(date, currentMonth);
   const isTodayDate = isToday(date);
   const holidayInfo = getHolidayInfo(dateStr, country);
@@ -158,46 +213,116 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
     <div ref={setNodeRef} onDoubleClick={handleDoubleClick}
                 title={shifts.length === 0 ? "Double-click to add shift" : undefined}
       className={clsx(
-        'min-h-[120px] p-2 flex flex-col gap-2 transition-all relative border-b border-r border-slate-50 last:border-r-0 cursor-pointer group/cell',
-        !isCurrentMonth && 'bg-slate-50/30 text-slate-300',
+        'p-2 flex flex-col gap-2 transition-all relative border-slate-50 last:border-r-0 cursor-pointer group/cell',
+        isMobileView ? 'min-h-[60px] border-b-0' : 'min-h-[120px] border-b border-r',
+        !isCurrentMonth && !isMobileView && 'bg-slate-50/30 text-slate-300',
         isCurrentMonth && !isHolidayDate && 'bg-white hover:bg-slate-50/50',
         isCurrentMonth && isHolidayDate && 'bg-rose-50/60 hover:bg-rose-50/80',
         isOver && 'bg-blue-50/30 ring-2 ring-blue-400/20 ring-inset z-10',
         isTodayDate && !isHolidayDate && 'bg-indigo-50/30',
       )}>
       {showJobPicker && (
-        <div ref={pickerRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[140px] animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center justify-between mb-1 px-2 py-1">
-            <span className="text-xs font-medium text-slate-500">Add Job</span>
+        <div ref={pickerRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[150px] animate-in fade-in zoom-in-95 duration-150">
+          
+          {/* Tabs */}
+          <div className="flex p-0.5 bg-slate-100 rounded-lg mb-2">
             <button 
-              onClick={(e) => { e.stopPropagation(); onAddJobAddNewJob?.(); setShowJobPicker(false); }}
-              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-500 transition-colors"
-              title="Create New Job"
+              onClick={(e) => { e.stopPropagation(); setPickerTab('jobs'); }}
+              className={clsx("flex-1 py-1 text-[10px] font-bold rounded-md transition-all", pickerTab === 'jobs' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
             >
-              <Plus_Lucide className="w-3 h-3" />
+              Jobs
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setPickerTab('templates'); }}
+              className={clsx("flex-1 py-1 text-[10px] font-bold rounded-md transition-all", pickerTab === 'templates' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+            >
+              Templates
             </button>
           </div>
-          {jobConfigs.length === 0 && (
-             <button 
-                onClick={(e) => { e.stopPropagation(); onAddJobAddNewJob?.(); setShowJobPicker(false); }}
-                className="w-full text-center px-3 py-4 rounded-lg text-xs text-slate-400 hover:text-indigo-500 hover:bg-slate-50 border border-dashed border-slate-200 hover:border-indigo-200 transition-all flex flex-col items-center gap-1"
-             >
-                <Plus_Lucide className="w-4 h-4" />
-                <span>Create First Job</span>
-             </button>
+
+          {pickerTab === 'jobs' ? (
+              <>
+                 <div className="flex items-center justify-between mb-1 px-2 py-1">
+                    <span className="text-xs font-medium text-slate-500">Pick Job</span>
+                    <button 
+                    onClick={(e) => { e.stopPropagation(); onAddJobAddNewJob?.(); setShowJobPicker(false); }}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-indigo-500 transition-colors"
+                    title="Create New Job"
+                    >
+                    <Plus_Lucide className="w-3 h-3" />
+                    </button>
+                </div>
+                {jobConfigs.length === 0 && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onAddJobAddNewJob?.(); setShowJobPicker(false); }}
+                        className="w-full text-center px-3 py-4 rounded-lg text-xs text-slate-400 hover:text-indigo-500 hover:bg-slate-50 border border-dashed border-slate-200 hover:border-indigo-200 transition-all flex flex-col items-center gap-1"
+                    >
+                        <Plus_Lucide className="w-4 h-4" />
+                        <span>Create First Job</span>
+                    </button>
+                )}
+                {jobConfigs.map((job) => {
+                    const colors = colorMap[job.color] || colorMap.slate;
+                    const alreadyAdded = shifts.some(s => s.type === job.id);
+                    return (
+                    <button key={job.id} onClick={(e) => { e.stopPropagation(); handleJobSelect(job.id); }} disabled={alreadyAdded}
+                        className={clsx('w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+                        alreadyAdded ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400' : `${colors.bg} ${colors.text} hover:shadow-md hover:-translate-y-0.5`)}>
+                        <span className={clsx('w-2 h-2 rounded-full', `bg-${job.color}-500`)}></span>
+                        {job.name}{alreadyAdded && <span className="text-xs opacity-60 ml-auto">✓</span>}
+                    </button>
+                    );
+                })}
+              </>
+          ) : (
+              <>
+                <div className="max-h-[200px] overflow-y-auto">
+                    {templates.length === 0 ? (
+                        <div className="text-center py-4 px-2">
+                             <div className="bg-slate-50 w-8 h-8 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <Bookmark className="w-4 h-4 text-slate-300" />
+                             </div>
+                             <p className="text-[10px] text-slate-400">
+                                Save shifts as templates to reuse them here.
+                             </p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-1">
+                            {templates.map(t => {
+                                const job = jobConfigs.find(j => j.id === t.jobId);
+                                const colors = colorMap[job?.color || 'slate'] || colorMap.slate;
+                                return (
+                                    <div key={t.id} className="group/item relative">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleTemplateSelect(t.id); }}
+                                            className={clsx(
+                                                "w-full text-left px-2 py-2 rounded-lg text-xs transition-all hover:bg-slate-50 border border-transparent hover:border-slate-100",
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', `bg-${job?.color || 'slate'}-500`)}></span>
+                                                <span className="font-bold text-slate-700 truncate">{t.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-400 pl-3.5">
+                                                <Clock className="w-3 h-3" />
+                                                <span>{t.startTime} - {t.endTime}</span>
+                                            </div>
+                                        </button>
+                                        <button 
+                                            onClick={(e) => handleDeleteTemplate(e, t.id)}
+                                            className="absolute top-1 right-1 p-1 text-slate-300 hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+              </>
           )}
-          {jobConfigs.map((job) => {
-            const colors = colorMap[job.color] || colorMap.slate;
-            const alreadyAdded = shifts.some(s => s.type === job.id);
-            return (
-              <button key={job.id} onClick={(e) => { e.stopPropagation(); handleJobSelect(job.id); }} disabled={alreadyAdded}
-                className={clsx('w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
-                  alreadyAdded ? 'opacity-40 cursor-not-allowed bg-slate-50 text-slate-400' : `${colors.bg} ${colors.text} hover:shadow-md hover:-translate-y-0.5`)}>
-                <span className={clsx('w-2 h-2 rounded-full', `bg-${job.color}-500`)}></span>
-                {job.name}{alreadyAdded && <span className="text-xs opacity-60 ml-auto">✓</span>}
-              </button>
-            );
-          })}
+
         </div>
       )}
 
@@ -276,14 +401,29 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
              >
                  <Check className="w-3 h-3" /> Save Changes
              </button>
+             
+             <div className="pt-2 mt-1 border-t border-slate-100">
+                <button 
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        const shift = shifts.find(s => s.id === editingTimeShiftId);
+                        if (shift) handleSaveAsTemplate(shift); 
+                    }}
+                    className="w-full py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                    <Bookmark className="w-3 h-3" /> Save as Template
+                </button>
+             </div>
           </div>
       )}
 
       <div className="flex items-center justify-between relative">
-        <span className={clsx('text-sm font-semibold w-6 h-6 flex items-center justify-center rounded-full transition-colors',
-          isTodayDate ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : isHolidayDate ? 'text-rose-600' : (date.getDay() === 0 ? 'text-red-500' : date.getDay() === 6 ? 'text-blue-500' : 'text-slate-700'))}>
-          {format(date, 'd')}
-        </span>
+        {!isMobileView && (
+          <span className={clsx('text-sm font-semibold w-6 h-6 flex items-center justify-center rounded-full transition-colors',
+            isTodayDate ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : isHolidayDate ? 'text-rose-600' : (date.getDay() === 0 ? 'text-red-500' : date.getDay() === 6 ? 'text-blue-500' : 'text-slate-700'))}>
+            {format(date, 'd')}
+          </span>
+        )}
         
         <div className="flex gap-1 opacity-0 group-hover/cell:opacity-100 transition-opacity absolute right-0 top-0">
           {shifts.length > 0 && (
@@ -306,16 +446,29 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
                 e.preventDefault();
                 e.stopPropagation();
                 copiedShifts.forEach(copied => {
-                  onAddShift({
-                    id: `${dateStr}-${copied.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    date: dateStr,
-                    type: copied.type,
-                    hours: copied.hours,
-                    note: copied.note,
-                    startTime: copied.startTime,
-                    endTime: copied.endTime,
-                    breakMinutes: copied.breakMinutes
-                  });
+                  // Check if this job type already exists on this date - prevent duplicates
+                  const existingShift = shifts.find(s => s.type === copied.type);
+                  if (existingShift) {
+                    // Update existing shift instead of creating duplicate
+                    onUpdateShift(existingShift.id, {
+                      hours: copied.hours,
+                      note: copied.note,
+                      startTime: copied.startTime,
+                      endTime: copied.endTime,
+                      breakMinutes: copied.breakMinutes
+                    });
+                  } else {
+                    onAddShift({
+                      id: `${dateStr}-${copied.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                      date: dateStr,
+                      type: copied.type,
+                      hours: copied.hours,
+                      note: copied.note,
+                      startTime: copied.startTime,
+                      endTime: copied.endTime,
+                      breakMinutes: copied.breakMinutes
+                    });
+                  }
                 });
               }}
               className="p-1 hover:bg-indigo-50 text-indigo-400 hover:text-indigo-600 rounded"
@@ -357,14 +510,23 @@ export const DayCell = ({ date, currentMonth, shifts, onRemoveShift, onUpdateShi
                     <input
                       type="number"
                       min="0"
+                      max="24"
                       step="0.5"
                       value={(() => {
-                        if (shift.hours > 0) return shift.hours;
+                        // Fixed: Check for undefined/null instead of > 0 to allow 0 as valid input
+                        if (shift.hours !== undefined && shift.hours !== null) return shift.hours;
                         const job = jobConfigs.find(j => j.id === shift.type);
                         const isWknd = isWeekend(date);
                         return job ? (isWknd ? job.defaultHours.weekend : job.defaultHours.weekday) : 0;
                       })()}
-                      onChange={(e) => { e.stopPropagation(); onUpdateShift(shift.id, { hours: parseFloat(e.target.value) || 0 }); }}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        const value = parseFloat(e.target.value);
+                        // Validate: prevent NaN, negative, and values over 24
+                        if (isNaN(value) || value < 0) return;
+                        const hours = Math.min(24, Math.max(0, value));
+                        onUpdateShift(shift.id, { hours });
+                      }}
                       onClick={(e) => e.stopPropagation()}
                       className="w-10 text-sm bg-white/50 border border-current/20 rounded px-1 py-0.5 focus:ring-1 focus:ring-current/30 text-center font-bold tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />

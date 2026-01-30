@@ -34,10 +34,11 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
 
   // Validate break time doesn't exceed shift duration
   const validateBreakTime = (breakHrs: number) => {
-    const minShiftHours = Math.min(
-      defaultHours.weekday || Infinity,
-      defaultHours.weekend || Infinity
-    );
+    // Fixed: Handle empty string as 0 to avoid coercion issues
+    const weekdayHours = typeof defaultHours.weekday === 'number' && defaultHours.weekday > 0 ? defaultHours.weekday : Infinity;
+    const weekendHours = typeof defaultHours.weekend === 'number' && defaultHours.weekend > 0 ? defaultHours.weekend : Infinity;
+    const minShiftHours = Math.min(weekdayHours, weekendHours);
+
     if (minShiftHours !== Infinity && breakHrs >= minShiftHours) {
       setBreakError(`Break (${breakHrs}h) cannot exceed shift duration (${minShiftHours}h)`);
       return false;
@@ -48,11 +49,29 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
 
   const handleSave = () => {
     if (!validateBreakTime(breakHours)) return;
+
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) {
+      return; // Invalid date format
+    }
+    const dateObj = new Date(effectiveDate);
+    if (isNaN(dateObj.getTime())) {
+      return; // Invalid date
+    }
+
+    // Sanitize rates to prevent NaN (convert empty strings to 0)
+    const sanitizedRates = {
+      weekday: Number(rates.weekday) || 0,
+      saturday: Number(rates.saturday) || 0,
+      sunday: Number(rates.sunday) || 0,
+      holiday: Number(rates.holiday) || 0,
+    };
+
     // Logic:
     // 1. Create a RateHistoryItem for the current inputs
     const newHistoryItem: RateHistoryItem = {
         effectiveDate: effectiveDate,
-        rates: rates
+        rates: sanitizedRates
     };
 
     // 2. Merge with existing history
@@ -68,7 +87,7 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
     // Simple heuristic: If the new effective date is <= today, update the main hourlyRates too.
     const today = new Date();
     const isRateEffectiveNow = new Date(effectiveDate) <= today;
-    const ratesToSave = isRateEffectiveNow ? rates : job.hourlyRates;
+    const ratesToSave = isRateEffectiveNow ? sanitizedRates : job.hourlyRates;
 
     onSave(job.id, {
         hourlyRates: ratesToSave,
@@ -89,11 +108,27 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
   };
 
   const handleRateChange = (key: keyof typeof rates, value: string) => {
-      setRates(prev => ({ ...prev, [key]: value === '' ? '' : parseFloat(value) }));
+      // Fixed: Empty string becomes 0 to prevent NaN in calculations
+      if (value === '') {
+        setRates(prev => ({ ...prev, [key]: 0 }));
+        return;
+      }
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed) && parsed >= 0) {
+        setRates(prev => ({ ...prev, [key]: parsed }));
+      }
   };
-  
+
   const handleHoursChange = (key: keyof typeof defaultHours, value: string) => {
-      setDefaultHours(prev => ({ ...prev, [key]: value === '' ? '' : parseFloat(value) }));
+      // Fixed: Empty string becomes 0 to prevent NaN in calculations
+      if (value === '') {
+        setDefaultHours(prev => ({ ...prev, [key]: 0 }));
+        return;
+      }
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed) && parsed >= 0) {
+        setDefaultHours(prev => ({ ...prev, [key]: parsed }));
+      }
   };
 
   const handleHistoryItemClick = (item: RateHistoryItem) => {

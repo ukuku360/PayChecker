@@ -75,33 +75,33 @@ export const calculateTotalPay = (shifts: Shift[], jobConfigs: JobConfig[], holi
 };
 
 export const calculateFortnightlyHours = (shifts: Shift[]) => {
-  // Group shifts by week (Monday to Sunday)
+  // Group shifts by week (Sunday to Saturday - Australian standard for student visa)
   const weeklyHours: { [weekStart: string]: number } = {};
 
   shifts.forEach(shift => {
     const date = new Date(shift.date);
-    // Get the Monday of the week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    const day = date.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(date);
-    monday.setDate(date.getDate() + diff);
-    monday.setHours(0, 0, 0, 0);
-    const mondayStr = monday.toISOString().split('T')[0];
+    // Get the Sunday of the week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    // Fixed: Australian student visa uses Sunday-Saturday fortnight periods
+    const day = date.getDay(); // 0 = Sunday
+    const sunday = new Date(date);
+    sunday.setDate(date.getDate() - day); // Go back to Sunday
+    sunday.setHours(0, 0, 0, 0);
+    const sundayStr = sunday.toISOString().split('T')[0];
 
-    weeklyHours[mondayStr] = (weeklyHours[mondayStr] || 0) + shift.hours;
+    weeklyHours[sundayStr] = (weeklyHours[sundayStr] || 0) + shift.hours;
   });
 
   const sortedWeeks = Object.keys(weeklyHours).sort();
-  
+
   // For each week, calculate the total of that week and the next week
   return sortedWeeks.map((weekStart) => {
     const currentWeekHours = weeklyHours[weekStart] || 0;
-    
-    // Find the next week's Monday
-    const nextMonday = new Date(weekStart);
-    nextMonday.setDate(nextMonday.getDate() + 7);
-    const nextMondayStr = nextMonday.toISOString().split('T')[0];
-    const nextWeekHours = weeklyHours[nextMondayStr] || 0;
+
+    // Find the next week's Sunday
+    const nextSunday = new Date(weekStart);
+    nextSunday.setDate(nextSunday.getDate() + 7);
+    const nextSundayStr = nextSunday.toISOString().split('T')[0];
+    const nextWeekHours = weeklyHours[nextSundayStr] || 0;
 
     const totalHours = currentWeekHours + nextWeekHours;
 

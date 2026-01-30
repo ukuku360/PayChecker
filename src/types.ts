@@ -50,6 +50,15 @@ export interface Shift {
   breakMinutes?: number;
 }
 
+export interface ShiftTemplate {
+  id: string;
+  name: string;
+  jobId: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+}
+
 export interface Holiday {
   date: string; // YYYY-MM-DD
   name: string;

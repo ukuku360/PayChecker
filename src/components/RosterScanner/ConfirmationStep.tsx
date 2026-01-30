@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import { format, parseISO, isValid } from 'date-fns';
 import type { ParsedShift, JobConfig, Shift, IdentifiedPerson } from '../../types';
 import { dotColorMap } from '../../utils/colorUtils';
-import { calculateTotalHours } from '../../utils/timeUtils';
+import { calculateTotalHours, isOvernightShift } from '../../utils/timeUtils';
 import { InlineJobCreator } from './InlineJobCreator';
 
 interface ConfirmationStepProps {
@@ -139,10 +139,13 @@ export function ConfirmationStep({
   };
 
   const formatTimeRange = (start: string | null, end: string | null) => {
-    if (!start && !end) return 'No time set';
-    if (!start) return `? - ${end}`;
-    if (!end) return `${start} - ?`;
-    return `${start} - ${end}`;
+    // Fixed: More user-friendly messages instead of "?"
+    if (!start && !end) return 'Time not found';
+    if (!start) return `Ends: ${end} (start missing)`;
+    if (!end) return `Starts: ${start} (end missing)`;
+    // Check for overnight shift and add indicator
+    const overnight = isOvernightShift(start, end);
+    return overnight ? `${start} - ${end} (+1 day)` : `${start} - ${end}`;
   };
 
   const hasMissingTime = (shift: ParsedShift) => !shift.startTime || !shift.endTime;

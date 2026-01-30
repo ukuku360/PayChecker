@@ -47,7 +47,18 @@ export function formatMinutesToTime(minutes: number): string {
 export function addHoursToTime(time: string, hoursToAdd: number): string | null {
   const startMinutes = parseTimeToMinutes(time);
   if (startMinutes === null) return null;
-  
+
   const totalMinutes = startMinutes + (hoursToAdd * 60);
   return formatMinutesToTime(totalMinutes);
+}
+
+/**
+ * Check if a shift is an overnight shift (end time is before start time)
+ */
+export function isOvernightShift(start: string | null, end: string | null): boolean {
+  if (!start || !end) return false;
+  const startMinutes = parseTimeToMinutes(start);
+  const endMinutes = parseTimeToMinutes(end);
+  if (startMinutes === null || endMinutes === null) return false;
+  return endMinutes < startMinutes;
 }
