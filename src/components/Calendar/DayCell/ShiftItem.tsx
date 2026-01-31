@@ -150,12 +150,25 @@ export const ShiftItem = memo(function ShiftItem({
       {/* Main shift content - slides left on swipe */}
       <div
         {...shiftLongPressProps}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          shiftLongPressProps.onMouseDown?.(e);
+        }}
+        onMouseUp={(e) => {
+          e.stopPropagation();
+          shiftLongPressProps.onMouseUp?.(e);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
         onTouchStart={(e) => {
+          e.stopPropagation();
           shiftLongPressProps.onTouchStart?.(e);
           handleTouchStart(e);
         }}
         onTouchMove={handleTouchMove}
         onTouchEnd={(e) => {
+          e.stopPropagation();
           shiftLongPressProps.onTouchEnd?.(e);
           handleTouchEnd();
         }}
