@@ -103,6 +103,7 @@ export const DayCell = memo(function DayCell({
           onDeleteTemplate={(id) => {
             if (confirm('Delete this template?')) removeTemplate(id);
           }}
+          isMobile={isMobileView}
         />
       ) : null}
 
@@ -115,6 +116,7 @@ export const DayCell = memo(function DayCell({
             onUpdateShift(popupState.shiftId, { note });
             closePopup();
           }}
+          isMobile={isMobileView}
         />
       ) : null}
 
@@ -135,6 +137,7 @@ export const DayCell = memo(function DayCell({
             closePopup();
           }}
           onTemplateSave={handleSaveAsTemplate}
+          isMobile={isMobileView}
         />
       ) : null}
 

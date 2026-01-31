@@ -12,6 +12,7 @@ interface TimeEditorProps {
   onSave: (updates: Partial<Shift>) => void;
   onDelete: () => void;
   onTemplateSave: () => void;
+  isMobile?: boolean;
 }
 
 export const TimeEditor = ({
@@ -22,6 +23,7 @@ export const TimeEditor = ({
   onSave,
   onDelete,
   onTemplateSave,
+  isMobile: isMobileProp,
 }: TimeEditorProps) => {
   const timeInfoRef = useRef<HTMLDivElement>(null);
   const [tempStartTime, setTempStartTime] = useState(
@@ -33,7 +35,8 @@ export const TimeEditor = ({
   const [tempBreakMinutes, setTempBreakMinutes] = useState(
     (shift.breakMinutes ?? job?.defaultBreakMinutes ?? 0) / 60
   );
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobileQuery = useMediaQuery('(max-width: 768px)');
+  const isMobile = isMobileProp ?? isMobileQuery;
 
   useEffect(() => {
     if (isMobile) return;

@@ -16,6 +16,7 @@ interface JobPickerProps {
   onSelectJob: (jobId: string) => void;
   onSelectTemplate: (templateId: string) => void;
   onDeleteTemplate: (templateId: string) => void;
+  isMobile?: boolean;
 }
 
 export const JobPicker = ({
@@ -28,10 +29,12 @@ export const JobPicker = ({
   onSelectJob,
   onSelectTemplate,
   onDeleteTemplate,
+  isMobile: isMobileProp,
 }: JobPickerProps) => {
   const pickerRef = useRef<HTMLDivElement>(null);
   const [pickerTab, setPickerTab] = useState<'jobs' | 'templates'>('jobs');
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobileQuery = useMediaQuery('(max-width: 768px)');
+  const isMobile = isMobileProp ?? isMobileQuery;
 
   useEffect(() => {
     if (isMobile) return; // BottomSheet handles its own close

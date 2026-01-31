@@ -8,12 +8,14 @@ interface NoteEditorProps {
   initialNote: string;
   onClose: () => void;
   onSave: (note: string) => void;
+  isMobile?: boolean;
 }
 
-export const NoteEditor = ({ position, initialNote, onClose, onSave }: NoteEditorProps) => {
+export const NoteEditor = ({ position, initialNote, onClose, onSave, isMobile: isMobileProp }: NoteEditorProps) => {
   const noteRef = useRef<HTMLDivElement>(null);
   const [tempNote, setTempNote] = useState(initialNote);
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobileQuery = useMediaQuery('(max-width: 768px)');
+  const isMobile = isMobileProp ?? isMobileQuery;
 
   useEffect(() => {
     if (isMobile) return;
