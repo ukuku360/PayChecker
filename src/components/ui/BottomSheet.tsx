@@ -46,14 +46,37 @@ export function BottomSheet({
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  
+  // Track visual viewport for virtual keyboard support
+  const [viewportHeight, setViewportHeight] = useState(
+    typeof window !== 'undefined' ? window.visualViewport?.height || window.innerHeight : 0
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      const height = window.visualViewport?.height || window.innerHeight;
+      setViewportHeight(height);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   // Calculate initial height based on snap point
   const getSnapHeight = useCallback(
     (index: number) => {
-      const vh = window.innerHeight;
-      return vh * snapPoints[Math.min(index, snapPoints.length - 1)];
+      return viewportHeight * snapPoints[Math.min(index, snapPoints.length - 1)];
     },
-    [snapPoints]
+    [snapPoints, viewportHeight]
   );
 
   // Handle opening animation
@@ -71,6 +94,17 @@ export function BottomSheet({
       return () => clearTimeout(timer);
     }
   }, [isOpen, initialSnap, getSnapHeight]);
+
+  // Update height when viewport changes if open
+  useEffect(() => {
+    if (isOpen && currentHeight !== null && currentHeight > 0) {
+      // Re-snap to the same relative percentage or initial snap? 
+      // For simplicity, re-apply the initial snap logic or maintain percentage. 
+      // User experience: if keyboard opens, we want it to fit.
+      setCurrentHeight(getSnapHeight(initialSnap));
+    }
+  }, [viewportHeight, isOpen, initialSnap, getSnapHeight, currentHeight]);
+
 
   // Focus trap and ESC key handling
   useEffect(() => {
@@ -145,7 +179,7 @@ export function BottomSheet({
     if (!dragState.current?.isDragging) return;
 
     setIsAnimating(true);
-    const vh = window.innerHeight;
+    const vh = viewportHeight; // Use tracked viewport height
     const heightPercent = (currentHeight || 0) / vh;
 
     // Find closest snap point or close if below threshold
@@ -169,7 +203,7 @@ export function BottomSheet({
     }
 
     dragState.current = null;
-  }, [currentHeight, snapPoints, onClose]);
+  }, [currentHeight, snapPoints, onClose, viewportHeight]);
 
   // Touch event handlers for the handle
   const handleTouchStart = useCallback(
@@ -213,9 +247,13 @@ export function BottomSheet({
   return (
     <div
       className={clsx(
-        'fixed inset-0 z-50',
+        'fixed left-0 right-0 z-50', 
         isAnimating && 'transition-opacity duration-300'
       )}
+      style={{
+        top: 0,
+        height: viewportHeight,
+      }}
       aria-modal="true"
       role="dialog"
     >
@@ -235,7 +273,7 @@ export function BottomSheet({
         ref={sheetRef}
         style={{
           height: currentHeight ?? 0,
-          maxHeight: '95vh',
+          maxHeight: '100%',
         }}
         className={clsx(
           'absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl overflow-hidden flex flex-col',

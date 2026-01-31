@@ -130,7 +130,7 @@ export const ShiftItem = memo(function ShiftItem({
     <div ref={containerRef} className="relative overflow-visible rounded-lg">
       {/* Delete button revealed by swipe */}
       <div
-        className="absolute right-0 top-0 bottom-0 flex items-center justify-center bg-rose-500 text-white"
+        className="absolute right-0 top-0 bottom-0 flex items-center justify-center bg-rose-500 text-white rounded-r-lg"
         style={{ width: DELETE_BUTTON_WIDTH }}
       >
         <button
