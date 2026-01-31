@@ -110,7 +110,7 @@ export const SavingsGoal = () => {
             {savingsGoal > 0 ? formatCurrency(savingsGoal) : `${t('savingsGoal.setGoal')} →`}
           </p>
         )}
-        <p className="text-[10px] text-slate-400 mt-1">{t('savingsGoal.targetAmount')}</p>
+        <p className="text-xs text-slate-400 mt-1">{t('savingsGoal.targetAmount')}</p>
       </div>
 
       {savingsGoal > 0 && (
@@ -135,7 +135,7 @@ export const SavingsGoal = () => {
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 rounded-xl bg-slate-50/50">
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('savingsGoal.remaining')}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase mb-1">{t('savingsGoal.remaining')}</p>
               <p className={clsx(
                 "text-xl font-bold",
                 remaining === 0 ? "text-emerald-500" : "text-slate-700"
@@ -145,7 +145,7 @@ export const SavingsGoal = () => {
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50/50">
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('savingsGoal.avgMonthly')}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase mb-1">{t('savingsGoal.avgMonthly')}</p>
               <p className="text-xl font-bold text-slate-700">{formatCurrency(avgMonthlyEarnings)}</p>
             </div>
           </div>
@@ -161,7 +161,7 @@ export const SavingsGoal = () => {
                     {monthsToGoal} {t('savingsGoal.months')}
                   </span>
                 </p>
-                <p className="text-[10px] text-slate-400">{t('savingsGoal.predictionBase')}</p>
+                <p className="text-xs text-slate-400">{t('savingsGoal.predictionBase')}</p>
               </div>
             </div>
           )}

@@ -1,6 +1,14 @@
-import { isSaturday, isSunday } from 'date-fns';
 import type { Shift, JobConfig } from '../types';
-import { isPublicHoliday } from '../data/australianHolidays';
+import type { CountryCode } from '../data/countries';
+import { isPublicHoliday } from '../data/holidays';
+import {
+  parseLocalDate,
+  formatLocalDate,
+  getWeekStartSunday,
+  addDaysToDate,
+  isSaturdayDate,
+  isSundayDate,
+} from './dateUtils';
 
 /**
  * Calculate paid hours for a shift, accounting for break deductions
@@ -25,31 +33,40 @@ const getRateForDate = (job: JobConfig, dateString: string) => {
     return job.hourlyRates;
   }
 
-  // Find the latest rate history item that is effective on or before the date
-  // Sort by date descending efficiently? 
-  // Ideally rateHistory should be sorted, but let's sort to be safe or find efficiently.
-  // Given low volume, simple filter & sort is fine
-  const sortedHistory = [...job.rateHistory].sort((a, b) => 
-    new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime()
+  // Sort by date descending using string comparison (YYYY-MM-DD sorts correctly)
+  const sortedHistory = [...job.rateHistory].sort((a, b) =>
+    b.effectiveDate.localeCompare(a.effectiveDate)
   );
 
-  const effectiveRate = sortedHistory.find(history => 
-    new Date(history.effectiveDate) <= new Date(dateString)
+  // Find the latest rate effective on or before the date
+  const effectiveRate = sortedHistory.find(
+    (history) => history.effectiveDate <= dateString
   );
 
-  return effectiveRate ? effectiveRate.rates : job.hourlyRates; // Fallback to current if no history matches (or maybe 0?)
+  return effectiveRate ? effectiveRate.rates : job.hourlyRates;
 };
 
-export const calculateShiftPay = (shift: Shift, jobConfigs: JobConfig[], holidays: string[] = []) => {
-  const job = jobConfigs.find(j => j.id === shift.type);
+/**
+ * Calculate pay for a single shift
+ * @param shift - The shift to calculate pay for
+ * @param jobConfigs - Job configurations
+ * @param holidays - Custom holiday dates from user settings
+ * @param country - Country code for public holiday detection (defaults to 'AU')
+ */
+export const calculateShiftPay = (
+  shift: Shift,
+  jobConfigs: JobConfig[],
+  holidays: string[] = [],
+  country: CountryCode = 'AU'
+) => {
+  const job = jobConfigs.find((j) => j.id === shift.type);
   if (!job) return 0;
 
-  const date = new Date(shift.date);
-  // Check both custom holidays from store AND automatic VIC public holidays
-  const isHoliday = holidays.includes(shift.date) || isPublicHoliday(shift.date);
-  const isWeekendSat = isSaturday(date);
-  const isWeekendSun = isSunday(date);
-  
+  // Check custom holidays AND country-specific public holidays
+  const isHoliday = holidays.includes(shift.date) || isPublicHoliday(shift.date, country);
+  const isWeekendSat = isSaturdayDate(shift.date);
+  const isWeekendSun = isSundayDate(shift.date);
+
   const rates = getRateForDate(job, shift.date);
   let hourlyRate = rates.weekday;
 
@@ -68,27 +85,40 @@ export const calculateShiftPay = (shift: Shift, jobConfigs: JobConfig[], holiday
   return basePay;
 };
 
-export const calculateTotalPay = (shifts: Shift[], jobConfigs: JobConfig[], holidays: string[] = []) => {
+/**
+ * Calculate total pay for multiple shifts
+ * @param shifts - Array of shifts
+ * @param jobConfigs - Job configurations
+ * @param holidays - Custom holiday dates from user settings
+ * @param country - Country code for public holiday detection (defaults to 'AU')
+ */
+export const calculateTotalPay = (
+  shifts: Shift[],
+  jobConfigs: JobConfig[],
+  holidays: string[] = [],
+  country: CountryCode = 'AU'
+) => {
   return shifts.reduce((total, shift) => {
-    return total + calculateShiftPay(shift, jobConfigs, holidays);
+    return total + calculateShiftPay(shift, jobConfigs, holidays, country);
   }, 0);
 };
 
-export const calculateFortnightlyHours = (shifts: Shift[]) => {
+/**
+ * Calculate fortnightly hours for student visa compliance
+ * Groups shifts by Sunday-Saturday weeks (Australian standard)
+ */
+export const calculateFortnightlyHours = (shifts: Shift[], jobConfigs: JobConfig[] = []) => {
   // Group shifts by week (Sunday to Saturday - Australian standard for student visa)
   const weeklyHours: { [weekStart: string]: number } = {};
 
-  shifts.forEach(shift => {
-    const date = new Date(shift.date);
-    // Get the Sunday of the week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    // Fixed: Australian student visa uses Sunday-Saturday fortnight periods
-    const day = date.getDay(); // 0 = Sunday
-    const sunday = new Date(date);
-    sunday.setDate(date.getDate() - day); // Go back to Sunday
-    sunday.setHours(0, 0, 0, 0);
-    const sundayStr = sunday.toISOString().split('T')[0];
+  shifts.forEach((shift) => {
+    // Use timezone-safe date parsing
+    const date = parseLocalDate(shift.date);
+    const sunday = getWeekStartSunday(date);
+    const sundayStr = formatLocalDate(sunday);
 
-    weeklyHours[sundayStr] = (weeklyHours[sundayStr] || 0) + shift.hours;
+    const hours = jobConfigs.length > 0 ? calculatePaidHours(shift, jobConfigs) : shift.hours;
+    weeklyHours[sundayStr] = (weeklyHours[sundayStr] || 0) + hours;
   });
 
   const sortedWeeks = Object.keys(weeklyHours).sort();
@@ -97,10 +127,10 @@ export const calculateFortnightlyHours = (shifts: Shift[]) => {
   return sortedWeeks.map((weekStart) => {
     const currentWeekHours = weeklyHours[weekStart] || 0;
 
-    // Find the next week's Sunday
-    const nextSunday = new Date(weekStart);
-    nextSunday.setDate(nextSunday.getDate() + 7);
-    const nextSundayStr = nextSunday.toISOString().split('T')[0];
+    // Find the next week's Sunday using timezone-safe utilities
+    const sunday = parseLocalDate(weekStart);
+    const nextSunday = addDaysToDate(sunday, 7);
+    const nextSundayStr = formatLocalDate(nextSunday);
     const nextWeekHours = weeklyHours[nextSundayStr] || 0;
 
     const totalHours = currentWeekHours + nextWeekHours;

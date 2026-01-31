@@ -70,10 +70,10 @@ export const ExportModal = ({ currentMonth, onClose }: ExportModalProps) => {
           <div className="neu-pressed rounded-xl p-4 space-y-2 !bg-[#e0e5ec]">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Preview</h3>
             <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-slate-700">{summary.shiftCount}</p><p className="text-[10px] text-slate-500 uppercase tracking-wide">Shifts</p></div>
-              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-slate-700">{summary.totalHours.toFixed(1)}</p><p className="text-[10px] text-slate-500 uppercase tracking-wide">Hours</p></div>
-              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-indigo-600">{formatCurrency(summary.totalPay)}</p><p className="text-[10px] text-slate-500 uppercase tracking-wide">Est. Pay</p></div>
-              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-emerald-600">{formatCurrency(summary.totalSuper)}</p><p className="text-[10px] text-slate-500 uppercase tracking-wide">Super</p></div>
+              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-slate-700">{summary.shiftCount}</p><p className="text-xs text-slate-500 uppercase tracking-wide">Shifts</p></div>
+              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-slate-700">{summary.totalHours.toFixed(1)}</p><p className="text-xs text-slate-500 uppercase tracking-wide">Hours</p></div>
+              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-indigo-600">{formatCurrency(summary.totalPay)}</p><p className="text-xs text-slate-500 uppercase tracking-wide">Est. Pay</p></div>
+              <div className="p-2 rounded-lg"><p className="text-xl font-bold text-emerald-600">{formatCurrency(summary.totalSuper)}</p><p className="text-xs text-slate-500 uppercase tracking-wide">Super</p></div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

@@ -78,7 +78,7 @@ export const WeekView = ({
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{format(day, 'EEE')}</span>
                 </div>
                 {isToday && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full">
+                    <span className="text-xs font-bold px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full">
                         {t('calendar.today', 'Today')}
                     </span>
                 )}

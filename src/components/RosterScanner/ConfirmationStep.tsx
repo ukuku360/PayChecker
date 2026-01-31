@@ -278,18 +278,18 @@ export function ConfirmationStep({
                 {/* Status badges */}
                 <div className="flex items-center gap-2">
                   {hasMissingTime(shift) && (
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-bold rounded flex items-center gap-1">
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-xs font-bold rounded flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       Time
                     </span>
                   )}
                   {shift.hasConflict && (
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded uppercase">
                       Replace
                     </span>
                   )}
                   {isLowConfidence && (
-                    <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-bold rounded">
+                    <span className="px-2 py-0.5 bg-orange-100 text-orange-600 text-xs font-bold rounded">
                       {Math.round(shift.confidence * 100)}%
                     </span>
                   )}
@@ -313,7 +313,7 @@ export function ConfirmationStep({
                   <div className="grid grid-cols-2 gap-3">
                     {/* Date */}
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Date</label>
+                      <label className="text-xs font-bold text-slate-400 uppercase">Date</label>
                       <input
                         type="date"
                         value={shift.date}
@@ -324,7 +324,7 @@ export function ConfirmationStep({
 
                     {/* Job */}
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Job</label>
+                      <label className="text-xs font-bold text-slate-400 uppercase">Job</label>
                       <div className="flex gap-2 mt-1">
                         <select
                           value={shift.mappedJobId || ''}
@@ -352,7 +352,7 @@ export function ConfirmationStep({
                     {/* Start time */}
                     <div>
                       <label className={clsx(
-                        "text-[10px] font-bold uppercase",
+                        "text-xs font-bold uppercase",
                         !shift.startTime ? "text-blue-500" : "text-slate-400"
                       )}>
                         Start {!shift.startTime && "*"}
@@ -372,7 +372,7 @@ export function ConfirmationStep({
                     {/* End time */}
                     <div>
                       <label className={clsx(
-                        "text-[10px] font-bold uppercase",
+                        "text-xs font-bold uppercase",
                         !shift.endTime ? "text-blue-500" : "text-slate-400"
                       )}>
                         End {!shift.endTime && "*"}

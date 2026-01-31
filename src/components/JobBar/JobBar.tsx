@@ -30,7 +30,7 @@ export const JobBar = ({ job, onOpenSettings }: JobBarProps) => {
         {...listeners}
         {...attributes}
         className={clsx(
-          'neu-flat px-4 py-2 text-sm border-l-2 cursor-grab active:cursor-grabbing transition-all flex items-center gap-2',
+          'neu-flat px-4 py-2 text-sm border-l-2 cursor-grab active:cursor-grabbing transition-transform flex items-center gap-2',
           interactiveBorderColorMap[job.color] ? '' : 'border-transparent',
           isDragging ? 'opacity-90 z-50 scale-105' : 'hover:scale-105',
           'text-slate-700'
@@ -42,7 +42,7 @@ export const JobBar = ({ job, onOpenSettings }: JobBarProps) => {
       <button
         onClick={() => onOpenSettings(job)}
         className={clsx(
-          'neu-icon-btn absolute -right-2 -top-2 w-6 h-6 !rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10 !p-0',
+          'neu-icon-btn absolute -right-2 -top-2 w-6 h-6 !rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10 !p-0',
           interactiveBorderColorMap[job.color] || 'text-slate-500',
         )}
         title="Set hourly rate"

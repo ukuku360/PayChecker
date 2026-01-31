@@ -5,10 +5,11 @@ import { jsPDF } from 'jspdf';
 import Papa from 'papaparse';
 import { format, addDays } from 'date-fns';
 import type { Shift, JobConfig } from '../types';
+import type { CountryCode } from '../data/countries';
 import { calculateShiftPay } from './calculatePay';
-import { getHolidayInfo } from '../data/australianHolidays';
-import { isSaturday, isSunday } from 'date-fns';
+import { getHolidayInfo } from '../data/holidays';
 import { SUPER_RATE } from '../store/useScheduleStore';
+import { parseLocalDate, isSaturdayDate, isSundayDate } from './dateUtils';
 
 interface ExportData {
   shifts: Shift[];
@@ -18,34 +19,35 @@ interface ExportData {
     start: Date;
     end: Date;
   };
+  country?: CountryCode;
 }
 
-// Helper to get day type
-const getDayType = (dateStr: string, holidays: string[]): string => {
-  const date = new Date(dateStr);
-  const holidayInfo = getHolidayInfo(dateStr);
+// Helper to get day type with country-aware holiday detection
+const getDayType = (dateStr: string, holidays: string[], country: CountryCode = 'AU'): string => {
+  const holidayInfo = getHolidayInfo(dateStr, country);
   if (holidayInfo || holidays.includes(dateStr)) return 'Holiday';
-  if (isSunday(date)) return 'Sunday';
-  if (isSaturday(date)) return 'Saturday';
+  if (isSundayDate(dateStr)) return 'Sunday';
+  if (isSaturdayDate(dateStr)) return 'Saturday';
   return 'Weekday';
 };
 
 // Export to CSV
 export const exportToCSV = (data: ExportData): void => {
+  const country = data.country || 'AU';
   const rows = data.shifts
     .filter(s => {
-      const shiftDate = new Date(s.date);
+      const shiftDate = parseLocalDate(s.date);
       return shiftDate >= data.dateRange.start && shiftDate <= data.dateRange.end;
     })
     .sort((a, b) => a.date.localeCompare(b.date))
     .map(shift => {
       const job = data.jobConfigs.find(j => j.id === shift.type);
-      const dayType = getDayType(shift.date, data.holidays);
-      const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
-      
+      const dayType = getDayType(shift.date, data.holidays, country);
+      const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays, country);
+
       return {
         Date: shift.date,
-        Day: format(new Date(shift.date), 'EEEE'),
+        Day: format(parseLocalDate(shift.date), 'EEEE'),
         DayType: dayType,
         JobType: job?.name || shift.type,
         Hours: shift.hours,
@@ -85,26 +87,26 @@ export const exportToCSV = (data: ExportData): void => {
 
 // Export to PDF
 export const exportToPDF = (data: ExportData): void => {
+  const country = data.country || 'AU';
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  
+
   // Filter and sort shifts
   const filteredShifts = data.shifts
     .filter(s => {
-      const shiftDate = new Date(s.date);
+      const shiftDate = parseLocalDate(s.date);
       return shiftDate >= data.dateRange.start && shiftDate <= data.dateRange.end;
     })
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Calculate totals by job type
-// Calculate totals by job type
   const jobTotals: { [key: string]: { hours: number; pay: number } } = {};
   let grandTotalHours = 0;
   let grandTotalPay = 0;
   let grandTotalSuper = 0;
 
   filteredShifts.forEach(shift => {
-    const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
+    const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays, country);
     const hours = shift.hours;
     
     if (!jobTotals[shift.type]) {
@@ -189,13 +191,13 @@ export const exportToPDF = (data: ExportData): void => {
       doc.addPage();
       yPos = 20;
     }
-    
+
     const job = data.jobConfigs.find(j => j.id === shift.type);
-    const dayType = getDayType(shift.date, data.holidays);
-    const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
-    
+    const dayType = getDayType(shift.date, data.holidays, country);
+    const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays, country);
+
     doc.text(shift.date, 14, yPos);
-    doc.text(format(new Date(shift.date), 'EEE'), 45, yPos);
+    doc.text(format(parseLocalDate(shift.date), 'EEE'), 45, yPos);
     doc.text(dayType.slice(0, 3), 70, yPos);
     doc.text(job?.name || shift.type, 95, yPos);
     doc.text(shift.hours.toString(), 120, yPos);
@@ -220,21 +222,24 @@ export const exportToPDF = (data: ExportData): void => {
 
 // Generate ICS file for Calendar Sync
 export const generateICS = (data: ExportData): void => {
+  const country = data.country || 'AU';
   const CRLF = '\r\n';
   const now = new Date();
-  const dtStamp = format(now, "yyyyMMdd'T'HHmmss'Z'");
+  // Use local time for DTSTAMP (no 'Z' suffix since we're using local time)
+  const dtStamp = format(now, "yyyyMMdd'T'HHmmss");
 
   const events = data.shifts
     .filter(s => {
-      const shiftDate = new Date(s.date);
+      const shiftDate = parseLocalDate(s.date);
       return shiftDate >= data.dateRange.start && shiftDate <= data.dateRange.end;
     })
     .map(shift => {
       const job = data.jobConfigs.find(j => j.id === shift.type);
-      const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays);
-      
-      const startDate = new Date(shift.date);
-      let endDate = new Date(shift.date);
+      const pay = calculateShiftPay(shift, data.jobConfigs, data.holidays, country);
+
+      // Use timezone-safe date parsing
+      const startDate = parseLocalDate(shift.date);
+      let endDate = parseLocalDate(shift.date);
       
       // Default times
       const startHour = 9;

@@ -1,141 +1,58 @@
-import { useState, useEffect } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DndContext, DragOverlay, useSensor, useSensors, MouseSensor, TouchSensor } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { CalendarGrid } from './components/Calendar/CalendarGrid';
 import { Dashboard } from './components/Dashboard/Dashboard';
-import { AddJobModal } from './components/Dashboard/AddJobModal';
-import { HourlyRateModal } from './components/JobBar/HourlyRateModal';
-import { ExportModal } from './components/Export/ExportModal';
-import { ProfileModal } from './components/Profile/ProfileModal';
-import { CountrySelectionModal } from './components/CountrySelectionModal';
+
+// Lazy load modals to optimize bundle size
+const AddJobModal = lazy(() => import('./components/Dashboard/AddJobModal').then(module => ({ default: module.AddJobModal })));
+const HourlyRateModal = lazy(() => import('./components/JobBar/HourlyRateModal').then(module => ({ default: module.HourlyRateModal })));
+const ExportModal = lazy(() => import('./components/Export/ExportModal').then(module => ({ default: module.ExportModal })));
+const ProfileModal = lazy(() => import('./components/Profile/ProfileModal').then(module => ({ default: module.ProfileModal })));
+const CountrySelectionModal = lazy(() => import('./components/CountrySelectionModal').then(module => ({ default: module.CountrySelectionModal })));
+const FeedbackModal = lazy(() => import('./components/Feedback/FeedbackModal').then(module => ({ default: module.FeedbackModal })));
+const AdminFeedbackList = lazy(() => import('./components/Feedback/AdminFeedbackList').then(module => ({ default: module.AdminFeedbackList })));
+const RosterScannerModal = lazy(() => import('./components/RosterScanner/RosterScannerModal').then(module => ({ default: module.RosterScannerModal })));
+const ReadmeModal = lazy(() => import('./components/Help/ReadmeModal').then(module => ({ default: module.ReadmeModal })));
+
 import { useScheduleStore } from './store/useScheduleStore';
 import type { JobConfig, JobType } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
 import { isSaturday, isSunday } from 'date-fns';
 import { dotColorMap } from './utils/colorUtils';
-import { supabase } from './lib/supabaseClient';
 import { Auth } from './components/Auth/Auth';
 import { GoogleAd } from './components/GoogleAd';
-import { FeedbackModal } from './components/Feedback/FeedbackModal';
-import { AdminFeedbackList } from './components/Feedback/AdminFeedbackList';
-import { RosterScannerModal } from './components/RosterScanner/RosterScannerModal';
-import { FeatureHelpTrigger } from './components/FeatureHelp/FeatureHelpTrigger';
-import { ReadmeModal } from './components/Help/ReadmeModal';
 import { ToastContainer } from './components/Toast/ToastContainer';
-import { useFeatureHelpStore } from './store/useFeatureHelpStore';
+import { useModalState } from './hooks/useModalState';
+import { useAuthSession } from './hooks/useAuthSession';
 import { MessageSquare, BookOpen, LogOut, User } from 'lucide-react';
 import './i18n';
 
+
 function App() {
   const { t } = useTranslation();
-  const { addShift, jobConfigs, updateJobConfig, addJobConfig, removeJobConfig, fetchData, clearData, shifts, country, isLoaded } = useScheduleStore();
+  const { 
+    jobConfigs, 
+    addJobConfig, 
+    updateJobConfig, 
+    removeJobConfig,
+    shifts,
+    addShift,
+    isLoaded,
+    country
+  } = useScheduleStore();
+  
+  const { session, loading, logout } = useAuthSession();
+  
   const [activeType, setActiveType] = useState<JobType | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
-  const [showAddJobModal, setShowAddJobModal] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [showReadmeModal, setShowReadmeModal] = useState(false);
-  const [showAdminFeedback, setShowAdminFeedback] = useState(false);
-  const [showRosterScanner, setShowRosterScanner] = useState(false);
+  const modals = useModalState();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
-  const [session, setSession] = useState<any>(null); // Use any for simplicity or import Session type
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const initSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          const { data: { user }, error: userError } = await supabase.auth.getUser(session.access_token);
-          if (userError || !user) {
-            const shouldClearSession =
-              userError?.status === 401 ||
-              userError?.status === 403 ||
-              /jwt|invalid|expired/i.test(userError?.message ?? '');
 
-            if (shouldClearSession) {
-              console.warn('Invalid session detected, clearing local auth:', userError);
-              await supabase.auth.signOut({ scope: 'local' });
-              setSession(null);
-              clearData();
-              setLoading(false);
-              return;
-            }
-
-            console.warn('Session validation failed, keeping local session:', userError);
-          }
-        }
-
-        setSession(session);
-        if (session?.user) {
-          fetchData(session.user.id).catch(err => console.error('Background fetch failed:', err));
-        }
-      } catch (error) {
-        console.error('Error initializing session:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      
-      if (session?.user) {
-        // Don't show full screen loading on auth change, just fetch data
-        // Maybe show a small indicator in the dashboard if needed, but for now just load
-        fetchData(session.user.id).catch(err => console.error('Background fetch failed:', err));
-        setLoading(false); 
-      } else {
-        clearData();
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchData]);
-
-  const { isHelpMode, setHelpMode } = useFeatureHelpStore();
-  const { hasSeenHelp, markHelpSeen } = useScheduleStore();
-
-  // Onboarding Logic
-  useEffect(() => {
-    if (session?.user && !loading) {
-       // Allow a small delay to ensure store hydration if needed, 
-       // but typically if we are here, we can check.
-       // However, default is false. If we haven't fetched profile yet, it is false.
-       // So we might open it prematurely if the user HAS seen it but we haven't fetched that fact yet.
-       // BUT, fetchData is called in the previous useEffect.
-       // We can check if `jobConfigs` or `shifts` (or just check if we have data) to guess if loaded.
-       // Or just rely on the fact that if it opens, no big deal, they close it and we save true.
-       // To be safer, we could add a `isDataLoaded` flag to store, but that's extra resizing.
-       // Let's just try checking hasSeenHelp. If false, we open.
-       if (hasSeenHelp === false) { 
-          // Check if we really want to force it every time or just once per session?
-          // Requirement: "user first logs in".
-          // If hasSeenHelp is false, we show it.
-          // We should avoid re-opening if the user manually closed it in this session.
-          // But hasSeenHelp is persisted.
-          // So:
-          setHelpMode(true);
-       }
-    }
-  }, [session, loading]); // Run once when session loads
-
-  // Mark as seen when closing
-  useEffect(() => {
-    if (!isHelpMode && hasSeenHelp === false && session?.user) {
-        // If help mode was active and now inactive, and we haven't marked seen yet:
-        markHelpSeen();
-    }
-  }, [isHelpMode, hasSeenHelp, session]);
 
 
   const sensors = useSensors(
@@ -181,18 +98,12 @@ function App() {
 
   const handleAddJob = (newJob: JobConfig) => {
     addJobConfig(newJob);
-    setShowAddJobModal(false);
+    modals.close('addJob');
   };
 
   const getActiveJobColor = () => {
     const job = jobConfigs.find(j => j.id === activeType);
     return job?.color || 'slate';
-  };
-
-  const handleLogout = async () => {
-    clearData();
-    setSession(null); // Force immediate UI update
-    await supabase.auth.signOut();
   };
 
   if (loading) {
@@ -209,68 +120,67 @@ function App() {
       onDragStart={handleDragStart} 
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen p-2 md:p-12 font-sans text-slate-700 pb-20 overflow-x-hidden w-full">
-        <header className="mb-6 md:mb-8 max-w-7xl mx-auto flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-4 py-3 md:px-6 md:py-4 sticky top-0 md:static z-50">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold text-slate-700 tracking-tight">
-              PayChecker
-            </h1>
-            <p className="text-slate-500 text-sm hidden md:block">Manage scheduling and track earnings.</p>
-          </div>
-          <div className="flex items-center gap-3 md:gap-4">
-            <button
-               onClick={handleLogout}
-               className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-50"
-               title={t('auth.signOut')}
-            >
-              <span className="hidden md:inline text-sm">{t('auth.signOut')}</span>
-              <LogOut className="w-5 h-5 md:hidden" />
-            </button>
-            <FeatureHelpTrigger />
-            <button 
-               onClick={() => setShowReadmeModal(true)}
-               className="text-slate-400 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5 rounded-lg hover:bg-slate-50"
-               title="User Guide"
-            >
-               <BookOpen className="w-5 h-5" />
-               <span className="text-sm font-medium hidden md:inline">README</span>
-            </button>
-            <button 
-               onClick={() => setShowFeedbackModal(true)}
-               className="text-slate-400 hover:text-indigo-500 transition-colors p-2 flex items-center gap-1.5 rounded-lg hover:bg-slate-50"
-               title="Feedback"
-            >
-               <MessageSquare className="w-5 h-5" />
-               <span className="text-sm font-medium hidden md:inline">Feedback</span>
-            </button>
-            <button 
-               onClick={() => setShowProfileModal(true)}
-               className="neu-btn text-sm px-3 md:px-4 py-2 flex items-center gap-2"
-               title="Profile"
-            >
-               <span className="hidden md:inline">Profile</span>
-               <User className="w-4 h-4 md:hidden" />
-            </button>
-          </div>
-        </header>
-
-        <main className="max-w-7xl mx-auto">
+      <div className="min-h-screen p-2 md:p-12 font-sans text-slate-700 pb-20 pb-safe overflow-x-hidden w-full">
+        <main className="max-w-7xl mx-auto mt-6 md:mt-8">
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Main Content Area */}
             <div className="flex-1 min-w-0 space-y-8">
+              <header className="flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-4 py-3 md:px-6 md:py-4 sticky top-0 md:static z-50">
+                <div>
+                  <h1 className="text-xl md:text-2xl font-bold text-slate-700 tracking-tight">
+                    PayChecker
+                  </h1>
+                  <p className="text-slate-500 text-sm hidden md:block">Manage scheduling and track earnings.</p>
+                </div>
+                <div className="flex items-center gap-3 md:gap-4">
+                  <button
+                     onClick={logout}
+                     className="p-2.5 min-w-[44px] min-h-[44px] text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-50 flex items-center justify-center"
+                     title={t('auth.signOut')}
+                  >
+                    <span className="hidden md:inline text-sm">{t('auth.signOut')}</span>
+                    <LogOut className="w-5 h-5 md:hidden" />
+                  </button>
+                  <button
+                     onClick={() => modals.open('readme')}
+                     className="text-slate-400 hover:text-indigo-500 transition-colors p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center gap-1.5 rounded-lg hover:bg-slate-50"
+                     title="User Guide"
+                  >
+                     <BookOpen className="w-5 h-5" />
+                     <span className="text-sm font-medium hidden md:inline">README</span>
+                  </button>
+                  <button
+                     onClick={() => modals.open('feedback')}
+                     className="text-slate-400 hover:text-indigo-500 transition-colors p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center gap-1.5 rounded-lg hover:bg-slate-50"
+                     title="Feedback"
+                  >
+                     <MessageSquare className="w-5 h-5" />
+                     <span className="text-sm font-medium hidden md:inline">Feedback</span>
+                  </button>
+                  <button
+                     onClick={() => modals.open('profile')}
+                     className="neu-btn text-sm px-3 md:px-4 py-2.5 min-h-[44px] flex items-center justify-center gap-2"
+                     title="Profile"
+                  >
+                     <span className="hidden md:inline">Profile</span>
+                     <User className="w-4 h-4 md:hidden" />
+                  </button>
+                </div>
+              </header>
+
               <Dashboard
                 currentMonth={currentDate}
                 onJobDoubleClick={setSelectedJob}
-                onAddJob={() => setShowAddJobModal(true)}
-                onExport={() => setShowExportModal(true)}
-                onAIScan={() => setShowRosterScanner(true)}
+                onAddJob={() => modals.open('addJob')}
+                onExport={() => modals.open('export')}
+                onAIScan={() => modals.open('rosterScanner')}
                 onViewModeChange={setViewMode}
               />
               {viewMode === 'monthly' && (
-                <CalendarGrid 
+                <CalendarGrid
                   currentDate={currentDate}
                   onMonthChange={setCurrentDate}
-                  onAddJob={() => setShowAddJobModal(true)}
+                  onAddJob={() => modals.open('addJob')}
                 />
               )}
               {/* Horizontal Ad at bottom of content */}
@@ -279,7 +189,7 @@ function App() {
 
             {/* Vertical Ad Sidebar (Desktop only) */}
             <div className="hidden lg:block w-[160px] xl:w-[300px] shrink-0">
-               <div>
+               <div className="sticky top-8">
                   <div className="text-xs font-bold text-slate-300 uppercase text-center mb-2">Ad</div>
                   <GoogleAd slot="6494384759" style={{ minHeight: '600px' }} />
                </div>
@@ -297,63 +207,79 @@ function App() {
         </DragOverlay>
 
         {/* Hourly Rate Modal */}
-        {selectedJob && (
-          <HourlyRateModal
-            job={selectedJob}
-            onClose={() => setSelectedJob(null)}
-            onSave={updateJobConfig}
-            onDelete={removeJobConfig}
-            shiftCount={shifts.filter(s => s.type === selectedJob.id).length}
-          />
-        )}
+        <Suspense fallback={null}>
+          {selectedJob && (
+            <HourlyRateModal
+              job={selectedJob}
+              onClose={() => setSelectedJob(null)}
+              onSave={updateJobConfig}
+              onDelete={removeJobConfig}
+              shiftCount={shifts.filter(s => s.type === selectedJob.id).length}
+            />
+          )}
 
-        {/* Add Job Modal */}
-        <AddJobModal
-          isOpen={showAddJobModal}
-          onClose={() => setShowAddJobModal(false)}
-          onAdd={handleAddJob}
-          existingJobIds={jobConfigs.map(j => j.id)}
-        />
+          {/* Add Job Modal */}
+          {modals.isOpen('addJob') && (
+            <AddJobModal
+              isOpen={true}
+              onClose={() => modals.close('addJob')}
+              onAdd={handleAddJob}
+              existingJobIds={jobConfigs.map(j => j.id)}
+            />
+          )}
 
-        {/* Export Modal */}
-        {showExportModal && (
-          <ExportModal
-            currentMonth={currentDate}
-            onClose={() => setShowExportModal(false)}
-          />
-        )}
+          {/* Export Modal */}
+          {modals.isOpen('export') && (
+            <ExportModal
+              currentMonth={currentDate}
+              onClose={() => modals.close('export')}
+            />
+          )}
 
-        {/* Profile Modal */}
-        <ProfileModal 
-          isOpen={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
-          email={session?.user?.email}
-        />
+          {/* Profile Modal */}
+          {modals.isOpen('profile') && (
+            <ProfileModal
+              isOpen={true}
+              onClose={() => modals.close('profile')}
+              email={session?.user?.email}
+            />
+          )}
 
-        {/* Feedback Modals */}
-        <FeedbackModal 
-          isOpen={showFeedbackModal} 
-          onClose={() => setShowFeedbackModal(false)}
-          userEmail={session?.user?.email}
-        />
-        
-        <AdminFeedbackList
-          isOpen={showAdminFeedback}
-          onClose={() => setShowAdminFeedback(false)}
-        />
+          {/* Feedback Modals */}
+           {modals.isOpen('feedback') && (
+            <FeedbackModal
+              isOpen={true}
+              onClose={() => modals.close('feedback')}
+              userEmail={session?.user?.email}
+            />
+          )}
 
-        <RosterScannerModal
-          isOpen={showRosterScanner}
-          onClose={() => setShowRosterScanner(false)}
-        />
+          {modals.isOpen('adminFeedback') && (
+            <AdminFeedbackList
+              isOpen={true}
+              onClose={() => modals.close('adminFeedback')}
+            />
+          )}
 
-        <ReadmeModal
-          isOpen={showReadmeModal}
-          onClose={() => setShowReadmeModal(false)}
-        />
+          {modals.isOpen('rosterScanner') && (
+            <RosterScannerModal
+              isOpen={true}
+              onClose={() => modals.close('rosterScanner')}
+            />
+          )}
 
-        {/* Country Selection Modal for existing users */}
-        <CountrySelectionModal isOpen={session && !loading && isLoaded && country === null} />
+          {modals.isOpen('readme') && (
+            <ReadmeModal
+              isOpen={true}
+              onClose={() => modals.close('readme')}
+            />
+          )}
+
+          {/* Country Selection Modal for existing users */}
+          {session && !loading && isLoaded && country === null && (
+             <CountrySelectionModal isOpen={true} />
+          )}
+        </Suspense>
 
         {/* Toast Notifications */}
         <ToastContainer />
@@ -361,13 +287,13 @@ function App() {
         {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}
         {/* Alternatively, add it to the profile modal or just check email here */}
         {/* For simplicity, let's put a subtle trigger in the footer or near the ad */}
-        {session?.user?.email === 'nayoonho2001@gmail.com' && (
+        {session?.user?.email === 'nayoonho2001@gmail.com' ? (
           <div className="text-center mt-20 pb-4 opacity-5 hover:opacity-100 transition-opacity">
-            <button onClick={() => setShowAdminFeedback(true)} className="text-[10px] text-slate-400">
+            <button onClick={() => modals.open('adminFeedback')} className="text-xs text-slate-400">
                Admin Access
             </button>
           </div>
-        )}
+        ) : null}
       </div>
     </DndContext>
   )

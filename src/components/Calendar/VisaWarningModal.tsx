@@ -73,7 +73,7 @@ export const VisaWarningModal = ({ isOpen, onClose, onConfirm, overageAmount }: 
               Add Anyway
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 mt-3 text-center">
+          <p className="text-xs text-slate-400 mt-3 text-center">
             Closing this dialog will not add the shift.
           </p>
         </div>

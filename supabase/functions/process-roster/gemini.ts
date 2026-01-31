@@ -90,6 +90,9 @@ interface ExtractedContent {
     note?: string;
   }>;
 
+  // Description of the visual layout (e.g., "Rows are dates, columns are names")
+  layoutDescription?: string;
+
   // Questions (only from Phase 2)
   questions?: SmartQuestion[];
 
@@ -237,22 +240,24 @@ function getCurrentDate(): string {
 // Phase 1: Pure OCR Prompt
 // ============================================
 
-const PHASE1_OCR_PROMPT = `You are an OCR assistant. Extract ALL visible text from this image.
+const PHASE1_OCR_PROMPT = `You are an OCR assistant. Extract ALL visible text from this image and describe its layout.
 
 The image could be ANY format containing work schedule info:
 - Table/roster with names and shifts
 - **CALENDAR VIEW** (monthly grid with weekday headers like 일요일~토요일 or Sun~Sat)
 - Email or message with shift assignments
 - Bulleted list of dates and times
-- Screenshot from a scheduling app
+- Screenshot from a scheduling app (e.g., Deputy, WhenIWork)
 - Handwritten notes
+- Mixed formats
 
 YOUR TASK:
-1. Transcribe ALL visible text exactly as shown
-2. Identify the content structure (table, calendar, or freeform)
-3. Detect if multiple people are mentioned
-4. **For CALENDAR views: Extract names from CELL CONTENTS, not just headers**
-5. DO NOT normalize dates or times - preserve exact format
+1. Transcribe ALL visible text exactly as shown.
+2. **DESCRIBE THE LAYOUT** briefly (e.g., "Rows are employees, columns are dates", "Calendar grid with shifts in cells").
+3. Identify the content structure (table, calendar, or freeform).
+4. Detect if multiple people are mentioned.
+5. **For CALENDAR views: Extract names from CELL CONTENTS, not just headers**.
+6. DO NOT normalize dates or times - preserve exact format.
 
 CRITICAL FOR CALENDAR FORMAT:
 - Calendar views have weekday headers (일요일, 월요일, ... 토요일 or Sun, Mon, ... Sat)
@@ -262,10 +267,13 @@ CRITICAL FOR CALENDAR FORMAT:
   - English: "Open 8-5 John(9)" → name is "John"
 - Parse format: "[shift type] [start] - [end] [NAME](hours)"
 - Extract ALL unique names from cell contents into potentialNames
+- **Layout Description**: Explicitly state "Calendar view with shifts inside day cells".
 
 OUTPUT FORMAT (JSON only):
 {
   "contentType": "table" | "calendar" | "email" | "list" | "text" | "mixed",
+
+  "layoutDescription": "Brief description of how data is organized (e.g. 'Vertical list of dates', 'Grid with names on left')",
 
   "rawText": "Complete word-for-word transcription of all visible text",
 
@@ -285,11 +293,11 @@ OUTPUT FORMAT (JSON only):
 }
 
 CRITICAL RULES:
-1. Preserve dates EXACTLY as shown (e.g., "Thursday 15th January", not "2026-01-15")
-2. Preserve times EXACTLY as shown (e.g., "9am", "5:00pm", not "09:00")
-3. For tables/calendars, keep exact cell values without modification
-4. hasMultiplePeople should be true if you see multiple distinct names
-5. Include ALL names you see in potentialNames array
+1. Preserve dates EXACTLY as shown.
+2. Preserve times EXACTLY as shown.
+3. For tables/calendars, keep exact cell values without modification.
+4. hasMultiplePeople should be true if you see multiple distinct names.
+5. Include ALL names you see in potentialNames array.
 6. **For CALENDAR: Scan ALL cell contents to find names in shift patterns like "오픈 8-21 수연(13)"**`;
 
 // ============================================
@@ -421,8 +429,17 @@ CURRENT DATE: ${currentDate}
 CURRENT YEAR: ${currentYear}
 
 EXTRACTED CONTENT:
+Layout: ${ocrData.layoutDescription || 'Unknown'}
+Content Type: ${ocrData.contentType}
 ${JSON.stringify(ocrData, null, 2)}
 ${clarificationSection}${analysisSection}${targetPersonSection}
+
+**LAYOUT-AWARE PARSING:**
+Use the 'Layout' description to guide your extraction.
+- If "Rows are dates, columns are names": Look for the target person's column.
+- If "Rows are people, columns are dates": Look for the target person's row.
+- If "Vertical list": Look for date headers followed by shifts.
+- If "Calendar view": See specific section below.
 
 **CALENDAR VIEW PARSING:**
 When contentType is "calendar":
@@ -605,6 +622,7 @@ async function extractContentPhase1(
     return {
       success: true,
       contentType: parsed.contentType || 'text',
+      layoutDescription: parsed.layoutDescription,
       tableType: structure.type === 'table' ? 'column-based' : undefined,
       headers,
       rows,

@@ -9,7 +9,7 @@ import { clsx } from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { startOfMonth, endOfMonth, format, subMonths } from 'date-fns';
 import { ExpensePieChart, RealIncomeChart } from './ExpenseCharts';
-import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
+
 
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -143,7 +143,7 @@ export const ExpensesView = () => {
             <span className="text-xs font-bold uppercase text-slate-400">{t('dashboard.netPay')}</span>
           </div>
           <span className="text-2xl font-bold text-slate-700">{formatCurrency(netMonthlyIncome)}</span>
-          <span className="text-[10px] text-slate-400">{t('dashboard.monthly')}</span>
+          <span className="text-xs text-slate-400">{t('dashboard.monthly')}</span>
         </div>
 
         <div className="neu-flat p-5 flex flex-col gap-2">
@@ -152,14 +152,9 @@ export const ExpensesView = () => {
             <span className="text-xs font-bold uppercase text-slate-400">{t('expenses.fixedExpenses')}</span>
           </div>
           <span className="text-2xl font-bold text-rose-600">{formatCurrency(totalExpenses)}</span>
-          <span className="text-[10px] text-slate-400">{visibleExpenses.length} {t('expenses.itemsMonthly')}</span>
+          <span className="text-xs text-slate-400">{visibleExpenses.length} {t('expenses.itemsMonthly')}</span>
         </div>
 
-        <FeatureHelpTarget
-            message={t('expenses.realIncomeHelp')}
-            title={t('expenses.realIncome')}
-            position="left"
-        >
             <div className={clsx("neu-flat p-5 flex flex-col gap-2 border-l-4 h-full", realIncome >= 0 ? "border-emerald-400" : "border-rose-400")}>
               <div className="flex items-center gap-2">
                 <Receipt className={clsx("w-5 h-5", realIncome >= 0 ? "text-emerald-500" : "text-rose-500")} />
@@ -168,9 +163,8 @@ export const ExpensesView = () => {
               <span className={clsx("text-2xl font-bold", realIncome >= 0 ? "text-emerald-600" : "text-rose-600")}>
                 {formatCurrency(realIncome)}
               </span>
-              <span className="text-[10px] text-slate-400">{t('expenses.afterFixedExpenses')}</span>
+              <span className="text-xs text-slate-400">{t('expenses.afterFixedExpenses')}</span>
             </div>
-        </FeatureHelpTarget>
       </div>
 
       {/* Charts Section */}
@@ -183,11 +177,6 @@ export const ExpensesView = () => {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('expenses.monthlyFixedExpenses')}</h3>
           {!isAdding && (
-            <FeatureHelpTarget
-                message={t('expenses.addExpensesHelp')}
-                title={t('expenses.addExpenses')}
-                position="left"
-            >
                 <button
                 onClick={() => setIsAdding(true)}
                 className="neu-icon-btn !p-2 flex items-center gap-2"
@@ -195,7 +184,6 @@ export const ExpensesView = () => {
                 <Plus className="w-4 h-4 text-slate-500" />
                 <span className="text-xs font-bold text-slate-500">{t('common.add')}</span>
                 </button>
-            </FeatureHelpTarget>
           )}
         </div>
 
@@ -208,7 +196,7 @@ export const ExpensesView = () => {
                 placeholder="Name (e.g., Rent)"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="px-3 py-3 min-h-[48px] bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 autoFocus
               />
               <div className="relative">
@@ -220,26 +208,28 @@ export const ExpensesView = () => {
                   step="0.01"
                   value={formData.amount}
                   onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                  className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-7 pr-3 py-3 min-h-[48px] bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value as ExpenseCategory }))}
-                className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="px-3 py-3 min-h-[48px] bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 {EXPENSE_CATEGORIES.map(cat => (
                   <option key={cat.value} value={cat.value}>{cat.emoji} {cat.label}</option>
                 ))}
               </select>
               <div className="flex items-center gap-2 md:col-span-3">
-                 <input 
-                    type="checkbox" 
-                    id="isRecurring"
-                    checked={formData.isRecurring}
-                    onChange={(e) => setFormData(prev => ({ ...prev, isRecurring: e.target.checked }))}
-                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                 />
+                 <label className="flex items-center gap-2 min-w-[44px] min-h-[44px] cursor-pointer">
+                   <input
+                      type="checkbox"
+                      id="isRecurring"
+                      checked={formData.isRecurring}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isRecurring: e.target.checked }))}
+                      className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                   />
+                 </label>
                  <label htmlFor="isRecurring" className="text-sm text-slate-600 flex items-center gap-2 cursor-pointer">
                     <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
                     Monthly Recurring Expense <span className="text-xs text-slate-400">(Auto-applies every month)</span>
@@ -298,20 +288,20 @@ export const ExpensesView = () => {
                           className="w-20 pl-5 pr-2 py-1 border border-slate-200 rounded text-sm"
                         />
                       </div>
-                      <label className="flex items-center gap-1 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                          <input 
+                      <label className="flex items-center gap-1 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-100 min-h-[44px]">
+                          <input
                               type="checkbox"
                               checked={formData.isRecurring}
                               onChange={(e) => setFormData(prev => ({ ...prev, isRecurring: e.target.checked }))}
-                              className="w-3 h-3 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                              className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                           />
-                          <RefreshCw className={clsx("w-3 h-3", formData.isRecurring ? "text-indigo-500" : "text-slate-300")} />
+                          <RefreshCw className={clsx("w-4 h-4", formData.isRecurring ? "text-indigo-500" : "text-slate-300")} />
                       </label>
-                      <button onClick={handleUpdate} className="p-1 text-emerald-500 hover:bg-emerald-50 rounded">
-                        <Check className="w-4 h-4" />
+                      <button onClick={handleUpdate} className="p-2.5 min-w-[44px] min-h-[44px] text-emerald-500 hover:bg-emerald-50 rounded flex items-center justify-center">
+                        <Check className="w-5 h-5" />
                       </button>
-                      <button onClick={handleCancel} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
-                        <X className="w-4 h-4" />
+                      <button onClick={handleCancel} className="p-2.5 min-w-[44px] min-h-[44px] text-slate-400 hover:bg-slate-100 rounded flex items-center justify-center">
+                        <X className="w-5 h-5" />
                       </button>
                     </div>
                   ) : (
@@ -326,12 +316,12 @@ export const ExpensesView = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-600">{formatCurrency(expense.amount)}</span>
-                        <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                          <button onClick={() => handleEdit(expense)} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded">
-                            <Edit2 className="w-3.5 h-3.5" />
+                        <div className="md:opacity-0 md:group-hover:opacity-100 flex gap-1 transition-opacity">
+                          <button onClick={() => handleEdit(expense)} className="p-2.5 min-w-[44px] min-h-[44px] text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center">
+                            <Edit2 className="w-4 h-4" />
                           </button>
-                          <button onClick={() => removeExpense(expense.id)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded">
-                            <Trash2 className="w-3.5 h-3.5" />
+                          <button onClick={() => removeExpense(expense.id)} className="p-2.5 min-w-[44px] min-h-[44px] text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded flex items-center justify-center">
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>

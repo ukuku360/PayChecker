@@ -1,6 +1,7 @@
 import { getYear, isAfter, isBefore, addDays, startOfDay, addYears } from 'date-fns';
 import type { Shift } from '../types';
 import type { CountryCode } from '../data/countries';
+import { parseLocalDate, formatLocalDate, isDateInRange } from './dateUtils';
 
 /**
  * Returns the start and end date of the Fiscal Year for a given date and country.
@@ -40,43 +41,37 @@ export const getFiscalYearRange = (date: Date = new Date(), country: CountryCode
  * This is used to estimate PAYG withholding, which is calculated per pay cycle (usually fortnightly).
  */
 export const groupShiftsByFortnightYTD = (shifts: Shift[], fyStart: Date) => {
-  // Sort shifts by date
+  // Sort shifts by date using string comparison
   const sortedShifts = [...shifts].sort((a, b) => a.date.localeCompare(b.date));
-  
-  // Filter shifts that are within the FY
-  // Note: We'll do a loose filter here, assuming caller provides relevant range or we filter inside loop
+
+  // Filter shifts that are within the FY using string comparison
   const fyEnd = addYears(fyStart, 1);
-  
-  const relevantShifts = sortedShifts.filter(s => {
-    const d = new Date(s.date);
-    return isAfter(d, startOfDay(addDays(fyStart, -1))) && isBefore(d, fyEnd);
-  });
+  const fyStartStr = formatLocalDate(fyStart);
+  const fyEndStr = formatLocalDate(fyEnd);
+
+  const relevantShifts = sortedShifts.filter((s) =>
+    isDateInRange(s.date, fyStartStr, fyEndStr)
+  );
 
   const fortnights: { start: Date; end: Date; shifts: Shift[] }[] = [];
-  
+
   // Create 26/27 absolute fortnights for the year
-  // Real world is messy, but for estimation, strict 14-day chunks from July 1 works best for consistency
   let currentStart = fyStart;
 
   while (isBefore(currentStart, fyEnd)) {
     const currentEnd = addDays(currentStart, 13);
-    
-    // Optimized: Only process if it's in the past or near future (optimization? nah, let's just do all for the FY to project)
-    // Actually, for YTD (Year To Date), we technically only care about past/current.
-    // But for "Projection", we might want full year. 
-    // Let's stick to returning *populated* or *passed* fortnights for now?
-    // No, let's just return mapped shifts.
-    
-    const periodShifts = relevantShifts.filter(s => {
-      const d = new Date(s.date);
-      return (isAfter(d, startOfDay(addDays(currentStart, -1))) || d.getTime() === currentStart.getTime()) && 
-             (isBefore(d, endOfDay(currentEnd)) || d.getTime() === currentEnd.getTime());
-    });
+    const currentStartStr = formatLocalDate(currentStart);
+    const currentEndStr = formatLocalDate(currentEnd);
+
+    // Filter shifts in this fortnight using string comparison
+    const periodShifts = relevantShifts.filter((s) =>
+      isDateInRange(s.date, currentStartStr, currentEndStr)
+    );
 
     fortnights.push({
       start: currentStart,
       end: currentEnd,
-      shifts: periodShifts
+      shifts: periodShifts,
     });
 
     currentStart = addDays(currentStart, 14);
@@ -85,8 +80,4 @@ export const groupShiftsByFortnightYTD = (shifts: Shift[], fyStart: Date) => {
   return fortnights;
 };
 
-const endOfDay = (date: Date) => {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-};
+// endOfDay is no longer needed - string comparison is used instead

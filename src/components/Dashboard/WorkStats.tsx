@@ -128,7 +128,7 @@ export const WorkStats = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Selected Month Hours */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{format(selectedDate, 'MMMM', { locale: dateLocale })}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase mb-1">{format(selectedDate, 'MMMM', { locale: dateLocale })}</p>
           <p className="text-2xl font-bold text-slate-700">{selectedMonthHours}h</p>
           <div className={clsx(
             "flex items-center gap-1 mt-1 text-xs font-medium",
@@ -141,34 +141,34 @@ export const WorkStats = () => {
 
         {/* Previous Month Hours */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('stats.previous')}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase mb-1">{t('stats.previous')}</p>
           <p className="text-2xl font-bold text-slate-500">{prevMonthHours}h</p>
-          <p className="text-[10px] text-slate-400 mt-1">{format(prevMonthStart, 'MMMM', { locale: dateLocale })}</p>
+          <p className="text-xs text-slate-400 mt-1">{format(prevMonthStart, 'MMMM', { locale: dateLocale })}</p>
         </div>
 
         {/* Average per Day */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('stats.avgDay')}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase mb-1">{t('stats.avgDay')}</p>
           <p className="text-2xl font-bold text-slate-700">{avgHoursPerDay.toFixed(1)}h</p>
-          <p className="text-[10px] text-slate-400 mt-1">{selectedMonthWorkDays} {t('stats.workDays')}</p>
+          <p className="text-xs text-slate-400 mt-1">{selectedMonthWorkDays} {t('stats.workDays')}</p>
         </div>
 
         {/* Most Worked Day of Week */}
         <div className="p-4 rounded-xl bg-slate-50/50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{t('stats.busiestDay')}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase mb-1">{t('stats.busiestDay')}</p>
           <p className="text-2xl font-bold text-indigo-500">
             {maxAvgHours > 0 
               ? [t('stats.sun'), t('stats.mon'), t('stats.tue'), t('stats.wed'), t('stats.thu'), t('stats.fri'), t('stats.sat')][mostWorkedDayOfWeek] 
               : '-'
             }
           </p>
-          <p className="text-[10px] text-slate-400 mt-1">{maxAvgHours.toFixed(1)}h {t('stats.avg')}</p>
+          <p className="text-xs text-slate-400 mt-1">{maxAvgHours.toFixed(1)}h {t('stats.avg')}</p>
         </div>
       </div>
 
       {/* Day of Week Breakdown - Now showing AVERAGE */}
       <div className="mt-6">
-        <p className="text-[10px] font-bold text-slate-400 uppercase mb-3">{t('stats.avgByDay')}</p>
+        <p className="text-xs font-bold text-slate-400 uppercase mb-3">{t('stats.avgByDay')}</p>
         <div className="flex gap-2">
           {[t('stats.sun'), t('stats.mon'), t('stats.tue'), t('stats.wed'), t('stats.thu'), t('stats.fri'), t('stats.sat')].map((day, index) => {
             const avgHours = dayOfWeekAvgHours[index];
@@ -187,10 +187,10 @@ export const WorkStats = () => {
                   />
                 </div>
                 <span className={clsx(
-                  "text-[10px] font-medium",
+                  "text-xs font-medium",
                   isMax ? "text-indigo-500" : "text-slate-400"
                 )}>{day}</span>
-                <span className="text-[9px] text-slate-400">{avgHours.toFixed(1)}h</span>
+                <span className="text-xs text-slate-400">{avgHours.toFixed(1)}h</span>
               </div>
             );
           })}
@@ -205,7 +205,7 @@ export const WorkStats = () => {
             <p className="text-xs font-medium text-slate-600">
               {t('stats.busiestDay')}: <span className="font-bold">{format(parseISO(busiestDay), 'MMM d, yyyy', { locale: dateLocale })}</span>
             </p>
-            <p className="text-[10px] text-slate-400">{busiestDayHours}h {t('stats.worked')}</p>
+            <p className="text-xs text-slate-400">{busiestDayHours}h {t('stats.worked')}</p>
           </div>
         </div>
       )}

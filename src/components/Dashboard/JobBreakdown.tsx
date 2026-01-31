@@ -94,7 +94,7 @@ export const JobBreakdown = () => {
               </div>
               <div className="text-right">
                 <p className="text-sm font-bold text-slate-700">{formatCurrency(job.value)}</p>
-                <p className="text-[10px] text-slate-400 flex items-center gap-1 justify-end">
+                <p className="text-xs text-slate-400 flex items-center gap-1 justify-end">
                   <Clock className="w-3 h-3" /> {job.hours}h
                 </p>
               </div>
@@ -108,7 +108,7 @@ export const JobBreakdown = () => {
             </span>
             <div className="text-right">
               <p className="text-lg font-bold text-slate-700">{formatCurrency(totalEarnings)}</p>
-              <p className="text-[10px] text-slate-400">{totalHours}h total</p>
+              <p className="text-xs text-slate-400">{totalHours}h total</p>
             </div>
           </div>
         </div>

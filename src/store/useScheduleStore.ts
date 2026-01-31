@@ -1,108 +1,39 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Shift, JobConfig, VacationPeriod, Expense, ShiftTemplate } from '../types';
 import { supabase } from '../lib/supabaseClient';
-import type { CountryCode } from '../data/countries';
+import type { JobConfig, Shift } from '../types';
 import i18n from '../i18n';
-import { toast } from './useToastStore';
+import type { CountryCode } from '../data/countries';
 
-interface CopiedShiftData {
-  type: string;
-  hours: number;
-  note?: string;
-  startTime?: string;
-  endTime?: string;
-  breakMinutes?: number;
-}
-
-interface ScheduleState {
-  shifts: Shift[];
-  jobConfigs: JobConfig[];
-  holidays: string[]; // ['2024-01-01', ...]
-  copiedShifts: CopiedShiftData[] | null;
-  isStudentVisaHolder: boolean;
-  vacationPeriods: VacationPeriod[];
-  savingsGoal: number;
-  expenses: Expense[];
-  country: CountryCode | null; // null = not selected (existing users need to choose)
-  isLoaded: boolean;
-
-  hasSeenHelp: boolean;
-  markHelpSeen: () => Promise<void>;
-
-  // Shift Templates
-  templates: ShiftTemplate[];
-  addTemplate: (template: ShiftTemplate) => void;
-  removeTemplate: (id: string) => void;
-
-  // Data Persistence
-  fetchData: (userId?: string) => Promise<void>;
-  saveData: () => Promise<void>;
-  clearData: () => void;
-  addShift: (shift: Shift) => Promise<void>;
-  addMultipleShifts: (shifts: Shift[]) => Promise<void>;
-  updateShift: (id: string, shift: Partial<Shift>) => Promise<void>;
-  removeShift: (id: string) => Promise<void>;
-  removeShiftsInRange: (startDate: string, endDate: string) => Promise<void>;
-  addHoliday: (date: string) => void;
-  removeHoliday: (date: string) => void;
-  updateJobConfig: (id: string, config: Partial<JobConfig>) => Promise<void>;
-  addJobConfig: (config: JobConfig) => Promise<void>;
-  removeJobConfig: (id: string) => Promise<void>;
-  setCopiedShifts: (shifts: CopiedShiftData[] | null) => void;
-  updateProfile: (isStudentVisaHolder: boolean, vacationPeriods?: VacationPeriod[]) => Promise<void>;
-  updateSavingsGoal: (goal: number) => Promise<void>;
-  addExpense: (expense: Expense) => Promise<void>;
-  updateExpense: (id: string, expense: Partial<Expense>) => Promise<void>;
-  removeExpense: (id: string) => Promise<void>;
-  setCountry: (country: CountryCode) => Promise<void>;
-}
+// Slices
+import { createShiftSlice, type ShiftSlice } from './slices/createShiftSlice';
+import { createJobSlice, type JobSlice } from './slices/createJobSlice';
+import { createUserSlice, type UserSlice } from './slices/createUserSlice';
 
 const DEFAULT_JOB_CONFIGS: JobConfig[] = [];
 
+// Combined Store Interface
+// We need to omit the slice-specific interfaces if there are clashes, but here we designed them to be unique or compatible.
+// We can simply extend them.
+export interface ScheduleState extends ShiftSlice, JobSlice, UserSlice {
+  fetchData: (userId?: string) => Promise<void>;
+  saveData: () => Promise<void>;
+  clearData: () => void;
+}
+
 export const useScheduleStore = create<ScheduleState>()(
   persist(
-    (set, get) => ({
-      shifts: [],
-      jobConfigs: DEFAULT_JOB_CONFIGS,
-      holidays: [],
-      copiedShifts: null,
-      isStudentVisaHolder: false,
-      vacationPeriods: [],
-      savingsGoal: 0,
-      expenses: [],
-      country: null,
-      isLoaded: false,
-      hasSeenHelp: false,
+    (...a) => ({
+      ...createShiftSlice(...a),
+      ...createJobSlice(...a),
+      ...createUserSlice(...a),
 
-      templates: [],
-
-      addTemplate: (template) => set((state) => ({ templates: [...state.templates, template] })),
-      removeTemplate: (id) => set((state) => ({ templates: state.templates.filter((t) => t.id !== id) })),
-      saveData: async () => {}, // Placeholder for now
-
-      markHelpSeen: async () => {
-         set({ hasSeenHelp: true });
-         const { data: { user } } = await supabase.auth.getUser();
-         if (user) {
-            const { error } = await supabase.from('profiles').update({ has_seen_help: true }).eq('id', user.id);
-            if (error) console.error('Error marking help as seen:', error);
-         }
-      },
-
-      setCopiedShifts: (shifts) => set({ copiedShifts: shifts }),
-      
-      updateSavingsGoal: async (goal) => {
-        set({ savingsGoal: goal });
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').update({ savings_goal: goal }).eq('id', user.id);
-          if (error) console.error('Failed to update savings goal:', error);
-        }
-      },
+      saveData: async () => {}, // Placeholder
 
       clearData: () => {
+        const set = a[0];
         set({
+          userId: null,
           shifts: [],
           jobConfigs: DEFAULT_JOB_CONFIGS,
           holidays: [],
@@ -116,20 +47,8 @@ export const useScheduleStore = create<ScheduleState>()(
         });
       },
 
-      setCountry: async (country: CountryCode) => {
-        set({ country });
-        // Update i18n language based on country
-        const language = country === 'KR' ? 'ko' : 'en';
-        i18n.changeLanguage(language);
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').update({ country }).eq('id', user.id);
-          if (error) console.error('Error updating country:', error);
-        }
-      },
-
       fetchData: async (userId?: string) => {
+        const set = a[0];
         let user: any = null;
         
         if (userId) {
@@ -140,6 +59,8 @@ export const useScheduleStore = create<ScheduleState>()(
         }
 
         if (!user) return;
+
+        set({ userId: user.id });
 
         // Fetch all data in parallel
         const [
@@ -258,329 +179,6 @@ export const useScheduleStore = create<ScheduleState>()(
         }
         
         set({ isLoaded: true });
-      },
-
-      addShift: async (shift) => {
-        // Save previous state for rollback
-        const previousShifts = get().shifts;
-
-        // Optimistic update with temporary ID
-        set((state) => ({
-          shifts: [
-            ...state.shifts.filter(s => !(s.date === shift.date && s.type === shift.type)),
-            shift
-          ]
-        }));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data, error } = await supabase.from('shifts').upsert({
-             user_id: user.id,
-             date: shift.date,
-             type: shift.type,
-             hours: shift.hours,
-             note: shift.note,
-             start_time: shift.startTime,
-             end_time: shift.endTime,
-             break_minutes: shift.breakMinutes
-          }, { onConflict: 'user_id, date, type' }).select('id').single();
-
-          if (error) {
-            console.error('Error adding shift:', error);
-            set({ shifts: previousShifts }); // Rollback
-            toast.error('Failed to save shift. Please try again.');
-          } else if (data) {
-            // Update local state with the actual UUID from database
-            set((state) => ({
-              shifts: state.shifts.map(s =>
-                (s.date === shift.date && s.type === shift.type)
-                  ? { ...s, id: data.id }
-                  : s
-              )
-            }));
-          }
-        }
-      },
-
-      addMultipleShifts: async (newShifts) => {
-        if (newShifts.length === 0) return;
-
-        // Save previous state for rollback
-        const previousShifts = get().shifts;
-
-        // Optimistic update - remove any existing shifts with same date/type
-        set((state) => {
-          const existingShiftKeys = new Set(
-            newShifts.map(s => `${s.date}-${s.type}`)
-          );
-          const filteredShifts = state.shifts.filter(
-            s => !existingShiftKeys.has(`${s.date}-${s.type}`)
-          );
-          return { shifts: [...filteredShifts, ...newShifts] };
-        });
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Bulk upsert to Supabase
-          const shiftsToUpsert = newShifts.map(shift => ({
-            user_id: user.id,
-            date: shift.date,
-            type: shift.type,
-            hours: shift.hours,
-            note: shift.note,
-            start_time: shift.startTime,
-            end_time: shift.endTime,
-            break_minutes: shift.breakMinutes
-          }));
-
-          const { data, error } = await supabase.from('shifts').upsert(
-            shiftsToUpsert,
-            { onConflict: 'user_id, date, type' }
-          ).select('id, date, type');
-
-          if (error) {
-            console.error('Error adding multiple shifts:', error);
-            // Rollback on error
-            set({ shifts: previousShifts });
-            toast.error('Failed to save shifts. Changes have been reverted.');
-            throw new Error('Failed to save shifts. Changes have been reverted.');
-          }
-
-          // Update local state with actual UUIDs from database
-          if (data && data.length > 0) {
-            set((state) => ({
-              shifts: state.shifts.map(s => {
-                const dbShift = data.find(d => d.date === s.date && d.type === s.type);
-                return dbShift ? { ...s, id: dbShift.id } : s;
-              })
-            }));
-          }
-        }
-      },
-
-      updateShift: async (id, updatedShift) => {
-        const previousShifts = get().shifts;
-        set((state) => ({
-          shifts: state.shifts.map((s) => (s.id === id ? { ...s, ...updatedShift } : s)),
-        }));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('shifts').update({
-             ...(updatedShift.hours !== undefined && { hours: updatedShift.hours }),
-             ...(updatedShift.note !== undefined && { note: updatedShift.note }),
-             ...(updatedShift.startTime !== undefined && { start_time: updatedShift.startTime }),
-             ...(updatedShift.endTime !== undefined && { end_time: updatedShift.endTime }),
-             ...(updatedShift.breakMinutes !== undefined && { break_minutes: updatedShift.breakMinutes }),
-          }).eq('id', id);
-          if (error) {
-            console.error('Error updating shift:', error);
-            set({ shifts: previousShifts }); // Rollback
-            toast.error('Failed to update shift. Please try again.');
-          }
-        }
-      },
-
-      removeShift: async (id) => {
-        const previousShifts = get().shifts;
-        set((state) => ({
-          shifts: state.shifts.filter((s) => s.id !== id),
-        }));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('shifts').delete().eq('id', id);
-          if (error) {
-            console.error('Error removing shift:', error);
-            set({ shifts: previousShifts }); // Rollback
-            toast.error('Failed to delete shift. Please try again.');
-          }
-        }
-      },
-
-      removeShiftsInRange: async (startDate, endDate) => {
-        const previousShifts = get().shifts;
-        set({
-          shifts: previousShifts.filter((s) => s.date < startDate || s.date > endDate),
-        });
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { error } = await supabase
-          .from('shifts')
-          .delete()
-          .eq('user_id', user.id)
-          .gte('date', startDate)
-          .lte('date', endDate);
-        if (error) {
-          console.error('Error removing shifts in range:', error);
-          set({ shifts: previousShifts }); // Rollback
-          toast.error('Failed to clear shifts. Please try again.');
-        }
-      },
-
-      addHoliday: async (date) => {
-        const newHolidays = [...get().holidays, date];
-        set({ holidays: newHolidays });
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
-          if (error) console.error('Error adding holiday:', error);
-        }
-      },
-      
-      removeHoliday: async (date) => {
-        const newHolidays = get().holidays.filter((d) => d !== date);
-        set({ holidays: newHolidays });
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', user.id);
-          if (error) console.error('Error removing holiday:', error);
-        }
-      },
-
-      updateJobConfig: async (id, config) => {
-        set((state) => ({
-          jobConfigs: state.jobConfigs.map((j) => (j.id === id ? { ...j, ...config } : j)),
-        }));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-           const state = get();
-           const fullConfig = state.jobConfigs.find(j => j.id === id);
-           if (!fullConfig) return;
-
-           const { error } = await supabase.from('job_configs').update({
-             name: fullConfig.name,
-             color: fullConfig.color,
-             default_hours_weekday: fullConfig.defaultHours.weekday,
-             default_hours_weekend: fullConfig.defaultHours.weekend,
-             hourly_rate_weekday: fullConfig.hourlyRates.weekday,
-             hourly_rate_saturday: fullConfig.hourlyRates.saturday,
-             hourly_rate_sunday: fullConfig.hourlyRates.sunday,
-             hourly_rate_holiday: fullConfig.hourlyRates.holiday,
-             rate_history: fullConfig.rateHistory,
-             default_break_minutes: fullConfig.defaultBreakMinutes || null,
-             default_start_time: fullConfig.defaultStartTime || null,
-             default_end_time: fullConfig.defaultEndTime || null,
-           }).eq('config_id', id).eq('user_id', user.id);
-           if (error) console.error('Error updating job config:', error);
-        }
-      },
-
-      addJobConfig: async (config) => {
-        set((state) => ({
-          jobConfigs: [...state.jobConfigs, config],
-        }));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('job_configs').insert({
-             user_id: user.id,
-             config_id: config.id,
-             name: config.name,
-             color: config.color,
-             default_hours_weekday: config.defaultHours.weekday,
-             default_hours_weekend: config.defaultHours.weekend,
-             hourly_rate_weekday: config.hourlyRates.weekday,
-             hourly_rate_saturday: config.hourlyRates.saturday,
-             hourly_rate_sunday: config.hourlyRates.sunday,
-             hourly_rate_holiday: config.hourlyRates.holiday,
-             rate_history: config.rateHistory,
-             default_break_minutes: config.defaultBreakMinutes || null,
-             default_start_time: config.defaultStartTime || null,
-             default_end_time: config.defaultEndTime || null,
-           });
-           if (error) console.error('Error adding job config:', error);
-        }
-      },
-
-      removeJobConfig: async (id) => {
-        set((state) => ({
-          jobConfigs: state.jobConfigs.filter((j) => j.id !== id),
-          shifts: state.shifts.filter((s) => s.type !== id),
-        }));
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Delete all shifts with this job type first
-          const { error: shiftError } = await supabase.from('shifts').delete().eq('type', id).eq('user_id', user.id);
-          if (shiftError) console.error('Error deleting related shifts:', shiftError);
-
-          // Then delete the job config
-          const { error: configError } = await supabase.from('job_configs').delete().eq('config_id', id);
-          if (configError) console.error('Error deleting job config:', configError);
-        }
-      },
-
-      updateProfile: async (isStudentVisaHolder, vacationPeriods) => {
-        const periodsToSave = vacationPeriods || [];
-        set({ 
-          isStudentVisaHolder: isStudentVisaHolder,
-          vacationPeriods: periodsToSave
-        });
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').upsert({
-            id: user.id,
-            is_student_visa_holder: isStudentVisaHolder,
-            vacation_periods: periodsToSave
-          });
-          
-          if (error) {
-            console.error('Error updating profile:', error);
-          }
-        }
-      },
-
-      addExpense: async (expense) => {
-        const previousExpenses = get().expenses;
-        const newExpenses = [...previousExpenses, expense];
-        set({ expenses: newExpenses });
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', user.id);
-          if (error) {
-            console.error('Error adding expense:', error);
-            set({ expenses: previousExpenses }); // Rollback
-            toast.error('Failed to save expense. Please try again.');
-          }
-        }
-      },
-
-      updateExpense: async (id, updatedExpense) => {
-        const previousExpenses = get().expenses;
-        const newExpenses = previousExpenses.map((e) => (e.id === id ? { ...e, ...updatedExpense } : e));
-        set({ expenses: newExpenses });
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', user.id);
-          if (error) {
-            console.error('Error updating expense:', error);
-            set({ expenses: previousExpenses }); // Rollback
-            toast.error('Failed to update expense. Please try again.');
-          }
-        }
-      },
-
-      removeExpense: async (id) => {
-        const previousExpenses = get().expenses;
-        const newExpenses = previousExpenses.filter((e) => e.id !== id);
-        set({ expenses: newExpenses });
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', user.id);
-          if (error) {
-            console.error('Error removing expense:', error);
-            set({ expenses: previousExpenses }); // Rollback
-            toast.error('Failed to delete expense. Please try again.');
-          }
-        }
       },
     }),
     {

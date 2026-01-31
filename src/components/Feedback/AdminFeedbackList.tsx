@@ -108,7 +108,7 @@ export const AdminFeedbackList = ({ isOpen, onClose }: AdminFeedbackListProps) =
                )}
             >
               <span>All Users</span>
-              <span className="bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full text-[10px]">{feedbacks.length}</span>
+              <span className="bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full text-xs">{feedbacks.length}</span>
             </button>
             <div className="h-px bg-slate-200/50 my-2 mx-2" />
             
@@ -131,7 +131,7 @@ export const AdminFeedbackList = ({ isOpen, onClose }: AdminFeedbackListProps) =
                   <span className="truncate flex-1 pr-2">{user}</span>
                   <div className="flex items-center gap-1">
                     {hasNew && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 block" />}
-                    <span className="bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full text-[10px]">{count}</span>
+                    <span className="bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full text-xs">{count}</span>
                   </div>
                 </button>
                );
@@ -253,8 +253,8 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
           <div className="flex justify-between items-start cursor-pointer" onClick={toggleExpand}>
              <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase text-slate-400">{item.user_email || 'Anonymous'}</span>
-                <span className="text-[10px] text-slate-300">•</span>
-                <span className="text-[10px] text-slate-400">{safeFormat(item.created_at)}</span>
+                <span className="text-xs text-slate-300">•</span>
+                <span className="text-xs text-slate-400">{safeFormat(item.created_at)}</span>
              </div>
              <div className="flex gap-1 items-center">
                 <button className="text-xs text-indigo-500 font-bold mr-2">
@@ -279,14 +279,14 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
           {!expanded && (
             <div className="flex justify-start">
               <div className="max-w-[85%] bg-slate-100 text-slate-700 rounded-2xl rounded-tl-none p-3 text-sm whitespace-pre-wrap">
-                <p className="text-[10px] text-slate-400 font-bold mb-1">User</p>
+                <p className="text-xs text-slate-400 font-bold mb-1">User</p>
                 {item.message}
               </div>
             </div>
           )}
           
           <div className="flex gap-2 items-center">
-              <span className={clsx("text-[10px] px-2 py-0.5 rounded-full border", 
+              <span className={clsx("text-xs px-2 py-0.5 rounded-full border", 
                  (item.status || 'new') === 'new' ? "bg-blue-50 text-blue-600 border-blue-100" :
                  (item.status || 'new') === 'read' ? "bg-slate-100 text-slate-600 border-slate-200" :
                  "bg-emerald-50 text-emerald-600 border-emerald-100"
@@ -300,7 +300,7 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
             <div className="mt-4 pt-4 border-t border-slate-200/50 space-y-4">
                <div className="flex justify-start">
                  <div className="max-w-[85%] bg-slate-100 text-slate-700 rounded-2xl rounded-tl-none p-3 text-sm whitespace-pre-wrap">
-                   <p className="text-[10px] text-slate-400 font-bold mb-1">User</p>
+                   <p className="text-xs text-slate-400 font-bold mb-1">User</p>
                    {item.message}
                  </div>
                </div>
@@ -308,7 +308,7 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
                {item.admin_reply && (
                   <div className="flex justify-end">
                     <div className="max-w-[85%] bg-indigo-500 text-white shadow-md shadow-indigo-500/20 rounded-2xl rounded-tr-none p-3 text-sm">
-                      <p className="text-[10px] text-indigo-200 font-bold mb-1">Admin (Legacy)</p>
+                      <p className="text-xs text-indigo-200 font-bold mb-1">Admin (Legacy)</p>
                       {item.admin_reply}
                     </div>
                   </div>
@@ -325,7 +325,7 @@ const AdminFeedbackItem = ({ item, safeFormat, getIcon, updateStatus }: AdminFee
                          ? "bg-indigo-500 rounded-tr-none text-white shadow-md shadow-indigo-500/20" 
                          : "bg-slate-100 rounded-tl-none text-slate-700"
                      )}>
-                        <p className={clsx("text-[10px] font-bold mb-1", reply.is_admin_reply ? "text-indigo-200" : "text-slate-400")}>
+                        <p className={clsx("text-xs font-bold mb-1", reply.is_admin_reply ? "text-indigo-200" : "text-slate-400")}>
                           {reply.is_admin_reply ? "Admin" : "User"}
                         </p>
                         {reply.content}

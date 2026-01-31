@@ -3,7 +3,6 @@ import { getTaxCalculator } from '../../data/taxRates';
 import { Wallet, Receipt, Scale, PiggyBank, AlertCircle, ChevronDown, Info } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
-import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -65,7 +64,7 @@ const TaxCalculationAccordion = ({
               </span>
             </div>
           </div>
-          <p className="text-[10px] text-slate-400">
+          <p className="text-xs text-slate-400">
             * {t('fiscal.calculationFormula')}: {isRefund ? t('fiscal.refundFormula') : t('fiscal.billFormula')}
           </p>
         </div>
@@ -127,11 +126,8 @@ export const FiscalYearView = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* YTD Gross */}
-        <FeatureHelpTarget
-            message={t('featureHelp.ytdGross')}
-            title={t('fiscal.ytdIncome')}
-            position="bottom"
-        >
+        {/* YTD Gross */}
+        <div className="h-full">
             <div className="neu-flat p-5 flex flex-col gap-4 h-full">
             <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl neu-pressed text-indigo-500">
@@ -141,17 +137,13 @@ export const FiscalYearView = () => {
             </div>
             <div>
                 <span className="text-2xl font-bold text-slate-700 block">{formatCurrency(ytdGrossPay)}</span>
-                <span className="text-[10px] text-slate-400">{t('fiscal.totalGrossPay')}</span>
+                <span className="text-xs text-slate-400">{t('fiscal.totalGrossPay')}</span>
             </div>
             </div>
-        </FeatureHelpTarget>
+        </div>
 
         {/* Est Withheld */}
-        <FeatureHelpTarget
-             message={t('featureHelp.payg')}
-             title={t('fiscal.taxWithheld')}
-             position="bottom"
-        >
+        <div className="h-full">
             <div className="neu-flat p-5 flex flex-col gap-4 h-full">
             <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl neu-pressed text-amber-500">
@@ -161,17 +153,13 @@ export const FiscalYearView = () => {
             </div>
             <div>
                 <span className="text-2xl font-bold text-slate-700 block">{formatCurrency(ytdEstimatedTaxWithheld)}</span>
-                <span className="text-[10px] text-slate-400">{t('fiscal.estPaidViaPAYG')}</span>
+                <span className="text-xs text-slate-400">{t('fiscal.estPaidViaPAYG')}</span>
             </div>
             </div>
-        </FeatureHelpTarget>
+        </div>
 
         {/* Actual Liability */}
-        <FeatureHelpTarget
-             message={t('featureHelp.taxLiability')}
-             title={t('fiscal.taxLiability')}
-             position="bottom"
-        >
+        <div className="h-full">
             <div className="neu-flat p-5 flex flex-col gap-4 h-full">
                 <div className="flex items-center gap-3">
                     <div className="p-2 rounded-xl neu-pressed text-rose-500">
@@ -181,17 +169,13 @@ export const FiscalYearView = () => {
                 </div>
                 <div>
                     <span className="text-2xl font-bold text-slate-700 block">{formatCurrency(actualTaxLiability)}</span>
-                    <span className="text-[10px] text-slate-400">{t('fiscal.actualTaxDue')}</span>
+                    <span className="text-xs text-slate-400">{t('fiscal.actualTaxDue')}</span>
                 </div>
             </div>
-        </FeatureHelpTarget>
+        </div>
 
         {/* Refund Estimate */}
-        <FeatureHelpTarget
-             message={isRefundPos ? t('fiscal.estimatedRefund') : t('fiscal.estimatedTaxBill')}
-             title={t('fiscal.estReturn')}
-             position="left"
-        >
+        <div className="h-full">
             <div className={clsx("neu-flat p-5 flex flex-col gap-4 relative overflow-hidden h-full", isRefundPos ? "border-l-4 border-emerald-400" : "border-l-4 border-rose-400")}>
                 <div className="flex items-center gap-3 relative z-10">
                     <div className={clsx("p-2 rounded-xl neu-pressed", isRefundPos ? "text-emerald-500" : "text-rose-500")}>
@@ -203,14 +187,14 @@ export const FiscalYearView = () => {
                     <span className={clsx("text-2xl font-bold block", isRefundPos ? "text-emerald-600" : "text-rose-600")}>
                         {isRefundPos ? '+' : ''}{formatCurrency(estimatedRefund)}
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-xs text-slate-400">
                         {isRefundPos ? t('fiscal.estimatedRefund') : t('fiscal.estimatedTaxBill')}
                     </span>
                 </div>
                 {/* Background Gradient */}
                 <div className={clsx("absolute -right-6 -bottom-6 w-24 h-24 rounded-full blur-2xl opacity-20 pointer-events-none", isRefundPos ? "bg-emerald-400" : "bg-rose-400")}></div>
             </div>
-        </FeatureHelpTarget>
+        </div>
       </div>
 
       {/* Tax Calculation Breakdown - Accordion */}
@@ -257,7 +241,7 @@ export const FiscalYearView = () => {
                             )}
                             title={`${bracket.rate * 100}% Tax Rate`}
                         >
-                            <span className="absolute bottom-1 left-1 text-[9px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="absolute bottom-1 left-1 text-xs font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
                                 {bracket.rate * 100}%
                             </span>
                         </div>
@@ -270,7 +254,7 @@ export const FiscalYearView = () => {
                 className="absolute top-0 bottom-0 w-0.5 bg-indigo-500 z-10 transition-all duration-1000 ease-out"
                 style={{ left: `${Math.min((ytdGrossPay / (isKorea ? 500000000 : 200000)) * 100, 100)}%` }}
             >
-                <div className="absolute -top-7 -translate-x-1/2 bg-indigo-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
+                <div className="absolute -top-7 -translate-x-1/2 bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap">
                     {t('fiscal.you')}
                     <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-indigo-500 rotate-45"></div>
                 </div>
@@ -278,7 +262,7 @@ export const FiscalYearView = () => {
 
              {/* Axis Labels - Country specific */}
              {isAustralia ? (
-               <div className="absolute -bottom-6 left-0 w-full flex text-[9px] text-slate-400 font-mono">
+               <div className="absolute -bottom-6 left-0 w-full flex text-xs text-slate-400 font-mono">
                   <span className="absolute left-0">0</span>
                   <span className="absolute left-[9.1%]">$18.2k</span>
                   <span className="absolute left-[22.5%]">$45k</span>
@@ -286,7 +270,7 @@ export const FiscalYearView = () => {
                   <span className="absolute left-[95%]">$190k</span>
                </div>
              ) : (
-               <div className="absolute -bottom-6 left-0 w-full flex text-[9px] text-slate-400 font-mono">
+               <div className="absolute -bottom-6 left-0 w-full flex text-xs text-slate-400 font-mono">
                   <span className="absolute left-0">0</span>
                   <span className="absolute left-[2.8%]">1.4천</span>
                   <span className="absolute left-[10%]">5천</span>

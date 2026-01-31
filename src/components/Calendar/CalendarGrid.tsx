@@ -1,15 +1,17 @@
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Save, X, GripVertical, MousePointerClick, Lightbulb, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DayCell } from './DayCell';
 import { WeekView } from './WeekView';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useSwipe } from '../../hooks/useSwipe';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { VisaWarningModal } from './VisaWarningModal';
 import { MonthYearPicker } from './MonthYearPicker';
 import { calculateFortnightlyHours } from '../../utils/calculatePay';
+import { parseLocalDate, formatLocalDate, addDaysToDate, doRangesOverlap } from '../../utils/dateUtils';
 import type { Shift } from '../../types';
 
 const CALENDAR_HINTS_DISMISSED_KEY = 'paychecker_calendar_hints_dismissed';
@@ -70,42 +72,59 @@ interface CalendarGridProps {
 }
 
 export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarGridProps) => {
-  const { shifts, removeShift, updateShift, addShift, isStudentVisaHolder, vacationPeriods } = useScheduleStore();
+  const shifts = useScheduleStore((state) => state.shifts);
+  const jobConfigs = useScheduleStore((state) => state.jobConfigs);
+  const removeShift = useScheduleStore((state) => state.removeShift);
+  const updateShift = useScheduleStore((state) => state.updateShift);
+  const addShift = useScheduleStore((state) => state.addShift);
+  const isStudentVisaHolder = useScheduleStore((state) => state.isStudentVisaHolder);
+  const vacationPeriods = useScheduleStore((state) => state.vacationPeriods);
+  
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [isWarningOpen, setIsWarningOpen] = useState(false);
   const [overageAmount, setOverageAmount] = useState(0);
   const [pendingAction, setPendingAction] = useState<{ type: 'add' | 'update', data: any } | null>(null);
 
+  // Swipe handlers for month navigation on mobile
+  const handleSwipeLeft = useCallback(() => {
+    onMonthChange(addMonths(currentDate, 1));
+  }, [currentDate, onMonthChange]);
+
+  const handleSwipeRight = useCallback(() => {
+    onMonthChange(subMonths(currentDate, 1));
+  }, [currentDate, onMonthChange]);
+
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+    threshold: 50,
+  });
+
   const checkVisaLimit = (tempShifts: Shift[]) => {
-    // We need to check if ANY fortnight period exceeds 48 hours
-    // But we only care about periods that include the date of the change?
-    // Actually simpler to just check all periods in the relevant range, or just check all periods calculated.
-    // calculateFortnightlyHours returns all relevant periods.
-    
-    const fortnightlyHours = calculateFortnightlyHours(tempShifts);
-    
+    // Calculate fortnightly hours for all shifts
+    const fortnightlyHours = calculateFortnightlyHours(tempShifts, jobConfigs);
+
     // Find the max overage
     let maxOverage = 0;
-    
+
     for (const period of fortnightlyHours) {
-        if (period.totalHours > 48) {
-             // Check if this period is a vacation period
-             const periodStart = new Date(period.periodStart);
-             const periodEnd = new Date(period.periodStart);
-             periodEnd.setDate(periodEnd.getDate() + 13);
-             
-             const isVacation = vacationPeriods.some(vp => {
-                const vpStart = new Date(vp.start);
-                const vpEnd = new Date(vp.end);
-                return (periodStart <= vpEnd && periodEnd >= vpStart);
-             });
-             
-             if (!isVacation) {
-                 maxOverage = Math.max(maxOverage, period.totalHours - 48);
-             }
+      if (period.totalHours > 48) {
+        // Calculate period end (14 days from start, days 0-13)
+        const periodEndStr = formatLocalDate(
+          addDaysToDate(parseLocalDate(period.periodStart), 13)
+        );
+
+        // Check if this period overlaps with any vacation period using string comparison
+        const isVacation = vacationPeriods.some((vp) =>
+          doRangesOverlap(period.periodStart, periodEndStr, vp.start, vp.end)
+        );
+
+        if (!isVacation) {
+          maxOverage = Math.max(maxOverage, period.totalHours - 48);
         }
+      }
     }
-    
+
     return maxOverage;
   };
 
@@ -212,14 +231,16 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
       </div>
 
       {isMobile ? (
-        <WeekView
-          currentDate={currentDate}
-          onDateChange={onMonthChange}
-          onAddJob={onAddJob}
-          onRemoveShift={removeShift}
-          onUpdateShift={handleUpdateShift}
-          onAddShift={handleAddShift}
-        />
+        <div {...swipeHandlers} className="touch-pan-y">
+          <WeekView
+            currentDate={currentDate}
+            onDateChange={onMonthChange}
+            onAddJob={onAddJob}
+            onRemoveShift={removeShift}
+            onUpdateShift={handleUpdateShift}
+            onAddShift={handleAddShift}
+          />
+        </div>
       ) : (
         <div className="grid grid-cols-7">
           {calendarDays.map((day) => {
@@ -254,7 +275,8 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
 
 const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd: Date }) => {
   const { t } = useTranslation();
-  const { shifts, removeShiftsInRange } = useScheduleStore();
+  const shifts = useScheduleStore((state) => state.shifts);
+  const removeShiftsInRange = useScheduleStore((state) => state.removeShiftsInRange);
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -331,7 +353,7 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
 const GlobalSaveButton = () => {
   const { t } = useTranslation();
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const { fetchData } = useScheduleStore();
+  const fetchData = useScheduleStore((state) => state.fetchData);
   
   const handleSave = async () => {
     setStatus('saving');

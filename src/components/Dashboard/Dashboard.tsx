@@ -1,25 +1,34 @@
 import { useScheduleStore } from '../../store/useScheduleStore';
-import { calculateTotalPay, calculateFortnightlyHours } from '../../utils/calculatePay';
+import { calculateTotalPay, calculateFortnightlyHours, calculatePaidHours } from '../../utils/calculatePay';
 import { getTaxCalculator } from '../../data/taxRates';
 import type { JobType, JobConfig } from '../../types';
-import { Wallet, Clock, AlertTriangle, Plus, Download, Receipt, PiggyBank, CalendarRange, Calculator, DollarSign, Sparkles, Briefcase, Calendar } from 'lucide-react';
-import { format, addDays, startOfMonth, endOfMonth } from 'date-fns';
+import { Clock, AlertTriangle, Briefcase, Calendar } from 'lucide-react';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { clsx } from 'clsx';
-import { useDraggable } from '@dnd-kit/core';
-import { dotColorMap, borderColorMap } from '../../utils/colorUtils';
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { FiscalYearView } from './FiscalYearView';
 import { IncomeChart } from './IncomeChart';
 import { JobBreakdown } from './JobBreakdown';
 import { WorkStats } from './WorkStats';
 import { SavingsGoal } from './SavingsGoal';
 import { ExpensesView } from './ExpensesView';
-import { FeatureHelpTarget } from '../FeatureHelp/FeatureHelpTarget';
 import { EmptyState } from '../EmptyState';
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
 import { useCountry } from '../../hooks/useCountry';
-import { useLongPress } from '../../hooks/useLongPress';
+import {
+  parseLocalDate,
+  formatLocalDate,
+  addDaysToDate,
+  isDateInRange,
+  doRangesOverlap,
+} from '../../utils/dateUtils';
+
+// Subcomponents
+import { DashboardHeader } from './components/DashboardHeader';
+import { PaySummaryCards } from './components/PaySummaryCards';
+import { DraggableJobGrid } from './components/DraggableJobGrid';
 
 interface DashboardProps {
   currentMonth: Date;
@@ -30,67 +39,20 @@ interface DashboardProps {
   onViewModeChange?: (mode: 'monthly' | 'fiscal' | 'budget') => void;
 }
 
-const DraggableJobCard = ({ 
-  job, 
-  hours, 
-  onDoubleClick 
-}: { 
-  job: JobConfig; 
-  hours: number;
-  onDoubleClick: () => void;
-}) => {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `draggable-source-${job.id}`,
-    data: {
-      type: job.id,
-      isSource: true,
-    },
-  });
-  
-  const longPressProps = useLongPress({
-      onLongPress: onDoubleClick,
-      onDoubleClick: onDoubleClick,
-      // Provide a no-op onClick to prevent type errors or unwanted behavior if needed, 
-      // but if no simple click action is defined, we can omit it.
-  });
-
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners} // listeners include mouse/touch events from dnd-kit
-      // We need to merge or handle conflicts. dnd-kit handles pointers for dragging.
-      // Long press for interaction might conflict with drag. 
-      // If we use dnd-kit's Listeners, we might lose our long press if we override.
-      // However, usually dnd-kit creates synthetic events or attaches to the node.
-      // Let's attach our long press handlers.
-      {...attributes}
-      {...longPressProps}
-      className={clsx(
-        'neu-flat px-4 py-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all select-none border-t border-l border-white/50 touch-none', // Added touch-none to prevent browser zooming/panning while dragging
-        borderColorMap[job.color] ? '' : 'border-transparent',
-        isDragging ? 'opacity-80 scale-105 z-50' : 'hover:scale-[1.02]'
-      )}
-    >
-      <div className={clsx("w-3 h-3 rounded-full shadow-inner", dotColorMap[job.color] || 'bg-slate-500')} />
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500 uppercase">{job.name}</span>
-        <span className="text-lg font-bold text-slate-700">{hours}h</span>
-      </div>
-    </div>
-  );
-};
-
-export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, onAIScan, onViewModeChange }: DashboardProps) => {
+export const Dashboard = ({
+  currentMonth,
+  onJobDoubleClick,
+  onAddJob,
+  onExport,
+  onAIScan,
+  onViewModeChange,
+}: DashboardProps) => {
   const { t } = useTranslation();
   const { formatCurrency } = useCurrency();
   const { country, isAustralia } = useCountry();
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Get country-specific tax calculator
   const taxCalculator = getTaxCalculator(country);
@@ -100,148 +62,64 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
     onViewModeChange?.(mode);
   };
 
-  const allFortnightlyHours = calculateFortnightlyHours(shifts);
-  
-  // Filter to only show periods that overlap with the current month
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  
-  const fortnightlyHours = allFortnightlyHours.filter((period) => {
-    const periodStart = new Date(period.periodStart);
-    const periodEnd = addDays(periodStart, 13); // 2 weeks = 14 days (0-13)
-    // Check if period overlaps with current month
-    return periodStart <= monthEnd && periodEnd >= monthStart;
-  });
+  // Memoize month boundaries
+  const monthStart = useMemo(() => startOfMonth(currentMonth), [currentMonth]);
+  const monthEnd = useMemo(() => endOfMonth(currentMonth), [currentMonth]);
 
-  // Calculate monthly pay
-  const monthlyShifts = shifts.filter(s => {
-    const shiftDate = new Date(s.date);
-    return shiftDate >= monthStart && shiftDate <= monthEnd;
-  });
-  
-  const monthlyPay = calculateTotalPay(monthlyShifts, jobConfigs, holidays);
-  
-  const getHoursByType = (type: JobType) =>
-    monthlyShifts.filter(s => s.type === type).reduce((acc, s) => acc + (s.hours || 0), 0);
+  // Memoize fortnightly hours calculation
+  const fortnightlyHours = useMemo(() => {
+    const allFortnightlyHours = calculateFortnightlyHours(shifts, jobConfigs);
+    const monthStartStr = formatLocalDate(monthStart);
+    const monthEndStr = formatLocalDate(monthEnd);
+
+    return allFortnightlyHours.filter((period) => {
+      // Period is 14 days (days 0-13 from start)
+      const periodEndStr = addDaysToDate(parseLocalDate(period.periodStart), 13);
+      const periodEndFormatted = formatLocalDate(periodEndStr);
+      // Check if period overlaps with current month using string comparison
+      return doRangesOverlap(period.periodStart, periodEndFormatted, monthStartStr, monthEndStr);
+    });
+  }, [shifts, jobConfigs, monthStart, monthEnd]);
+
+  // Memoize monthly shifts filtering using string comparison
+  const monthlyShifts = useMemo(() => {
+    const monthStartStr = formatLocalDate(monthStart);
+    const monthEndStr = formatLocalDate(monthEnd);
+    return shifts.filter((s) => isDateInRange(s.date, monthStartStr, monthEndStr));
+  }, [shifts, monthStart, monthEnd]);
+
+  // Memoize monthly pay calculation with country-aware holiday detection
+  const monthlyPay = useMemo(
+    () => calculateTotalPay(monthlyShifts, jobConfigs, holidays, country),
+    [monthlyShifts, jobConfigs, holidays, country]
+  );
+
+  // Memoize getJobStats function
+  const getJobStats = useCallback(
+    (type: JobType) => {
+      const typeShifts = monthlyShifts.filter((s) => s.type === type);
+      const totalHours = typeShifts.reduce((acc, s) => acc + (s.hours || 0), 0);
+      const actualHours = typeShifts.reduce((acc, s) => acc + calculatePaidHours(s, jobConfigs), 0);
+      return { totalHours, actualHours };
+    },
+    [monthlyShifts, jobConfigs]
+  );
 
   return (
     <div className="space-y-6 mb-6">
       {/* Unified Header Row */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6 min-h-[52px]">
-        {/* Left Side: Pay Summary (Visible only in Monthly view) */}
-        {viewMode === 'monthly' && (
-          <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 items-center w-full md:w-auto">
-            {/* Estimated Pay Card */}
-            <div className="neu-flat px-4 py-3 flex items-center gap-3">
-              <div className="p-1.5 rounded-full neu-pressed shrink-0">
-                <Wallet className="w-4 h-4 text-indigo-500" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-2">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight truncate">{t('dashboard.estPay')}</span>
-                  <span className="text-sm md:text-base font-bold text-slate-700 truncate">{formatCurrency(monthlyPay)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Superannuation / National Pension Card */}
-            <div className="neu-flat px-4 py-3 flex items-center gap-3">
-              <div className="p-1.5 rounded-full neu-pressed shrink-0">
-                <PiggyBank className="w-4 h-4 text-indigo-500" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex flex-col md:flex-row md:items-center gap-0.5 md:gap-2">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight truncate">
-                    {t(taxCalculator.getRetirementNameKey())}
-                  </span>
-                  <span className="text-sm md:text-base font-bold text-slate-700 truncate">
-                    {formatCurrency(monthlyPay * taxCalculator.getRetirementRate())}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* After-Tax Pay Card - Spans 2 cols on mobile */}
-            <div className="col-span-2 md:col-span-1 neu-flat px-4 py-3 flex items-center gap-3">
-              <div className="p-1.5 rounded-full neu-pressed shrink-0">
-                <Receipt className="w-4 h-4 text-emerald-500" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex flex-row items-center gap-2">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight">{t('dashboard.netPay')}</span>
-                  <span className="text-base font-bold text-emerald-600">
-                    {formatCurrency(taxCalculator.calculateTakeHome(monthlyPay, 'monthly', isStudentVisaHolder).netPay)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Right Side: View Toggle */}
-        <div className={clsx(
-          "neu-flat p-1 flex gap-1 rounded-xl",
-          "w-full md:w-auto flex justify-between md:justify-start", // Mobile full width space-between
-          viewMode !== 'monthly' ? "ml-auto" : "md:ml-auto" // Correct alignment when summary is hidden
-        )}>
-          <button
-            onClick={() => handleViewModeChange('monthly')}
-            className={clsx(
-              "flex-1 md:flex-none px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2",
-              viewMode === 'monthly' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            <CalendarRange className="w-3.5 h-3.5" />
-            <span className="md:inline">{t('dashboard.monthly')}</span>
-          </button>
-          
-          <div className="flex-1 md:flex-none">
-            <FeatureHelpTarget
-              message={t('featureHelp.fiscalDetails')}
-              title={t('dashboard.details')}
-              position="bottom"
-              guidance={true}
-              className="w-full h-full"
-            >
-              <button
-                onClick={() => handleViewModeChange('fiscal')}
-                className={clsx(
-                  "w-full h-full px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2",
-                  viewMode === 'fiscal' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
-                )}
-              >
-                <Calculator className="w-3.5 h-3.5" />
-                <span className="md:inline">{t('dashboard.details')}</span>
-              </button>
-            </FeatureHelpTarget>
-          </div>
-
-          <div className="flex-1 md:flex-none">
-            <FeatureHelpTarget
-              message={t('featureHelp.budgetExpenses')}
-              title={t('dashboard.budget')}
-              position="bottom"
-              guidance={true}
-              className="w-full h-full"
-            >
-              <button
-                onClick={() => handleViewModeChange('budget')}
-                className={clsx(
-                  "w-full h-full px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2",
-                  viewMode === 'budget' ? "neu-pressed text-indigo-500" : "text-slate-400 hover:text-slate-600"
-                )}
-              >
-                {country === 'KR' ? (
-                  <span className="text-sm font-bold w-3.5 text-center flex items-center justify-center leading-none">₩</span>
-                ) : (
-                  <DollarSign className="w-3.5 h-3.5" />
-                )}
-                <span className="md:inline">{t('dashboard.budget')}</span>
-              </button>
-            </FeatureHelpTarget>
-          </div>
-        </div>
-      </div>
+      <DashboardHeader
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        country={country}
+      >
+        <PaySummaryCards
+          monthlyPay={monthlyPay}
+          formatCurrency={formatCurrency}
+          taxCalculator={taxCalculator}
+          isStudentVisaHolder={isStudentVisaHolder}
+        />
+      </DashboardHeader>
 
       {viewMode === 'fiscal' ? (
         <div className="space-y-6">
@@ -255,109 +133,105 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
         <ExpensesView />
       ) : (
         <div className="space-y-6">
-
-
           {/* Row 2: Job Cards - Draggable + Double-click for settings */}
           {jobConfigs.length > 0 && (
-            <div className="space-y-4 md:space-y-0 md:flex md:flex-wrap md:gap-4 md:items-center">
-              {/* Action Buttons - Full width row on mobile */}
-              <div className="flex gap-2 items-center justify-end md:justify-start w-full md:w-auto">
-                {onAddJob && (
-                  <button
-                    onClick={onAddJob}
-                    className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
-                    title={t('dashboard.addNewJob')}
-                  >
-                    <Plus className="w-4 h-4 text-slate-500" />
-                  </button>
-                )}
-
-                {onAIScan && (
-                  <FeatureHelpTarget
-                    message={t('featureHelp.smartRosterScan')}
-                    title={t('rosterScanner.scanRoster')}
-                    position="bottom"
-                    guidance={true}
-                  >
-                    <button
-                      onClick={onAIScan}
-                      className="neu-icon-btn w-10 h-10 rounded-xl !p-0 group"
-                      title={t('dashboard.scanRoster')}
-                    >
-                      <Sparkles className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-                    </button>
-                  </FeatureHelpTarget>
-                )}
-
-                {onExport && (
-                  <FeatureHelpTarget
-                    message={t('featureHelp.exportSync')}
-                    title={t('dashboard.exportReport')}
-                    position="bottom"
-                    guidance={true}
-                  >
-                    <button
-                      onClick={onExport}
-                      className="neu-icon-btn w-10 h-10 rounded-xl !p-0"
-                      title={t('dashboard.exportReport')}
-                    >
-                      <Download className="w-4 h-4 text-slate-500" />
-                    </button>
-                  </FeatureHelpTarget>
-                )}
-              </div>
-
-              {/* Job Cards Grid */}
-              <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3 md:gap-4 w-full md:w-auto">
-                {jobConfigs.map((job) => (
-                  <DraggableJobCard
-                    key={job.id}
-                    job={job}
-                    hours={getHoursByType(job.id)}
-                    onDoubleClick={() => onJobDoubleClick?.(job)}
-                  />
-                ))}
-              </div>
-            </div>
+            <DraggableJobGrid
+              jobConfigs={jobConfigs}
+              getJobStats={getJobStats}
+              onJobDoubleClick={onJobDoubleClick}
+              onAddJob={onAddJob}
+              onAIScan={onAIScan}
+              onExport={onExport}
+            />
           )}
 
           {isStudentVisaHolder && isAustralia && fortnightlyHours.length > 0 && (
-            <div className="neu-flat px-4 py-3 flex items-center gap-4 overflow-x-auto">
+            <div className={clsx(
+              "neu-flat px-4 py-3",
+              isMobile ? "flex flex-col gap-3" : "flex items-center gap-4 overflow-x-auto"
+            )}>
               <div className="flex items-center gap-2 text-slate-500 shrink-0">
                 <Clock className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase">{t('dashboard.visaHours')}</span>
+                <span className="text-xs font-bold uppercase">
+                  {t('dashboard.visaHours')}
+                </span>
               </div>
-              <div className="flex gap-3">
-                {fortnightlyHours.sort((a, b) => a.periodStart.localeCompare(b.periodStart)).map((period) => {
-                  const start = new Date(period.periodStart);
-                  const end = addDays(start, 13);
-                  
-                  // Check if any day in the fortnight falls within user's vacation periods
-                  const isVacation = useScheduleStore.getState().vacationPeriods.some(vp => {
-                    const vpStart = new Date(vp.start);
-                    const vpEnd = new Date(vp.end);
-                    return (start <= vpEnd && end >= vpStart);
-                  });
-                  
-                  const isOverLimit = !isVacation && period.totalHours > 48;
-                  const isNearLimit = !isVacation && period.totalHours > 40;
-                  const progressPercent = isVacation ? 100 : Math.min(100, (period.totalHours / 48) * 100);
+              <div className={clsx(isMobile ? "grid grid-cols-2 gap-2" : "flex gap-3")}>
+                {fortnightlyHours
+                  .sort((a, b) => a.periodStart.localeCompare(b.periodStart))
+                  .map((period) => {
+                    const start = parseLocalDate(period.periodStart);
+                    const end = addDaysToDate(start, 13);
+                    const periodEndStr = formatLocalDate(end);
 
-                  return (
-                    <div key={period.periodStart} className={clsx(
-                      "px-3 py-2 rounded-lg border flex items-center gap-3 shrink-0 bg-transparent",
-                      isVacation ? "border-blue-200/50" : isOverLimit ? "border-red-200/50" : isNearLimit ? "border-amber-200/50" : "border-slate-200/50"
-                    )}>
-                      <span className="text-[10px] font-medium text-slate-500 whitespace-nowrap">{format(start, 'M/d')}-{format(end, 'M/d')}</span>
-                      <div className="w-16 h-1.5 bg-slate-200/50 rounded-full overflow-hidden shadow-inner">
-                        <div className={clsx("h-full rounded-full", isVacation ? "bg-blue-400" : isOverLimit ? "bg-red-500" : isNearLimit ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${progressPercent}%` }} />
+                    // Check if any day in the fortnight falls within user's vacation periods
+                    const isVacation = useScheduleStore
+                      .getState()
+                      .vacationPeriods.some((vp) =>
+                        doRangesOverlap(period.periodStart, periodEndStr, vp.start, vp.end)
+                      );
+
+                    const isOverLimit = !isVacation && period.totalHours > 48;
+                    const isNearLimit = !isVacation && period.totalHours > 40;
+                    const progressPercent = isVacation
+                      ? 100
+                      : Math.min(100, (period.totalHours / 48) * 100);
+
+                    return (
+                      <div
+                        key={period.periodStart}
+                        className={clsx(
+                          'px-3 py-2 rounded-lg border flex items-center gap-2 bg-transparent',
+                          isMobile ? 'flex-col' : 'gap-3 shrink-0',
+                          isVacation
+                            ? 'border-blue-200/50'
+                            : isOverLimit
+                            ? 'border-red-200/50'
+                            : isNearLimit
+                            ? 'border-amber-200/50'
+                            : 'border-slate-200/50'
+                        )}
+                      >
+                        <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                          {format(start, 'M/d')}-{format(end, 'M/d')}
+                        </span>
+                        <div className={clsx(
+                          "h-1.5 bg-slate-200/50 rounded-full overflow-hidden shadow-inner",
+                          isMobile ? "w-full" : "w-16"
+                        )}>
+                          <div
+                            className={clsx(
+                              'h-full rounded-full',
+                              isVacation
+                                ? 'bg-blue-400'
+                                : isOverLimit
+                                ? 'bg-red-500'
+                                : isNearLimit
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
+                            )}
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={clsx(
+                              'text-sm font-bold tabular-nums',
+                              isOverLimit
+                                ? 'text-red-500'
+                                : isVacation
+                                ? 'text-blue-500'
+                                : 'text-slate-600'
+                            )}
+                          >
+                            {period.totalHours}h
+                          </span>
+                          {isVacation && <span className="text-xs">🏖️</span>}
+                          {isOverLimit && <AlertTriangle className="w-3 h-3 text-red-400" />}
+                        </div>
                       </div>
-                      <span className={clsx("text-sm font-bold tabular-nums", isOverLimit ? "text-red-500" : isVacation ? "text-blue-500" : "text-slate-600")}>{period.totalHours}h</span>
-                      {isVacation && <span className="text-[9px]">🏖️</span>}
-                      {isOverLimit && <AlertTriangle className="w-3 h-3 text-red-400" />}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -393,4 +267,3 @@ export const Dashboard = ({ currentMonth, onJobDoubleClick, onAddJob, onExport, 
     </div>
   );
 };
-

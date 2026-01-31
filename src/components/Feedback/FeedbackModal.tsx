@@ -278,14 +278,14 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
     <div className="neu-flat p-4 rounded-xl transition-all">
       <div className="flex justify-between items-start mb-2 cursor-pointer" onClick={toggleExpand}>
           <div className="flex items-center gap-2">
-            <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", 
+            <span className={clsx("text-xs font-bold px-2 py-0.5 rounded-full uppercase", 
               item.type === 'bug' ? "bg-red-50 text-red-500" : 
               item.type === 'feature_request' ? "bg-amber-50 text-amber-500" : 
               "bg-blue-50 text-blue-500"
             )}>
               {item.type.replace('_', ' ')}
             </span>
-            <span className="text-[10px] text-slate-400">
+            <span className="text-xs text-slate-400">
               {new Date(item.created_at).toLocaleDateString()}
             </span>
           </div>
@@ -306,7 +306,7 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
       {item.admin_reply && !expanded && (
         <div className="mt-3 flex justify-end">
           <div className="max-w-[85%] bg-indigo-500 rounded-2xl rounded-tr-none p-3 text-sm text-white shadow-md shadow-indigo-500/20">
-            <p className="text-[10px] text-indigo-200 font-bold mb-1">{t('feedback.developer')}</p>
+            <p className="text-xs text-indigo-200 font-bold mb-1">{t('feedback.developer')}</p>
             <span className="truncate block">{item.admin_reply}</span>
           </div>
         </div>
@@ -323,7 +323,7 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
            {item.admin_reply && (
               <div className="flex justify-end">
                 <div className="max-w-[85%] bg-indigo-500 rounded-2xl rounded-tr-none p-3 text-sm text-white shadow-md shadow-indigo-500/20">
-                  <p className="text-[10px] text-indigo-200 font-bold mb-1">Developer</p>
+                  <p className="text-xs text-indigo-200 font-bold mb-1">Developer</p>
                   {item.admin_reply}
                 </div>
               </div>
@@ -340,7 +340,7 @@ const FeedbackHistoryItem = ({ item }: { item: Feedback }) => {
                      ? "bg-indigo-500 rounded-tr-none text-white shadow-md shadow-indigo-500/20" 
                      : "bg-slate-100 rounded-tl-none text-slate-700"
                  )}>
-                    {reply.is_admin_reply && <p className="text-[10px] text-indigo-200 font-bold mb-1">Developer</p>}
+                    {reply.is_admin_reply && <p className="text-xs text-indigo-200 font-bold mb-1">Developer</p>}
                     {reply.content}
                  </div>
                </div>

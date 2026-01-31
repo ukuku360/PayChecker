@@ -142,7 +142,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
                         }}
                         className="neu-pressed w-full px-4 py-2 border-none focus:ring-0 text-sm text-slate-700"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">hrs</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">hrs</span>
                 </div>
               </div>
               <div>
@@ -161,7 +161,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
                         }}
                         className="neu-pressed w-full px-4 py-2 border-none focus:ring-0 text-sm text-slate-700"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">hrs</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">hrs</span>
                 </div>
               </div>
           </div>

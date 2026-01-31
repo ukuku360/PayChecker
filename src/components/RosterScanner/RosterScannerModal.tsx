@@ -1,30 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
-import { isWeekend, format, parseISO } from 'date-fns';
+import { useState, useEffect } from 'react';
 import { X, Sparkles, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { useScheduleStore } from '../../store/useScheduleStore';
-import { toast } from '../../store/useToastStore';
-import { processRosterPhase1, processRosterPhase2, saveJobAliases, getJobAliases, getRosterScanUsage } from '../../lib/rosterApi';
-import { supabase } from '../../lib/supabaseClient';
-import { compressImage, createPreviewUrl, isPDF } from '../../utils/imageUtils';
-import { addHoursToTime } from '../../utils/timeUtils';
-import { extractFirstPageAsImage } from '../../utils/pdfUtils';
-import type { ParsedShift, JobAlias, IdentifiedPerson, SmartQuestion, QuestionAnswer, OcrResult } from '../../types';
-import type { ScanStep, JobMapping } from './types';
+
+// Components
 import { UploadStep } from './UploadStep';
 import { ProcessingStep } from './ProcessingStep';
 import { QuestionStep } from './QuestionStep';
 import { JobMappingStep } from './JobMappingStep';
 import { ConfirmationStep } from './ConfirmationStep';
 
+// Hook
+import { useRosterScanner, type ExtendedScanStep } from '../../hooks/useRosterScanner';
+
 interface RosterScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-// Extended step type to include questions
-type ExtendedScanStep = ScanStep | 'questions';
 
 const STEP_TITLE_KEYS: Record<ExtendedScanStep, string> = {
   upload: 'rosterScanner.scanRoster',
@@ -46,356 +38,52 @@ const STEP_ORDER: ExtendedScanStep[] = ['upload', 'processing', 'questions', 'ma
 
 export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps) {
   const { t } = useTranslation();
-  const { jobConfigs, shifts: existingShifts, addMultipleShifts, addJobConfig } = useScheduleStore();
   const [isRendered, setIsRendered] = useState(false);
 
-  // Scanner state
-  const [step, setStep] = useState<ExtendedScanStep>('upload');
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [parsedShifts, setParsedShifts] = useState<ParsedShift[]>([]);
-  const [unmappedJobNames, setUnmappedJobNames] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [errorType, setErrorType] = useState<string | null>(null);
-  const [scanLimit, setScanLimit] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [jobAliases, setJobAliases] = useState<JobAlias[]>([]);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [addedCount, setAddedCount] = useState(0);
+  // Use the extracted hook
+  const {
+    step,
+    setStep,
+    file,
+    previewUrl,
+    parsedShifts,
+    unmappedJobNames,
+    error,
+    errorType,
+    scanLimit,
+    isLoading,
+    showSuccess,
+    addedCount,
+    questions,
+    ocrData,
+    scanUsage,
+    identifiedPerson,
+    jobConfigs,
+    existingShifts,
+    
+    handleFileSelect,
+    handleClearFile,
+    handleProcess,
+    handleQuestionSubmit,
+    handleRetry,
+    handleBackToUpload,
+    handleBackToQuestions,
+    handleReauth,
+    handleAddJob,
+    handleMappingComplete,
+    handleConfirm,
+    setParsedShifts
+  } = useRosterScanner({ initialIsOpen: isOpen, onClose });
 
-  // AI-first flow state
-  const [questions, setQuestions] = useState<SmartQuestion[]>([]);
-  const [ocrData, setOcrData] = useState<OcrResult | null>(null);
-
-  // Scan usage state
-  const [scanUsage, setScanUsage] = useState<{ used: number; limit: number } | null>(null);
-
-  // Identified person from AI
-  const [identifiedPerson, setIdentifiedPerson] = useState<IdentifiedPerson | null>(null);
-
-  // Reset state when modal opens/closes
+  // Animation delay effect
   useEffect(() => {
     if (isOpen) {
       setIsRendered(true);
-      setStep('upload');
-      setFile(null);
-      setPreviewUrl(null);
-      setParsedShifts([]);
-      setUnmappedJobNames([]);
-      setError(null);
-      setErrorType(null);
-      setScanLimit(null);
-      setIsLoading(false);
-      setShowSuccess(false);
-      setAddedCount(0);
-      setQuestions([]);
-      setOcrData(null);
-      setIdentifiedPerson(null);
-
-      // Fetch existing job aliases
-      getJobAliases().then(aliases => setJobAliases(aliases)).catch(console.error);
-
-      // Fetch scan usage
-      getRosterScanUsage().then(usage => setScanUsage(usage)).catch(console.error);
     } else {
       const timer = setTimeout(() => setIsRendered(false), 200);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
-
-  // Cleanup preview URL
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
-
-  const handleFileSelect = useCallback((selectedFile: File) => {
-    setFile(selectedFile);
-    setError(null);
-    setErrorType(null);
-
-    // Create preview for images
-    if (!isPDF(selectedFile)) {
-      const url = createPreviewUrl(selectedFile);
-      setPreviewUrl(url);
-    } else {
-      setPreviewUrl(null);
-    }
-  }, []);
-
-  const handleClearFile = useCallback(() => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setFile(null);
-    setPreviewUrl(null);
-    setError(null);
-    setErrorType(null);
-  }, [previewUrl]);
-
-  // Phase 1: OCR + Question Generation
-  const handleProcess = useCallback(async () => {
-    if (!file) return;
-
-    setStep('processing');
-    setError(null);
-    setErrorType(null);
-    setIsLoading(true);
-
-    try {
-      // Compress image or extract from PDF
-      let base64: string;
-
-      if (isPDF(file)) {
-        base64 = await extractFirstPageAsImage(file);
-      } else {
-        base64 = await compressImage(file);
-      }
-
-      // Call Phase 1 API: OCR + Question Generation
-      const result = await processRosterPhase1(base64);
-
-      if (!result.success) {
-        setError(result.error || 'Failed to analyze roster');
-        setErrorType(result.errorType || 'unknown');
-        setScanLimit(result.scanLimit ?? null);
-        setIsLoading(false);
-        return;
-      }
-
-      // Update scan usage
-      if (result.scansUsed !== undefined && result.scanLimit !== undefined) {
-        setScanUsage({ used: result.scansUsed, limit: result.scanLimit });
-      }
-
-      // Store OCR data and questions (with defensive checks)
-      const safeOcrData = result.ocrData || { success: false, contentType: 'text' as const, headers: [], rows: [] };
-      setOcrData(safeOcrData);
-      const safeQuestions = Array.isArray(result.questions) ? result.questions : [];
-      setQuestions(safeQuestions);
-
-      // Check if we should skip questions and go straight to extraction
-      // skipToExtraction is true for simple content (single-person, email, etc.)
-      const shouldSkipQuestions = result.skipToExtraction === true || safeQuestions.length === 0;
-
-      if (shouldSkipQuestions) {
-        // Pass ocrData directly since setState is async
-        await handleQuestionSubmit([], safeOcrData);
-      } else {
-        setStep('questions');
-        setIsLoading(false);
-      }
-    } catch (err) {
-      console.error('Phase 1 error:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setErrorType('unknown');
-      setScanLimit(null);
-      setIsLoading(false);
-    }
-  }, [file]);
-
-  // Phase 2: Filter with user's answers
-  const handleQuestionSubmit = useCallback(async (answers: QuestionAnswer[], contentData?: OcrResult) => {
-    // Use directly passed contentData or fall back to state
-    const dataToUse = contentData || ocrData;
-    
-    if (!dataToUse) {
-      setError('Missing OCR data');
-      setErrorType('unknown');
-      return;
-    }
-
-    setStep('processing');
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Call Phase 2 API: Filter with answers
-      const result = await processRosterPhase2(
-        dataToUse,
-        answers,
-        jobConfigs.map(j => ({ id: j.id, name: j.name })),
-        jobAliases.map(a => ({ alias: a.alias, job_config_id: a.job_config_id }))
-      );
-
-      if (!result.success) {
-        setError(result.error || 'Failed to extract shifts');
-        setErrorType(result.errorType || 'unknown');
-        setIsLoading(false);
-        return;
-      }
-
-      // Validate mappedJobId - if the job doesn't exist, treat as unmapped
-      const jobConfigIds = new Set(jobConfigs.map(j => j.id));
-      const validatedShifts = result.shifts.map(shift => {
-        if (shift.mappedJobId && !jobConfigIds.has(shift.mappedJobId)) {
-          return { ...shift, mappedJobId: undefined };
-        }
-        return shift;
-      });
-
-      setParsedShifts(validatedShifts);
-      setIdentifiedPerson(result.identifiedPerson ?? null);
-
-      // Check for unmapped jobs
-      const unmapped = validatedShifts
-        .filter(s => !s.mappedJobId)
-        .map(s => s.rosterJobName)
-        .filter((name, idx, arr) => arr.indexOf(name) === idx);
-
-      setUnmappedJobNames(unmapped);
-
-      // Go to mapping step if there are unmapped jobs
-      if (unmapped.length > 0) {
-        setStep('mapping');
-      } else {
-        setStep('confirmation');
-      }
-    } catch (err) {
-      console.error('Phase 2 error:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setErrorType('unknown');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [ocrData, jobConfigs, jobAliases]);
-
-  const handleRetry = useCallback(() => {
-    handleProcess();
-  }, [handleProcess]);
-
-  const handleBackToUpload = useCallback(() => {
-    setStep('upload');
-    setError(null);
-    setErrorType(null);
-    setQuestions([]);
-    setOcrData(null);
-  }, []);
-
-  const handleBackToQuestions = useCallback(() => {
-    setStep('questions');
-    setError(null);
-    setErrorType(null);
-  }, []);
-
-  const handleReauth = useCallback(async () => {
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } finally {
-      onClose();
-    }
-  }, [onClose]);
-
-  const handleAddJob = useCallback(async (newJob: import('../../types').JobConfig) => {
-    await addJobConfig(newJob);
-  }, [addJobConfig]);
-
-  const handleMappingComplete = useCallback(async (mappings: JobMapping[]) => {
-    const updatedShifts = parsedShifts.map(shift => {
-      const mapping = mappings.find(m => m.rosterJobName === shift.rosterJobName);
-      if (mapping) {
-        return { ...shift, mappedJobId: mapping.mappedJobId };
-      }
-      return shift;
-    });
-
-    setParsedShifts(updatedShifts);
-
-    // Save aliases
-    const aliasesToSave = mappings.filter(m => m.saveAsAlias);
-    if (aliasesToSave.length > 0) {
-      try {
-        await saveJobAliases(aliasesToSave.map(m => ({
-          alias: m.rosterJobName,
-          job_config_id: m.mappedJobId
-        })));
-        const newAliases = await getJobAliases();
-        setJobAliases(newAliases);
-      } catch (err) {
-        console.error('Failed to save aliases:', err);
-        // Fixed: Show warning to user instead of silent failure
-        toast.warning('Alias preferences could not be saved. They will need to be re-mapped next time.');
-      }
-    }
-
-    setStep('confirmation');
-  }, [parsedShifts]);
-
-  const handleShiftsChange = useCallback((shifts: ParsedShift[]) => {
-    setParsedShifts(shifts);
-  }, []);
-
-  const handleConfirm = useCallback(async () => {
-    const selectedShifts = parsedShifts.filter(s => s.selected && s.mappedJobId);
-    if (selectedShifts.length === 0) {
-      // Fixed: Show error message instead of silent return
-      setError('Please select at least one shift to add.');
-      setErrorType('unknown');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const shiftsToAdd = selectedShifts.map(s => {
-        let note = `Scanned from roster: ${s.rosterJobName}`;
-        if (s.startTime && s.endTime) {
-          note = `Scanned: ${s.startTime}-${s.endTime}`;
-        }
-        
-        // Calculate default hours/times if missing
-        const jobConfig = jobConfigs.find(j => j.id === s.mappedJobId);
-        let hours = s.totalHours ?? 0;
-        let startTime = s.startTime;
-        let endTime = s.endTime;
-
-        if (jobConfig) {
-          const dateObj = new Date(s.date);
-          const isWknd = isWeekend(dateObj);
-          const defaultDuration = isWknd ? jobConfig.defaultHours.weekend : jobConfig.defaultHours.weekday;
-
-          // 1. If hours is 0, use default duration
-          if (!hours && defaultDuration > 0) {
-            hours = defaultDuration;
-          }
-
-          // 2. If startTime exists but endTime is missing, calculate it
-          if (startTime && !endTime) {
-            const calculatedEnd = addHoursToTime(startTime, hours);
-            if (calculatedEnd) {
-              endTime = calculatedEnd;
-            }
-          }
-        }
-
-        return {
-          id: s.id,
-          date: format(parseISO(s.date), 'yyyy-MM-dd'),
-          type: s.mappedJobId!,
-          hours: hours,
-          note,
-          ...(startTime ? { startTime: startTime } : {}),
-          ...(endTime ? { endTime: endTime } : {})
-        };
-      });
-
-      await addMultipleShifts(shiftsToAdd);
-      setAddedCount(shiftsToAdd.length);
-      setShowSuccess(true);
-
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to add shifts:', err);
-      setError('Failed to add shifts. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [parsedShifts, addMultipleShifts, onClose]);
 
   const getStepIndex = (s: ExtendedScanStep) => STEP_ORDER.indexOf(s);
 
@@ -537,7 +225,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 shifts={parsedShifts}
                 jobConfigs={jobConfigs}
                 existingShifts={existingShifts}
-                onShiftsChange={handleShiftsChange}
+                onShiftsChange={setParsedShifts}
                 onConfirm={handleConfirm}
                 onBack={() => unmappedJobNames.length > 0 ? setStep('mapping') : handleBackToQuestions()}
                 isLoading={isLoading}
