@@ -1,7 +1,7 @@
-import { getYear, isAfter, isBefore, addDays, startOfDay, addYears } from 'date-fns';
+import { getYear, isBefore, addDays, addYears } from 'date-fns';
 import type { Shift } from '../types';
 import type { CountryCode } from '../data/countries';
-import { parseLocalDate, formatLocalDate, isDateInRange } from './dateUtils';
+import { formatLocalDate, isDateInRange } from './dateUtils';
 
 /**
  * Returns the start and end date of the Fiscal Year for a given date and country.
