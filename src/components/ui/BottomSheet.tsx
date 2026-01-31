@@ -139,7 +139,10 @@ export function BottomSheet({
           'absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 pointer-events-auto',
           isVisible ? 'opacity-100' : 'opacity-0'
         )}
-        onClick={closeOnBackdropClick ? onClose : undefined}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (closeOnBackdropClick) onClose();
+        }}
         aria-hidden="true"
       />
 
@@ -153,9 +156,13 @@ export function BottomSheet({
         style={{
           maxHeight: '92%', // Leave a bit of space at the top
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Close Button */}
-        <div className="flex items-center justify-end px-4 py-3 border-b border-slate-100 flex-shrink-0 relative">
+        <div 
+          className="flex items-center justify-end px-4 py-3 border-b border-slate-100 flex-shrink-0 relative"
+          onClick={(e) => e.stopPropagation()} 
+        >
            {/* Center handle-like visual for aesthetic or just empty space? User wanted "Clean". 
                Let's just put the Close button on the right. 
                The title is usually inside content (child), so we shouldn't force a title here.
