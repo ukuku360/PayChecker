@@ -1,10 +1,11 @@
 import { useRef, useEffect, useState } from 'react';
 import { X, Check } from 'lucide-react';
+import { clsx } from 'clsx';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { BottomSheet } from '../../ui/BottomSheet';
 
 interface NoteEditorProps {
-  position: { top: number; left: number };
+  position: { top: number; left: number; openAbove?: boolean };
   initialNote: string;
   onClose: () => void;
   onSave: (note: string) => void;
@@ -102,7 +103,10 @@ export const NoteEditor = ({ position, initialNote, onClose, onSave, isMobile: i
         left: position.left,
         position: 'fixed',
       }}
-      className="-translate-x-1/2 -translate-y-full mt-[-10px] z-[999] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col"
+      className={clsx(
+        '-translate-x-1/2 z-[999] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col',
+        position.openAbove !== false ? '-translate-y-full mt-[-10px]' : 'mt-[10px]'
+      )}
     >
       {noteContent}
     </div>

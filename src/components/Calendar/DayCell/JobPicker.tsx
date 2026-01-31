@@ -7,7 +7,7 @@ import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { BottomSheet } from '../../ui/BottomSheet';
 
 interface JobPickerProps {
-  position: { top: number; left: number };
+  position: { top: number; left: number; openAbove?: boolean };
   onClose: () => void;
   jobConfigs: JobConfig[];
   templates: ShiftTemplate[];
@@ -240,7 +240,10 @@ export const JobPicker = ({
         left: position.left,
         position: 'fixed',
       }}
-      className="-translate-x-1/2 -translate-y-1/2 z-[999] bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[150px] animate-in fade-in zoom-in-95 duration-150"
+      className={clsx(
+        '-translate-x-1/2 z-[999] bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[150px] animate-in fade-in zoom-in-95 duration-150',
+        position.openAbove !== false ? '-translate-y-full mt-[-10px]' : 'mt-[10px]'
+      )}
     >
       {pickerContent}
     </div>

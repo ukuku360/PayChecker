@@ -153,6 +153,32 @@ export function BottomSheet({
     };
   }, [isOpen, onClose]);
 
+  // Scroll focused input into view when keyboard opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        contentRef.current?.contains(target) &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT')
+      ) {
+        // Wait for keyboard animation to complete
+        setTimeout(() => {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }, 300);
+      }
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    return () => document.removeEventListener('focusin', handleFocusIn);
+  }, [isOpen]);
+
   // Drag handlers
   const handleDragStart = useCallback(
     (clientY: number) => {

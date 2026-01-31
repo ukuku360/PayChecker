@@ -6,11 +6,13 @@ import { format, isWeekend } from 'date-fns';
 import { calculateTotalHours } from '../../../utils/timeUtils';
 import type { Shift } from '../../../types';
 
+export type PopupPosition = { top: number; left: number; openAbove?: boolean };
+
 export type PopupState =
   | { type: 'none' }
-  | { type: 'jobPicker'; position: { top: number; left: number } }
-  | { type: 'noteEditor'; shiftId: string; position: { top: number; left: number } }
-  | { type: 'timeEditor'; shiftId: string; position: { top: number; left: number } };
+  | { type: 'jobPicker'; position: PopupPosition }
+  | { type: 'noteEditor'; shiftId: string; position: PopupPosition }
+  | { type: 'timeEditor'; shiftId: string; position: PopupPosition };
 
 export const useDayCellLogic = (date: Date, shifts: Shift[], onAddShift: (shift: Shift) => void, onUpdateShift: (id: string, update: Partial<Shift>) => void) => {
   const {
@@ -33,12 +35,34 @@ export const useDayCellLogic = (date: Date, shifts: Shift[], onAddShift: (shift:
     data: { date: dateStr },
   });
 
-  const calculatePopupPosition = (target: HTMLElement) => {
+  const calculatePopupPosition = (target: HTMLElement): PopupPosition => {
     const rect = target.getBoundingClientRect();
-    return {
-      top: rect.top + rect.height / 2,
-      left: rect.left + rect.width / 2,
-    };
+    const viewportWidth = window.innerWidth;
+
+    const POPUP_WIDTH = 240;
+    const POPUP_HEIGHT = 320;
+    const PADDING = 16;
+
+    let top = rect.top;
+    let left = rect.left + rect.width / 2;
+
+    // Determine if popup should open above or below
+    const openAbove = rect.top - POPUP_HEIGHT >= PADDING;
+    if (!openAbove) {
+      top = rect.bottom + 10;
+    } else {
+      top = rect.top - 10;
+    }
+
+    // Horizontal boundary checks
+    const halfWidth = POPUP_WIDTH / 2;
+    if (left - halfWidth < PADDING) {
+      left = halfWidth + PADDING;
+    } else if (left + halfWidth > viewportWidth - PADDING) {
+      left = viewportWidth - halfWidth - PADDING;
+    }
+
+    return { top, left, openAbove };
   };
 
   const handleInteraction = (e: React.MouseEvent | React.TouchEvent) => {

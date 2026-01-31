@@ -21,8 +21,14 @@ export const useLongPress = ({
   const clickCountRef = useRef(0);
 
   const start = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Check if already handled by a child component
+    if ((e.nativeEvent as any)._longPressHandled) {
+      return;
+    }
+
     if (shouldStopPropagation) {
       e.stopPropagation();
+      (e.nativeEvent as any)._longPressHandled = true;
     }
     // Only left click or touch
     if ('button' in e && e.button !== 0) return;
@@ -42,11 +48,18 @@ export const useLongPress = ({
   }, []);
 
   const end = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // Check if already handled by a child component
+    if ((e.nativeEvent as any)._longPressHandled) {
+      clear();
+      return;
+    }
+
     if (shouldStopPropagation) {
       e.stopPropagation();
+      (e.nativeEvent as any)._longPressHandled = true;
     }
     clear();
-    
+
     // If it wasn't a long press, it's a click or double click
     if (!isLongPressRef.current) {
         if (onDoubleClick) {

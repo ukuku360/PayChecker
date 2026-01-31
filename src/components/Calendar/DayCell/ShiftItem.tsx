@@ -166,7 +166,10 @@ export const ShiftItem = memo(function ShiftItem({
           shiftLongPressProps.onTouchStart?.(e);
           handleTouchStart(e);
         }}
-        onTouchMove={handleTouchMove}
+        onTouchMove={(e) => {
+          e.stopPropagation();
+          handleTouchMove(e);
+        }}
         onTouchEnd={(e) => {
           e.stopPropagation();
           shiftLongPressProps.onTouchEnd?.(e);
