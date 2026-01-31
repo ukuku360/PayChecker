@@ -250,6 +250,42 @@ export function BottomSheet({
     handleDragEnd();
   }, [handleDragEnd]);
 
+  // Touch event handlers for the entire sheet (swipe down to close)
+  const touchStartY = useRef<number | null>(null);
+
+  const handleSheetTouchStart = useCallback((e: React.TouchEvent) => {
+    const content = contentRef.current;
+    // Only start drag if content is at top (not scrolled)
+    if (content && content.scrollTop <= 0) {
+      touchStartY.current = e.touches[0].clientY;
+    }
+  }, []);
+
+  const handleSheetTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - touchStartY.current;
+    const content = contentRef.current;
+
+    // Only drag down (not up) and only when at top of scroll
+    if (deltaY > 0 && content && content.scrollTop <= 0) {
+      // Start dragging if not already
+      if (!dragState.current?.isDragging) {
+        handleDragStart(touchStartY.current);
+      }
+      handleDragMove(currentY);
+      e.preventDefault(); // Prevent scroll while dragging
+    }
+  }, [handleDragStart, handleDragMove]);
+
+  const handleSheetTouchEnd = useCallback(() => {
+    touchStartY.current = null;
+    if (dragState.current?.isDragging) {
+      handleDragEnd();
+    }
+  }, [handleDragEnd]);
+
   // Mouse event handlers for the handle (desktop testing)
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -306,6 +342,9 @@ export function BottomSheet({
           isAnimating && 'transition-[height] duration-300 ease-out',
           className
         )}
+        onTouchStart={handleSheetTouchStart}
+        onTouchMove={handleSheetTouchMove}
+        onTouchEnd={handleSheetTouchEnd}
       >
         {/* Drag handle */}
         {showHandle && (
