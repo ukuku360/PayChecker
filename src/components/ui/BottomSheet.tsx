@@ -254,11 +254,8 @@ export function BottomSheet({
   const touchStartY = useRef<number | null>(null);
 
   const handleSheetTouchStart = useCallback((e: React.TouchEvent) => {
-    const content = contentRef.current;
-    // Only start drag if content is at top (not scrolled)
-    if (content && content.scrollTop <= 0) {
-      touchStartY.current = e.touches[0].clientY;
-    }
+    // Always track start position to allow checking it later
+    touchStartY.current = e.touches[0].clientY;
   }, []);
 
   const handleSheetTouchMove = useCallback((e: React.TouchEvent) => {
@@ -269,13 +266,22 @@ export function BottomSheet({
     const content = contentRef.current;
 
     // Only drag down (not up) and only when at top of scroll
-    if (deltaY > 0 && content && content.scrollTop <= 0) {
+    // Allow small tolerance (<= 1px) for scrollTop to handle subpixel rendering
+    if (deltaY > 0 && content && content.scrollTop <= 1) {
       // Start dragging if not already
       if (!dragState.current?.isDragging) {
+        // Reset startY for drag logic to current position to avoid jump
+        // or use original touchStartY if we want to catch up?
+        // Actually, using touchStartY works if we want 1:1 movement from initial touch.
+        // But if we start 'late' (after some move), using touchStartY is fine as long as logic uses strict delta.
         handleDragStart(touchStartY.current);
       }
       handleDragMove(currentY);
-      e.preventDefault(); // Prevent scroll while dragging
+      
+      // Prevent default only if we are actually dragging the sheet
+      if (e.cancelable) {
+        e.preventDefault(); 
+      }
     }
   }, [handleDragStart, handleDragMove]);
 
