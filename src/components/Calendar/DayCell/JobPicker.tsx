@@ -222,6 +222,7 @@ export const JobPicker = ({
         onClose={onClose}
         snapPoints={[0.4, 0.6]}
         initialSnap={0}
+        closeOnBackdropClick={false}
       >
         <div className="pb-4">
           <h2 className="text-lg font-bold text-slate-800 mb-4">Add Shift</h2>

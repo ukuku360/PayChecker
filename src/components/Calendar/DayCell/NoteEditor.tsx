@@ -87,6 +87,7 @@ export const NoteEditor = ({ position, initialNote, onClose, onSave, isMobile: i
         onClose={onClose}
         snapPoints={[0.35, 0.5]}
         initialSnap={0}
+        closeOnBackdropClick={false}
       >
         <div className="pb-4 bg-yellow-50 -mx-4 -mt-3 px-4 pt-4 rounded-t-2xl">
           {noteContent}

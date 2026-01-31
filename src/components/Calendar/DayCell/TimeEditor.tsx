@@ -186,6 +186,7 @@ export const TimeEditor = ({
         onClose={onClose}
         snapPoints={[0.55, 0.75]}
         initialSnap={0}
+        closeOnBackdropClick={false}
       >
         <div className="pb-4">
           {editorContent}
