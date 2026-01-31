@@ -199,7 +199,13 @@ export const DayCell = memo(function DayCell({
 
       {/* --- Shifts List --- */}
 
-      <div className="space-y-1.5">
+      <div
+        className="space-y-1.5"
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+      >
         {shifts.map((shift) => (
           <ShiftItem
             key={shift.id}
