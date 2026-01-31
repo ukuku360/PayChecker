@@ -143,6 +143,9 @@ export function BottomSheet({
           e.stopPropagation();
           if (closeOnBackdropClick) onClose();
         }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
         aria-hidden="true"
       />
 
@@ -157,6 +160,9 @@ export function BottomSheet({
           maxHeight: '92%', // Leave a bit of space at the top
         }}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
       >
         {/* Header with Close Button */}
         <div 
