@@ -6,7 +6,7 @@
 
 import type { CountryCode } from '../countries';
 import { ALL_VIC_HOLIDAYS, type PublicHoliday } from './australia';
-import { ALL_KR_HOLIDAYS } from './korea';
+
 
 // Re-export types
 export type { PublicHoliday };
@@ -14,8 +14,6 @@ export type { PublicHoliday };
 // Get holidays by country
 export const getHolidaysByCountry = (country: CountryCode): PublicHoliday[] => {
   switch (country) {
-    case 'KR':
-      return ALL_KR_HOLIDAYS;
     case 'AU':
     default:
       return ALL_VIC_HOLIDAYS;

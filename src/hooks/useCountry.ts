@@ -17,7 +17,7 @@ export const useCountry = () => {
     country: currentCountry,
     config,
     setCountry,
-    isKorea: currentCountry === 'KR',
+    isKorea: false,
     isAustralia: currentCountry === 'AU',
     language: config.language,
     locale: config.locale,

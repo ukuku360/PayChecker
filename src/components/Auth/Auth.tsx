@@ -34,8 +34,7 @@ export function Auth() {
 
   // Update language when country changes
   useEffect(() => {
-    const language = selectedCountry === 'KR' ? 'ko' : 'en';
-    i18n.changeLanguage(language);
+    i18n.changeLanguage('en');
   }, [selectedCountry]);
 
   // Clear form errors and message when switching modes
@@ -129,7 +128,7 @@ export function Auth() {
           try {
             await supabase.from('profiles').upsert({
               id: data.user.id,
-              is_student_visa_holder: selectedCountry === 'AU' ? isStudentVisa : false,
+              is_student_visa_holder: isStudentVisa,
               country: selectedCountry
             });
           } catch (profileError) {
