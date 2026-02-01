@@ -3,14 +3,14 @@
  * Supports Australia (AU) and Korea (KR)
  */
 
-export type CountryCode = 'AU' | 'KR';
+export type CountryCode = 'AU';
 
 export interface CountryConfig {
   code: CountryCode;
   name: string;
   nameNative: string;
   locale: string;
-  language: 'en' | 'ko';
+  language: 'en';
   currency: string;
   currencySymbol: string;
   currencyDecimals: number;
@@ -33,25 +33,12 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     dateFormat: 'dd/MM/yyyy',
     flag: '🇦🇺',
   },
-  KR: {
-    code: 'KR',
-    name: 'Korea',
-    nameNative: '한국',
-    locale: 'ko-KR',
-    language: 'ko',
-    currency: 'KRW',
-    currencySymbol: '₩',
-    currencyDecimals: 0,
-    fiscalYearStart: { month: 1, day: 1 }, // January 1
-    dateFormat: 'yyyy.MM.dd',
-    flag: '🇰🇷',
-  },
 };
 
 export const getCountryConfig = (country: CountryCode): CountryConfig => {
   return COUNTRIES[country];
 };
 
-export const getCountryByLanguage = (language: 'en' | 'ko'): CountryCode => {
-  return language === 'ko' ? 'KR' : 'AU';
+export const getCountryByLanguage = (_language: 'en'): CountryCode => {
+  return 'AU';
 };

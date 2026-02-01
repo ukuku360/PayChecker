@@ -64,7 +64,22 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
       setIdentifiedPerson(null);
 
       getJobAliases().then(aliases => setJobAliases(aliases)).catch(console.error);
-      getRosterScanUsage().then(usage => setScanUsage(usage)).catch(console.error);
+      
+      const fetchUsage = async () => {
+        try {
+          const usage = await getRosterScanUsage();
+          const { data: { user } } = await supabase.auth.getUser();
+          const isDev = user?.email === 'nayoonho2001@gmail.com';
+          
+          setScanUsage({
+            used: usage.used,
+            limit: isDev ? usage.limit : 5
+          });
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      fetchUsage();
     }
   }, [initialIsOpen]);
 
@@ -171,6 +186,13 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
   const handleProcessWithSkip = useCallback(async () => {
     if (!file) return;
 
+    // Check usage limit
+    if (scanUsage && scanUsage.used >= scanUsage.limit) {
+      setError(`Monthly limit reached (${scanUsage.limit} scans).`);
+      setErrorType('limit_exceeded');
+      return;
+    }
+
     setStep('processing');
     setError(null);
     setErrorType(null);
@@ -195,7 +217,12 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
       }
 
       if (result.scansUsed !== undefined && result.scanLimit !== undefined) {
-        setScanUsage({ used: result.scansUsed, limit: result.scanLimit });
+        const { data: { user } } = await supabase.auth.getUser();
+        const isDev = user?.email === 'nayoonho2001@gmail.com';
+        setScanUsage({ 
+          used: result.scansUsed, 
+          limit: isDev ? result.scanLimit : 5 
+        });
       }
 
       const safeOcrData = result.ocrData || { success: false, contentType: 'text' as const, headers: [], rows: [] };

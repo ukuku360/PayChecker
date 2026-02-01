@@ -6,7 +6,6 @@ import { Clock, AlertTriangle, Briefcase, Calendar } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { clsx } from 'clsx';
 import { useState, useMemo, useCallback } from 'react';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { FiscalYearView } from './FiscalYearView';
 import { IncomeChart } from './IncomeChart';
 import { JobBreakdown } from './JobBreakdown';
@@ -50,7 +49,6 @@ export const Dashboard = ({
   const { formatCurrency } = useCurrency();
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
   const { shifts, jobConfigs, holidays, visaType } = useScheduleStore();
-  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Get Australian tax calculator with visa type
   const taxCalculator = getTaxCalculator(visaType);
@@ -109,7 +107,6 @@ export const Dashboard = ({
       <DashboardHeader
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
-        country={'AU'}
       >
         <PaySummaryCards
           monthlyPay={monthlyPay}
@@ -142,18 +139,16 @@ export const Dashboard = ({
             />
           )}
 
+          {/* Row 3: Visa Hours (Block Format) */}
           {visaType === 'student_visa' && fortnightlyHours.length > 0 && (
-            <div className={clsx(
-              "neu-flat px-4 py-3",
-              isMobile ? "flex flex-col gap-3" : "flex items-center gap-4 overflow-x-auto"
-            )}>
-              <div className="flex items-center gap-2 text-slate-500 shrink-0">
+            <div className="neu-flat p-4 space-y-4">
+              <div className="flex items-center gap-2 text-slate-500">
                 <Clock className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase">
+                <span className="text-xs font-bold uppercase tracking-wider">
                   {t('dashboard.visaHours')}
                 </span>
               </div>
-              <div className={clsx(isMobile ? "grid grid-cols-2 gap-2" : "flex gap-3")}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                 {fortnightlyHours
                   .sort((a, b) => a.periodStart.localeCompare(b.periodStart))
                   .map((period) => {
@@ -161,7 +156,6 @@ export const Dashboard = ({
                     const end = addDaysToDate(start, 13);
                     const periodEndStr = formatLocalDate(end);
 
-                    // Check if any day in the fortnight falls within user's vacation periods
                     const isVacation = useScheduleStore
                       .getState()
                       .vacationPeriods.some((vp) =>
@@ -178,27 +172,42 @@ export const Dashboard = ({
                       <div
                         key={period.periodStart}
                         className={clsx(
-                          'px-3 py-2 rounded-lg border flex items-center gap-2 bg-transparent',
-                          isMobile ? 'flex-col' : 'gap-3 shrink-0',
+                          'p-3 rounded-xl border flex flex-col gap-2 transition-all duration-200',
                           isVacation
-                            ? 'border-blue-200/50'
+                            ? 'border-blue-200 bg-blue-50/30'
                             : isOverLimit
-                            ? 'border-red-200/50'
+                            ? 'border-red-200 bg-red-50/30'
                             : isNearLimit
-                            ? 'border-amber-200/50'
-                            : 'border-slate-200/50'
+                            ? 'border-amber-200 bg-amber-50/30'
+                            : 'border-slate-200 bg-white/50'
                         )}
                       >
-                        <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
-                          {format(start, 'M/d')}-{format(end, 'M/d')}
-                        </span>
-                        <div className={clsx(
-                          "h-1.5 bg-slate-200/50 rounded-full overflow-hidden shadow-inner",
-                          isMobile ? "w-full" : "w-16"
-                        )}>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[10px] font-bold text-slate-400">
+                            {format(start, 'M/d')}-{format(end, 'M/d')}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={clsx(
+                                'text-sm font-black tabular-nums',
+                                isOverLimit
+                                  ? 'text-red-500'
+                                  : isVacation
+                                  ? 'text-blue-500'
+                                  : 'text-slate-700'
+                              )}
+                            >
+                              {period.totalHours}h
+                            </span>
+                            {isVacation && <span className="text-xs">🏖️</span>}
+                            {isOverLimit && <AlertTriangle className="w-3 h-3 text-red-500" />}
+                          </div>
+                        </div>
+
+                        <div className="h-2 bg-slate-200/50 rounded-full overflow-hidden shadow-inner w-full">
                           <div
                             className={clsx(
-                              'h-full rounded-full',
+                              'h-full rounded-full transition-all duration-500',
                               isVacation
                                 ? 'bg-blue-400'
                                 : isOverLimit
@@ -209,22 +218,6 @@ export const Dashboard = ({
                             )}
                             style={{ width: `${progressPercent}%` }}
                           />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span
-                            className={clsx(
-                              'text-sm font-bold tabular-nums',
-                              isOverLimit
-                                ? 'text-red-500'
-                                : isVacation
-                                ? 'text-blue-500'
-                                : 'text-slate-600'
-                            )}
-                          >
-                            {period.totalHours}h
-                          </span>
-                          {isVacation && <span className="text-xs">🏖️</span>}
-                          {isOverLimit && <AlertTriangle className="w-3 h-3 text-red-400" />}
                         </div>
                       </div>
                     );

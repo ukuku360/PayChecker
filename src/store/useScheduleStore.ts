@@ -161,10 +161,9 @@ export const useScheduleStore = create<ScheduleState>()(
             expenses: profileData.expenses || [],
             country: country
           });
-          // Update i18n language based on country
+          // Update i18n language based on country (Simplified to 'en' for AU-only)
           if (country) {
-            const language = country === 'KR' ? 'ko' : 'en';
-            i18n.changeLanguage(language);
+            i18n.changeLanguage('en');
           }
         } else {
           // Profile doesn't exist - create one with defaults

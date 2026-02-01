@@ -22,7 +22,7 @@
     --neu-shadow: 9px 9px 16px var(--color-neu-shadow-dark), -9px -9px 16px var(--color-neu-shadow-light);
     --neu-shadow-sm: 5px 5px 10px var(--color-neu-shadow-dark), -5px -5px 10px var(--color-neu-shadow-light);
     --neu-shadow-pressed: inset 6px 6px 10px var(--color-neu-shadow-dark), inset -6px -6px 10px var(--color-neu-shadow-light);
-    --glass-bg: rgba(255, 255, 255, 0.25);
+    --glass-bg: rgba(255, 255, 255, 0.7);
     --glass-border: rgba(255, 255, 255, 0.3);
     --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
   }

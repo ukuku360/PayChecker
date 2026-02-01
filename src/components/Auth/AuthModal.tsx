@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { X, Home, Plane, GraduationCap, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import {
@@ -10,9 +10,35 @@ import {
   validatePasswordConfirmation,
   PASSWORD_REQUIREMENTS
 } from './authErrors';
-import type { CountryCode } from '../../data/countries';
-import { COUNTRIES } from '../../data/countries';
-import i18n from '../../i18n';
+import type { AustraliaVisaType } from '../../types';
+
+// Visa type options for Australia (mirrored from ProfileModal)
+const VISA_OPTIONS: Array<{
+  value: AustraliaVisaType;
+  labelKey: string;
+  descriptionKey: string;
+  icon: typeof Home;
+}> = [
+  {
+    value: 'domestic',
+    labelKey: 'profile.visaType.domestic',
+    descriptionKey: 'profile.visaType.domesticDesc',
+    icon: Home,
+  },
+  {
+    value: 'working_holiday',
+    labelKey: 'profile.visaType.workingHoliday',
+    descriptionKey: 'profile.visaType.workingHolidayDesc',
+    icon: Plane,
+  },
+  {
+    value: 'student_visa',
+    labelKey: 'profile.visaType.studentVisa',
+    descriptionKey: 'profile.visaType.studentVisaDesc',
+    icon: GraduationCap,
+  },
+];
+
 
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
 
@@ -31,16 +57,12 @@ export function AuthModal() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [mode, setMode] = useState<AuthMode>('signIn');
-  const [isStudentVisa, setIsStudentVisa] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState<CountryCode>('AU');
+  const [visaType, setVisaType] = useState<AustraliaVisaType>('domestic');
+  // Removed selectedCountry as app is AU-only
   const [message, setMessage] = useState<{ type: 'error' | 'success'; title?: string; text: string } | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
-  // Update language when country changes
-  useEffect(() => {
-    const language = selectedCountry === 'KR' ? 'ko' : 'en';
-    i18n.changeLanguage(language);
-  }, [selectedCountry]);
+  // No longer needed as selectedCountry is always 'AU'
 
   // Listen for successful auth to execute pending action
   useEffect(() => {
@@ -49,11 +71,16 @@ export function AuthModal() {
         // Small delay to ensure state is updated
         setTimeout(() => {
           executePendingAction();
+          // If no pending action was executed (executePendingAction closes modal if action exists),
+          // close it manually for a "natural" experience
+          if (isOpen) {
+            closeAuthModal();
+          }
         }, 100);
       }
     });
     return () => subscription.unsubscribe();
-  }, [executePendingAction, isOpen]);
+  }, [executePendingAction, isOpen, closeAuthModal]);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -152,15 +179,16 @@ export function AuthModal() {
 
         // Create profile with country and optional student visa
         if (data.user) {
-          try {
-            await supabase.from('profiles').upsert({
-              id: data.user.id,
-              is_student_visa_holder: selectedCountry === 'AU' ? isStudentVisa : false,
-              country: selectedCountry
-            });
-          } catch (profileError) {
-            console.error('Profile creation error:', profileError);
-          }
+              try {
+                await supabase.from('profiles').upsert({
+                  id: data.user.id,
+                  visa_type: visaType,
+                  is_student_visa_holder: visaType === 'student_visa', // Legacy sync
+                  country: 'AU'
+                });
+              } catch (profileError) {
+                console.error('Profile creation error:', profileError);
+              }
         }
 
         setMessage({
@@ -215,16 +243,29 @@ export function AuthModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200">
       <div className="glass-panel w-full max-w-md mx-4 relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 max-h-[90vh] overflow-y-auto">
-        {/* Close button */}
-        <button
-          onClick={closeAuthModal}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors z-10"
-          aria-label="Close"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg neu-pressed">
+              <X className="w-5 h-5 text-indigo-500 opacity-0 absolute" /> {/* Placeholder for icon alignment if needed */}
+              <div className="w-5 h-5 flex items-center justify-center font-bold text-indigo-500">
+                {mode === 'signIn' ? '→' : mode === 'signUp' ? '+' : '?'}
+              </div>
+            </div>
+            <h2 className="text-lg font-bold text-slate-700">
+              {mode === 'signIn' ? t('auth.signIn') : mode === 'signUp' ? t('auth.signUp') : t('auth.resetPassword')}
+            </h2>
+          </div>
+          <button
+            onClick={closeAuthModal}
+            className="neu-icon-btn w-8 h-8 !rounded-lg !p-0"
+            aria-label="Close modal"
+          >
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
 
         <div className="p-6 sm:p-8">
           {/* Return message if present */}
@@ -234,42 +275,12 @@ export function AuthModal() {
             </div>
           )}
 
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-slate-700 tracking-tight mb-1">
-              {mode === 'signIn' ? t('auth.signIn') : mode === 'signUp' ? t('auth.signUp') : t('auth.resetPassword')}
-            </h2>
+          <div className="mb-6">
             <p className="text-slate-500 text-sm">{getSubtitle()}</p>
           </div>
 
           <form onSubmit={handleAuth} className="space-y-4">
-            {/* Country Selector (Sign Up only) */}
-            {mode === 'signUp' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
-                  {t('auth.selectCountry')}
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {(Object.keys(COUNTRIES) as CountryCode[]).map((code) => {
-                    const country = COUNTRIES[code];
-                    return (
-                      <button
-                        key={code}
-                        type="button"
-                        onClick={() => setSelectedCountry(code)}
-                        className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
-                          selectedCountry === code
-                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
-                        }`}
-                      >
-                        <span className="text-xl">{country.flag}</span>
-                        <span className="font-medium">{country.nameNative}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* Country selector removed - App is AU only */}
 
             {/* Email Field */}
             <div>
@@ -340,19 +351,43 @@ export function AuthModal() {
               </div>
             )}
 
-            {/* Student Visa Checkbox (Sign Up only, Australia only) */}
-            {mode === 'signUp' && selectedCountry === 'AU' && (
-              <div className="flex items-center gap-3 pl-1">
-                <input
-                  type="checkbox"
-                  id="studentVisa"
-                  checked={isStudentVisa}
-                  onChange={(e) => setIsStudentVisa(e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 bg-slate-200 border-none rounded focus:ring-indigo-500"
-                />
-                <label htmlFor="studentVisa" className="text-sm text-slate-600">
-                  {t('auth.studentVisa')}
+            {/* Visa Type Selection (Sign Up only) */}
+            {mode === 'signUp' && (
+              <div className="space-y-3">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
+                  {t('profile.visaType.title')}
                 </label>
+                <div className="space-y-2">
+                  {VISA_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = visaType === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setVisaType(option.value)}
+                        className={`w-full px-4 py-3 rounded-xl border flex items-center gap-3 transition-all text-left ${
+                          isSelected
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-indigo-100' : 'bg-slate-100'}`}>
+                          <Icon className={`w-4 h-4 ${isSelected ? 'text-indigo-600' : 'text-slate-500'}`} />
+                        </div>
+                        <div className="flex flex-col flex-1">
+                          <span className="text-sm font-semibold">{t(option.labelKey)}</span>
+                          <span className="text-[10px] text-slate-500 leading-tight">{t(option.descriptionKey)}</span>
+                        </div>
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-white" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

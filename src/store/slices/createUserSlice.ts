@@ -211,9 +211,8 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
 
   setCountry: async (country: CountryCode) => {
     set({ country });
-    // Update i18n language based on country
-    const language = country === 'KR' ? 'ko' : 'en';
-    i18n.changeLanguage(language);
+    // Simplified: Always use English for AU-exclusive app
+    i18n.changeLanguage('en');
 
     let userId = get().userId;
     if (!userId) {
