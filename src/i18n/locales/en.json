@@ -38,7 +38,12 @@
     "studentVisa": "I am an international student on a Student Visa",
     "selectCountry": "Select your country",
     "countryAustralia": "Australia",
-    "countryKorea": "Korea"
+    "countryKorea": "Korea",
+    "resetPassword": "Reset Password",
+    "signInToAddJob": "Sign in to add jobs and track your earnings",
+    "signInToAddShift": "Sign in to add shifts to your calendar",
+    "signInToExport": "Sign in to export your data",
+    "signInToUseFeature": "Sign in to use this feature"
   },
   "country": {
     "selectTitle": "Select Your Country",

@@ -1,0 +1,426 @@
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { X } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import { useAuthModalStore } from '../../store/useAuthModalStore';
+import {
+  getAuthErrorMessage,
+  validateEmail,
+  validatePassword,
+  validatePasswordConfirmation,
+  PASSWORD_REQUIREMENTS
+} from './authErrors';
+import type { CountryCode } from '../../data/countries';
+import { COUNTRIES } from '../../data/countries';
+import i18n from '../../i18n';
+
+type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
+
+interface FormErrors {
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+}
+
+export function AuthModal() {
+  const { t } = useTranslation();
+  const { isOpen, closeAuthModal, returnMessage, executePendingAction } = useAuthModalStore();
+
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [mode, setMode] = useState<AuthMode>('signIn');
+  const [isStudentVisa, setIsStudentVisa] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<CountryCode>('AU');
+  const [message, setMessage] = useState<{ type: 'error' | 'success'; title?: string; text: string } | null>(null);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // Update language when country changes
+  useEffect(() => {
+    const language = selectedCountry === 'KR' ? 'ko' : 'en';
+    i18n.changeLanguage(language);
+  }, [selectedCountry]);
+
+  // Listen for successful auth to execute pending action
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session && isOpen) {
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          executePendingAction();
+        }, 100);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [executePendingAction, isOpen]);
+
+  // Reset form when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      // Reset form state when modal closes
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setMode('signIn');
+      setMessage(null);
+      setFormErrors({});
+    }
+  }, [isOpen]);
+
+  const handleModeSwitch = (newMode: AuthMode) => {
+    setMode(newMode);
+    setMessage(null);
+    setFormErrors({});
+    if (newMode !== 'signUp') {
+      setConfirmPassword('');
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const errors: FormErrors = {};
+
+    const emailError = validateEmail(email);
+    if (emailError) errors.email = emailError;
+
+    if (mode !== 'forgotPassword') {
+      const passwordError = validatePassword(password);
+      if (passwordError) errors.password = passwordError;
+
+      if (mode === 'signUp') {
+        const confirmError = validatePasswordConfirmation(password, confirmPassword);
+        if (confirmError) errors.confirmPassword = confirmError;
+      }
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (formErrors.email) {
+      setFormErrors(prev => ({ ...prev, email: undefined }));
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (formErrors.password) {
+      setFormErrors(prev => ({ ...prev, password: undefined }));
+    }
+  };
+
+  const handleConfirmPasswordChange = (value: string) => {
+    setConfirmPassword(value);
+    if (formErrors.confirmPassword) {
+      setFormErrors(prev => ({ ...prev, confirmPassword: undefined }));
+    }
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      if (mode === 'forgotPassword') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/`
+        });
+        if (error) throw error;
+
+        setMessage({
+          type: 'success',
+          title: t('auth.passwordResetSent'),
+          text: t('auth.checkInbox')
+        });
+      } else if (mode === 'signUp') {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`
+          }
+        });
+        if (error) throw error;
+
+        // Create profile with country and optional student visa
+        if (data.user) {
+          try {
+            await supabase.from('profiles').upsert({
+              id: data.user.id,
+              is_student_visa_holder: selectedCountry === 'AU' ? isStudentVisa : false,
+              country: selectedCountry
+            });
+          } catch (profileError) {
+            console.error('Profile creation error:', profileError);
+          }
+        }
+
+        setMessage({
+          type: 'success',
+          title: t('auth.registrationSuccess'),
+          text: t('auth.verifyEmail')
+        });
+        handleModeSwitch('signIn');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        // Auth state change listener will handle executePendingAction
+      }
+    } catch (error: unknown) {
+      const errorInfo = getAuthErrorMessage(error);
+      setMessage({
+        type: 'error',
+        title: errorInfo.title,
+        text: errorInfo.description
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSubtitle = () => {
+    switch (mode) {
+      case 'signUp':
+        return t('auth.signUpSubtitle');
+      case 'forgotPassword':
+        return t('auth.forgotPasswordSubtitle');
+      default:
+        return t('auth.signInSubtitle');
+    }
+  };
+
+  const getButtonText = () => {
+    if (loading) return t('auth.processing');
+    switch (mode) {
+      case 'signUp':
+        return t('auth.createAccount');
+      case 'forgotPassword':
+        return t('auth.sendResetLink');
+      default:
+        return t('auth.signIn');
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200">
+      <div className="glass-panel w-full max-w-md mx-4 relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 max-h-[90vh] overflow-y-auto">
+        {/* Close button */}
+        <button
+          onClick={closeAuthModal}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors z-10"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="p-6 sm:p-8">
+          {/* Return message if present */}
+          {returnMessage && (
+            <div className="mb-6 p-3 bg-indigo-50 rounded-xl text-sm text-indigo-700 font-medium border border-indigo-100">
+              {returnMessage}
+            </div>
+          )}
+
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-slate-700 tracking-tight mb-1">
+              {mode === 'signIn' ? t('auth.signIn') : mode === 'signUp' ? t('auth.signUp') : t('auth.resetPassword')}
+            </h2>
+            <p className="text-slate-500 text-sm">{getSubtitle()}</p>
+          </div>
+
+          <form onSubmit={handleAuth} className="space-y-4">
+            {/* Country Selector (Sign Up only) */}
+            {mode === 'signUp' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
+                  {t('auth.selectCountry')}
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {(Object.keys(COUNTRIES) as CountryCode[]).map((code) => {
+                    const country = COUNTRIES[code];
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => setSelectedCountry(code)}
+                        className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                          selectedCountry === code
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
+                        }`}
+                      >
+                        <span className="text-xl">{country.flag}</span>
+                        <span className="font-medium">{country.nameNative}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Email Field */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
+                {t('common.email')}
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                className={`neu-pressed w-full px-4 py-3 border-none focus:ring-0 text-sm placeholder-slate-400 text-slate-700 ${
+                  formErrors.email ? 'ring-2 ring-red-300' : ''
+                }`}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
+              {formErrors.email && (
+                <p className="mt-1.5 text-xs text-red-500 pl-1">{formErrors.email}</p>
+              )}
+            </div>
+
+            {/* Password Field (not shown for forgot password) */}
+            {mode !== 'forgotPassword' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
+                  {t('common.password')}
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
+                  className={`neu-pressed w-full px-4 py-3 border-none focus:ring-0 text-sm placeholder-slate-400 text-slate-700 ${
+                    formErrors.password ? 'ring-2 ring-red-300' : ''
+                  }`}
+                  placeholder="••••••••"
+                  autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
+                />
+                {formErrors.password && (
+                  <p className="mt-1.5 text-xs text-red-500 pl-1">{formErrors.password}</p>
+                )}
+                {mode === 'signUp' && !formErrors.password && (
+                  <p className="mt-1.5 text-xs text-slate-400 pl-1">
+                    {PASSWORD_REQUIREMENTS.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Confirm Password Field (Sign Up only) */}
+            {mode === 'signUp' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 pl-1">
+                  {t('auth.confirmPassword')}
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => handleConfirmPasswordChange(e.target.value)}
+                  className={`neu-pressed w-full px-4 py-3 border-none focus:ring-0 text-sm placeholder-slate-400 text-slate-700 ${
+                    formErrors.confirmPassword ? 'ring-2 ring-red-300' : ''
+                  }`}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+                {formErrors.confirmPassword && (
+                  <p className="mt-1.5 text-xs text-red-500 pl-1">{formErrors.confirmPassword}</p>
+                )}
+              </div>
+            )}
+
+            {/* Student Visa Checkbox (Sign Up only, Australia only) */}
+            {mode === 'signUp' && selectedCountry === 'AU' && (
+              <div className="flex items-center gap-3 pl-1">
+                <input
+                  type="checkbox"
+                  id="studentVisa"
+                  checked={isStudentVisa}
+                  onChange={(e) => setIsStudentVisa(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 bg-slate-200 border-none rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="studentVisa" className="text-sm text-slate-600">
+                  {t('auth.studentVisa')}
+                </label>
+              </div>
+            )}
+
+            {/* Forgot Password Link (Sign In only) */}
+            {mode === 'signIn' && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => handleModeSwitch('forgotPassword')}
+                  className="text-xs text-slate-500 hover:text-indigo-600 transition-colors"
+                >
+                  {t('auth.forgotPassword')}
+                </button>
+              </div>
+            )}
+
+            {/* Message Display */}
+            {message && (
+              <div className={`p-4 rounded-lg ${
+                message.type === 'error'
+                  ? 'bg-red-50 border border-red-100'
+                  : 'bg-green-50 border border-green-100'
+              }`}>
+                {message.title && (
+                  <p className={`text-sm font-semibold mb-1 ${
+                    message.type === 'error' ? 'text-red-700' : 'text-green-700'
+                  }`}>
+                    {message.title}
+                  </p>
+                )}
+                <p className={`text-sm ${
+                  message.type === 'error' ? 'text-red-600' : 'text-green-600'
+                }`}>
+                  {message.text}
+                </p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="neu-btn w-full !bg-indigo-500 !text-white !shadow-none hover:!bg-indigo-600 mt-4 h-12 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {getButtonText()}
+            </button>
+          </form>
+
+          {/* Mode Switch Links */}
+          <div className="mt-6 text-center space-y-2">
+            {mode === 'forgotPassword' ? (
+              <button
+                onClick={() => handleModeSwitch('signIn')}
+                className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
+              >
+                {t('auth.backToSignIn')}
+              </button>
+            ) : (
+              <button
+                onClick={() => handleModeSwitch(mode === 'signUp' ? 'signIn' : 'signUp')}
+                className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
+              >
+                {mode === 'signUp' ? t('auth.alreadyHaveAccount') : t('auth.needAccount')}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

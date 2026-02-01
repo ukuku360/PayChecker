@@ -38,7 +38,12 @@
     "studentVisa": "학생비자 소지자입니다",
     "selectCountry": "거주 국가 선택",
     "countryAustralia": "호주",
-    "countryKorea": "한국"
+    "countryKorea": "한국",
+    "resetPassword": "비밀번호 재설정",
+    "signInToAddJob": "직업을 추가하고 급여를 추적하려면 로그인하세요",
+    "signInToAddShift": "캘린더에 시프트를 추가하려면 로그인하세요",
+    "signInToExport": "데이터를 내보내려면 로그인하세요",
+    "signInToUseFeature": "이 기능을 사용하려면 로그인하세요"
   },
   "country": {
     "selectTitle": "거주 국가 선택",

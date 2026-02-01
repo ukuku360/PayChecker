@@ -21,12 +21,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
 import { isSaturday, isSunday } from 'date-fns';
 import { dotColorMap } from './utils/colorUtils';
-import { Auth } from './components/Auth/Auth';
+import { AuthModal } from './components/Auth/AuthModal';
 import { GoogleAd } from './components/GoogleAd';
 import { ToastContainer } from './components/Toast/ToastContainer';
 import { useModalState } from './hooks/useModalState';
 import { useAuthSession } from './hooks/useAuthSession';
-import { MessageSquare, BookOpen, LogOut, User } from 'lucide-react';
+import { useRequireAuth } from './hooks/useRequireAuth';
+import { useAuthModalStore } from './store/useAuthModalStore';
+import { MessageSquare, BookOpen, LogOut, LogIn, User } from 'lucide-react';
 import './i18n';
 
 
@@ -42,7 +44,9 @@ function App() {
   } = useScheduleStore();
   
   const { session, loading, logout } = useAuthSession();
-  
+  const { requireAuth, isAuthenticated } = useRequireAuth();
+  const { openAuthModal } = useAuthModalStore();
+
   const [activeType, setActiveType] = useState<JobType | null>(null);
   const [selectedJob, setSelectedJob] = useState<JobConfig | null>(null);
   const modals = useModalState();
@@ -74,21 +78,24 @@ function App() {
       const type = active.data.current.type as JobType;
 
       if (dateStr) {
-        const date = new Date(dateStr);
-        const jobConfig = jobConfigs.find(j => j.id === type);
-        let hours = 7.5; // default
-        
-        if (jobConfig) {
-          const isWeekendVal = isSaturday(date) || isSunday(date);
-          hours = isWeekendVal ? jobConfig.defaultHours.weekend : jobConfig.defaultHours.weekday;
-        }
+        // Gate drag & drop behind auth
+        requireAuth(() => {
+          const date = new Date(dateStr);
+          const jobConfig = jobConfigs.find(j => j.id === type);
+          let hours = 7.5; // default
 
-        addShift({
-          id: uuidv4(),
-          date: dateStr,
-          type: type,
-          hours: hours,
-        });
+          if (jobConfig) {
+            const isWeekendVal = isSaturday(date) || isSunday(date);
+            hours = isWeekendVal ? jobConfig.defaultHours.weekend : jobConfig.defaultHours.weekday;
+          }
+
+          addShift({
+            id: uuidv4(),
+            date: dateStr,
+            type: type,
+            hours: hours,
+          });
+        }, t('auth.signInToAddShift'));
       }
     }
   };
@@ -105,10 +112,6 @@ function App() {
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">Loading...</div>;
-  }
-
-  if (!session) {
-    return <Auth />;
   }
 
   return (
@@ -130,15 +133,27 @@ function App() {
                   <p className="text-slate-500 text-sm hidden md:block">Manage scheduling and track earnings.</p>
                 </div>
                 <div className="flex items-center gap-3 md:gap-4">
-                  <button
-                     onClick={logout}
-                     className="p-3 min-w-[48px] min-h-[48px] text-slate-400 hover:text-red-500 transition-all rounded-xl hover:bg-red-50 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:outline-none"
-                     title={t('auth.signOut')}
-                     aria-label={t('auth.signOut')}
-                  >
-                    <span className="hidden md:inline text-sm font-medium">{t('auth.signOut')}</span>
-                    <LogOut className="w-5 h-5 md:hidden" />
-                  </button>
+                  {isAuthenticated ? (
+                    <button
+                      onClick={logout}
+                      className="p-3 min-w-[48px] min-h-[48px] text-slate-400 hover:text-red-500 transition-all rounded-xl hover:bg-red-50 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:outline-none"
+                      title={t('auth.signOut')}
+                      aria-label={t('auth.signOut')}
+                    >
+                      <span className="hidden md:inline text-sm font-medium">{t('auth.signOut')}</span>
+                      <LogOut className="w-5 h-5 md:hidden" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => openAuthModal()}
+                      className="neu-btn text-sm px-4 py-3 min-h-[48px] flex items-center justify-center gap-2 !bg-indigo-500 !text-white hover:!bg-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
+                      title={t('auth.signIn')}
+                      aria-label={t('auth.signIn')}
+                    >
+                      <span className="hidden md:inline">{t('auth.signIn')}</span>
+                      <LogIn className="w-5 h-5 md:hidden" />
+                    </button>
+                  )}
                   <button
                      onClick={() => modals.open('readme')}
                      className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
@@ -149,7 +164,7 @@ function App() {
                      <span className="text-sm font-medium hidden md:inline">README</span>
                   </button>
                   <button
-                     onClick={() => modals.open('feedback')}
+                     onClick={() => requireAuth(() => modals.open('feedback'), t('auth.signInToUseFeature'))}
                      className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
                      title="Feedback"
                      aria-label="Feedback"
@@ -158,7 +173,7 @@ function App() {
                      <span className="text-sm font-medium hidden md:inline">Feedback</span>
                   </button>
                   <button
-                     onClick={() => modals.open('profile')}
+                     onClick={() => requireAuth(() => modals.open('profile'), t('auth.signInToUseFeature'))}
                      className="neu-btn text-sm px-4 py-3 min-h-[48px] flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
                      title="Profile"
                      aria-label="Profile"
@@ -172,16 +187,16 @@ function App() {
               <Dashboard
                 currentMonth={currentDate}
                 onJobDoubleClick={setSelectedJob}
-                onAddJob={() => modals.open('addJob')}
-                onExport={() => modals.open('export')}
-                onAIScan={() => modals.open('rosterScanner')}
+                onAddJob={() => requireAuth(() => modals.open('addJob'), t('auth.signInToAddJob'))}
+                onExport={() => requireAuth(() => modals.open('export'), t('auth.signInToExport'))}
+                onAIScan={() => requireAuth(() => modals.open('rosterScanner'), t('auth.signInToUseFeature'))}
                 onViewModeChange={setViewMode}
               />
               {viewMode === 'monthly' && (
                 <CalendarGrid
                   currentDate={currentDate}
                   onMonthChange={setCurrentDate}
-                  onAddJob={() => modals.open('addJob')}
+                  onAddJob={() => requireAuth(() => modals.open('addJob'), t('auth.signInToAddJob'))}
                 />
               )}
               {/* Horizontal Ad at bottom of content */}
@@ -277,6 +292,9 @@ function App() {
           )}
 
         </Suspense>
+
+        {/* Auth Modal for guest sign-in */}
+        <AuthModal />
 
         {/* Toast Notifications */}
         <ToastContainer />

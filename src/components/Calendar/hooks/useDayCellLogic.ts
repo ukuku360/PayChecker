@@ -1,9 +1,11 @@
 // src/components/Calendar/hooks/useDayCellLogic.ts
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useScheduleStore } from '../../../store/useScheduleStore';
 import { useDroppable } from '@dnd-kit/core';
 import { format, isWeekend } from 'date-fns';
 import { calculateTotalHours } from '../../../utils/timeUtils';
+import { useRequireAuth } from '../../../hooks/useRequireAuth';
 import type { Shift } from '../../../types';
 
 export type PopupPosition = { top: number; left: number; openAbove?: boolean };
@@ -15,6 +17,8 @@ export type PopupState =
   | { type: 'timeEditor'; shiftId: string; position: PopupPosition };
 
 export const useDayCellLogic = (date: Date, shifts: Shift[], onAddShift: (shift: Shift) => void, onUpdateShift: (id: string, update: Partial<Shift>) => void) => {
+  const { t } = useTranslation();
+  const { requireAuth } = useRequireAuth();
   const {
     jobConfigs,
     holidays,
@@ -69,7 +73,10 @@ export const useDayCellLogic = (date: Date, shifts: Shift[], onAddShift: (shift:
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget as HTMLElement;
-    setPopupState({ type: 'jobPicker', position: calculatePopupPosition(target) });
+    // Gate behind authentication
+    requireAuth(() => {
+      setPopupState({ type: 'jobPicker', position: calculatePopupPosition(target) });
+    }, t('auth.signInToAddShift'));
   };
 
   const handleJobSelect = (jobId: string) => {
@@ -148,34 +155,37 @@ export const useDayCellLogic = (date: Date, shifts: Shift[], onAddShift: (shift:
       e.stopPropagation();
       if (!copiedShifts || copiedShifts.length === 0) return;
 
-      // Optimize search: Create a map of existing shifts by type for O(1) lookup
-      const existingShiftsMap = new Map(shifts.map(s => [s.type, s]));
+      // Gate behind authentication
+      requireAuth(() => {
+        // Optimize search: Create a map of existing shifts by type for O(1) lookup
+        const existingShiftsMap = new Map(shifts.map(s => [s.type, s]));
 
-      copiedShifts.forEach((copied) => {
-        const existingShift = existingShiftsMap.get(copied.type);
-        if (existingShift) {
-          onUpdateShift(existingShift.id, {
-            hours: copied.hours,
-            note: copied.note,
-            startTime: copied.startTime,
-            endTime: copied.endTime,
-            breakMinutes: copied.breakMinutes,
-          });
-        } else {
-          onAddShift({
-            id: `${dateStr}-${copied.type}-${Date.now()}-${Math.random()
-              .toString(36)
-              .substr(2, 9)}`,
-            date: dateStr,
-            type: copied.type,
-            hours: copied.hours,
-            note: copied.note,
-            startTime: copied.startTime,
-            endTime: copied.endTime,
-            breakMinutes: copied.breakMinutes,
-          });
-        }
-      });
+        copiedShifts.forEach((copied) => {
+          const existingShift = existingShiftsMap.get(copied.type);
+          if (existingShift) {
+            onUpdateShift(existingShift.id, {
+              hours: copied.hours,
+              note: copied.note,
+              startTime: copied.startTime,
+              endTime: copied.endTime,
+              breakMinutes: copied.breakMinutes,
+            });
+          } else {
+            onAddShift({
+              id: `${dateStr}-${copied.type}-${Date.now()}-${Math.random()
+                .toString(36)
+                .substr(2, 9)}`,
+              date: dateStr,
+              type: copied.type,
+              hours: copied.hours,
+              note: copied.note,
+              startTime: copied.startTime,
+              endTime: copied.endTime,
+              breakMinutes: copied.breakMinutes,
+            });
+          }
+        });
+      }, t('auth.signInToAddShift'));
   };
 
   const handleCopy = (e: React.MouseEvent) => {
