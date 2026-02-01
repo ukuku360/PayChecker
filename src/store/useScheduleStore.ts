@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabaseClient';
-import type { JobConfig, Shift } from '../types';
+import type { JobConfig, Shift, AustraliaVisaType } from '../types';
+import { legacyToVisaType } from '../types';
 import i18n from '../i18n';
 import type { CountryCode } from '../data/countries';
 
@@ -39,6 +40,7 @@ export const useScheduleStore = create<ScheduleState>()(
           holidays: [],
           copiedShifts: null,
           isStudentVisaHolder: false,
+          visaType: 'domestic' as AustraliaVisaType,
           vacationPeriods: [],
           savingsGoal: 0,
           expenses: [],
@@ -70,7 +72,7 @@ export const useScheduleStore = create<ScheduleState>()(
         ] = await Promise.all([
           supabase.from('job_configs').select('*'),
           supabase.from('shifts').select('*'),
-          supabase.from('profiles').select('is_student_visa_holder, vacation_periods, savings_goal, holidays, expenses, country').eq('id', user.id).maybeSingle()
+          supabase.from('profiles').select('is_student_visa_holder, visa_type, vacation_periods, savings_goal, holidays, expenses, country').eq('id', user.id).maybeSingle()
         ]);
         
         // Handle Job Configs
@@ -140,8 +142,19 @@ export const useScheduleStore = create<ScheduleState>()(
         
         if (profileData) {
           const country = profileData.country as CountryCode | null;
+
+          // Handle visa type: prefer new visa_type field, fall back to legacy boolean
+          let visaType: AustraliaVisaType = 'domestic';
+          if (profileData.visa_type) {
+            visaType = profileData.visa_type as AustraliaVisaType;
+          } else if (profileData.is_student_visa_holder) {
+            // Migrate from legacy boolean
+            visaType = legacyToVisaType(profileData.is_student_visa_holder);
+          }
+
           set({
-            isStudentVisaHolder: profileData.is_student_visa_holder ?? false,
+            visaType,
+            isStudentVisaHolder: visaType === 'student_visa', // Keep legacy field in sync
             vacationPeriods: profileData.vacation_periods || [],
             savingsGoal: Number(profileData.savings_goal) || 0,
             holidays: profileData.holidays || [],
@@ -158,6 +171,7 @@ export const useScheduleStore = create<ScheduleState>()(
           const { error: createError } = await supabase.from('profiles').insert({
             id: user.id,
             is_student_visa_holder: false,
+            visa_type: 'domestic',
             vacation_periods: [],
             savings_goal: 0,
             holidays: []
@@ -169,6 +183,7 @@ export const useScheduleStore = create<ScheduleState>()(
           }
 
           set({
+            visaType: 'domestic' as AustraliaVisaType,
             isStudentVisaHolder: false,
             vacationPeriods: [],
             savingsGoal: 0,

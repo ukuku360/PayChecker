@@ -140,7 +140,17 @@
     "noHolidayPeriods": "No holiday periods added",
     "endDateError": "End date must be after start date",
     "saveChanges": "Save Changes",
-    "country": "Country"
+    "country": "Country",
+    "visaType": {
+      "title": "Tax Residency Status",
+      "domestic": "Australian Resident",
+      "domesticDesc": "Tax-free threshold + Medicare Levy",
+      "workingHoliday": "Working Holiday (417/462)",
+      "workingHolidayDesc": "15% flat rate on first $45k, no tax-free threshold",
+      "studentVisa": "Student Visa (500)",
+      "studentVisaDesc": "Tax resident rates, Medicare Levy exemption"
+    },
+    "saveFailed": "Failed to save profile. Please try again."
   },
   "rosterScanner": {
     "scanRoster": "Scan Roster",

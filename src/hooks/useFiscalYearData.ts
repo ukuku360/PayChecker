@@ -1,16 +1,16 @@
 import { useMemo } from 'react';
 import { useScheduleStore } from '../store/useScheduleStore';
 import { calculateTotalPay } from '../utils/calculatePay';
-import { calculateTakeHome, calculateIncomeTax, calculateMedicareLevy } from '../data/taxRates';
+import { getTaxCalculator } from '../data/taxRates';
 import { getFiscalYearRange, groupShiftsByFortnightYTD } from '../utils/fiscalYearUtils';
 
-import { useCountry } from './useCountry';
-
 export const useFiscalYearData = () => {
-  const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
-  const { country } = useCountry();
+  const { shifts, jobConfigs, holidays, visaType } = useScheduleStore();
 
-  const { start: fyStart, end: fyEnd, label: fyLabel } = getFiscalYearRange(new Date(), country);
+  const { start: fyStart, end: fyEnd, label: fyLabel } = getFiscalYearRange(new Date(), 'AU');
+
+  // Get tax calculator with visa type
+  const taxCalculator = getTaxCalculator(visaType);
 
   const data = useMemo(() => {
     // 1. Group shifts
@@ -19,33 +19,26 @@ export const useFiscalYearData = () => {
     // 2. Calculate Gross Pay per Fortnight & Estimate Withholding
     let ytdGrossPay = 0;
     let ytdEstimatedTaxWithheld = 0;
-    
-    // We only sum up "passed" or "active" fortnights for YTD "Real" data?
-    // Or do we sum up EVERYTHING visible in the schedule? 
-    // Let's sum everything in the schedule for the FY to show "Projected" if they have future shifts.
-    
+
     fortnights.forEach(fn => {
         if (fn.shifts.length === 0) return;
 
         const periodGross = calculateTotalPay(fn.shifts, jobConfigs, holidays);
-        
+
         // Calculate tax for this specific fortnight period
-        // Treat it as a fortnightly pay cycle
-        const taxDetails = calculateTakeHome(periodGross, 'fortnightly', isStudentVisaHolder, country);
-        
+        const taxDetails = taxCalculator.calculateTakeHome(periodGross, 'fortnightly');
+
         ytdGrossPay += periodGross;
-        ytdEstimatedTaxWithheld += taxDetails.totalTax;
+        ytdEstimatedTaxWithheld += taxDetails.totalDeductions;
     });
 
     // 3. Calculate Actual Liability (Annualized Calculation on Total YTD)
-    // If we want "True Liability at end of year", we take YTD Gross and run it through Annual Tax tables.
-    const annualIncomeTax = calculateIncomeTax(ytdGrossPay, country);
-    const annualMedicare = (country === 'AU' && !isStudentVisaHolder) ? calculateMedicareLevy(ytdGrossPay) : 0;
-    const actualTaxLiability = annualIncomeTax + annualMedicare;
+    const annualIncomeTax = taxCalculator.calculateIncomeTax(ytdGrossPay);
+    const socialContributions = taxCalculator.calculateSocialContributions(ytdGrossPay);
+    const annualSocialTotal = socialContributions.reduce((sum, c) => sum + c.amount, 0);
+    const actualTaxLiability = annualIncomeTax + annualSocialTotal;
 
     // 4. Refund / Bill
-    // If Withheld > Liability = Refund (Positive)
-    // If Withheld < Liability = Bill (Negative)
     const estimatedRefund = ytdEstimatedTaxWithheld - actualTaxLiability;
 
     return {
@@ -58,7 +51,7 @@ export const useFiscalYearData = () => {
       estimatedRefund,
       fortnights
     };
-  }, [shifts, jobConfigs, holidays, isStudentVisaHolder, fyStart, country]);
+  }, [shifts, jobConfigs, holidays, visaType, fyStart, taxCalculator]);
 
   return data;
 };

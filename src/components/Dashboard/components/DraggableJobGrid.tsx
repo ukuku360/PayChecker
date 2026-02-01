@@ -108,7 +108,12 @@ export const DraggableJobGrid = ({
               className="neu-icon-btn w-10 h-10 rounded-xl !p-0 group"
               title={t('dashboard.scanRoster')}
             >
-              <Sparkles className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
+              <div className="relative">
+                <Sparkles className="w-4 h-4 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
+                <span className="absolute -top-3 -right-3 px-1 rounded-[4px] bg-indigo-500 text-[8px] font-bold text-white border border-white shadow-sm">
+                  BETA
+                </span>
+              </div>
             </button>
         )}
 

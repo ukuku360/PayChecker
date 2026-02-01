@@ -10,7 +10,6 @@ const AddJobModal = lazy(() => import('./components/Dashboard/AddJobModal').then
 const HourlyRateModal = lazy(() => import('./components/JobBar/HourlyRateModal').then(module => ({ default: module.HourlyRateModal })));
 const ExportModal = lazy(() => import('./components/Export/ExportModal').then(module => ({ default: module.ExportModal })));
 const ProfileModal = lazy(() => import('./components/Profile/ProfileModal').then(module => ({ default: module.ProfileModal })));
-const CountrySelectionModal = lazy(() => import('./components/CountrySelectionModal').then(module => ({ default: module.CountrySelectionModal })));
 const FeedbackModal = lazy(() => import('./components/Feedback/FeedbackModal').then(module => ({ default: module.FeedbackModal })));
 const AdminFeedbackList = lazy(() => import('./components/Feedback/AdminFeedbackList').then(module => ({ default: module.AdminFeedbackList })));
 const RosterScannerModal = lazy(() => import('./components/RosterScanner/RosterScannerModal').then(module => ({ default: module.RosterScannerModal })));
@@ -39,9 +38,7 @@ function App() {
     updateJobConfig, 
     removeJobConfig,
     shifts,
-    addShift,
-    isLoaded,
-    country
+    addShift
   } = useScheduleStore();
   
   const { session, loading, logout } = useAuthSession();
@@ -135,35 +132,39 @@ function App() {
                 <div className="flex items-center gap-3 md:gap-4">
                   <button
                      onClick={logout}
-                     className="p-2.5 min-w-[44px] min-h-[44px] text-slate-400 hover:text-slate-600 transition-colors rounded-lg hover:bg-slate-50 flex items-center justify-center"
+                     className="p-3 min-w-[48px] min-h-[48px] text-slate-400 hover:text-red-500 transition-all rounded-xl hover:bg-red-50 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:outline-none"
                      title={t('auth.signOut')}
+                     aria-label={t('auth.signOut')}
                   >
-                    <span className="hidden md:inline text-sm">{t('auth.signOut')}</span>
+                    <span className="hidden md:inline text-sm font-medium">{t('auth.signOut')}</span>
                     <LogOut className="w-5 h-5 md:hidden" />
                   </button>
                   <button
                      onClick={() => modals.open('readme')}
-                     className="text-slate-400 hover:text-indigo-500 transition-colors p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center gap-1.5 rounded-lg hover:bg-slate-50"
+                     className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
                      title="User Guide"
+                     aria-label="User Guide"
                   >
                      <BookOpen className="w-5 h-5" />
                      <span className="text-sm font-medium hidden md:inline">README</span>
                   </button>
                   <button
                      onClick={() => modals.open('feedback')}
-                     className="text-slate-400 hover:text-indigo-500 transition-colors p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center gap-1.5 rounded-lg hover:bg-slate-50"
+                     className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
                      title="Feedback"
+                     aria-label="Feedback"
                   >
                      <MessageSquare className="w-5 h-5" />
                      <span className="text-sm font-medium hidden md:inline">Feedback</span>
                   </button>
                   <button
                      onClick={() => modals.open('profile')}
-                     className="neu-btn text-sm px-3 md:px-4 py-2.5 min-h-[44px] flex items-center justify-center gap-2"
+                     className="neu-btn text-sm px-4 py-3 min-h-[48px] flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
                      title="Profile"
+                     aria-label="Profile"
                   >
                      <span className="hidden md:inline">Profile</span>
-                     <User className="w-4 h-4 md:hidden" />
+                     <User className="w-5 h-5 md:hidden" />
                   </button>
                 </div>
               </header>
@@ -275,10 +276,6 @@ function App() {
             />
           )}
 
-          {/* Country Selection Modal for existing users */}
-          {session && !loading && isLoaded && country === null && (
-             <CountrySelectionModal isOpen={true} />
-          )}
         </Suspense>
 
         {/* Toast Notifications */}

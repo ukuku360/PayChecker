@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { dotColorMap, colorOptions } from '../../utils/colorUtils';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import type { JobConfig } from '../../types';
 
 interface AddJobModalProps {
@@ -19,6 +20,8 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
   const [isRendered, setIsRendered] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   // Check for duplicate job ID
   const checkDuplicate = (name: string): boolean => {
@@ -44,6 +47,17 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
     }
   }, [isOpen]);
 
+  // Handle escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleAddJob = () => {
     if (!newJobName.trim()) return;
     if (checkDuplicate(newJobName)) return;
@@ -68,6 +82,24 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
     onAdd(newJob);
   };
 
+  // Keyboard navigation for color picker
+  const handleColorKeyDown = (e: React.KeyboardEvent, color: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setNewJobColor(color);
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const currentIndex = colorOptions.indexOf(color as any);
+      const nextIndex = (currentIndex + 1) % colorOptions.length;
+      document.getElementById(`color-btn-${colorOptions[nextIndex]}`)?.focus();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const currentIndex = colorOptions.indexOf(color as any);
+      const prevIndex = (currentIndex - 1 + colorOptions.length) % colorOptions.length;
+      document.getElementById(`color-btn-${colorOptions[prevIndex]}`)?.focus();
+    }
+  };
+
   if (!isRendered) return null;
 
   return (
@@ -76,21 +108,25 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
         "fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300",
         isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
     >
       <div
         className={clsx(
-          "glass-panel w-full max-w-sm mx-4 overflow-hidden transform transition-all duration-300",
+          "glass-panel w-full max-w-sm mx-4 overflow-hidden transform transition-all duration-300 shadow-2xl",
           isOpen ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
         )}
       >
         <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
-          <h2 className="text-lg font-bold text-slate-700">Add New Job</h2>
+          <h2 id="modal-title" className="text-lg font-bold text-slate-700">Add New Job</h2>
           <button 
+            ref={closeButtonRef}
             onClick={onClose} 
-            className="neu-icon-btn w-8 h-8 !rounded-lg !p-0"
+            className="neu-icon-btn w-10 h-10 !rounded-lg !p-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
             aria-label="Close modal"
           >
-            <X className="w-4 h-4 text-slate-500" />
+            <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
         
@@ -115,24 +151,26 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
               }}
               onBlur={() => checkDuplicate(newJobName)}
               className={clsx(
-                "neu-pressed w-full px-4 py-3 border-none focus:ring-0 text-sm placeholder-slate-400 text-slate-700",
-                duplicateError && "ring-1 ring-rose-400"
+                "neu-pressed w-full px-4 py-3 border-none focus:ring-2 focus:ring-indigo-400 focus:outline-none text-sm placeholder-slate-400 text-slate-700 rounded-xl transition-all",
+                duplicateError && "ring-2 ring-rose-400"
               )}
-              autoFocus
+              autoFocus={!isMobile}
             />
             {duplicateError && (
-              <p className="text-xs text-rose-500 mt-1 pl-1">{duplicateError}</p>
+              <p className="text-xs text-rose-500 mt-1 pl-1 font-medium animate-in slide-in-from-top-1">{duplicateError}</p>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
+                <label htmlFor="weekdayHours" className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
                     Def. Weekday
                 </label>
                 <div className="relative">
                     <input
+                        id="weekdayHours"
                         type="number"
+                        inputMode="decimal"
                         min="0"
                         step="0.5"
                         value={defaultWeekdayHours}
@@ -140,18 +178,20 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
                         onBlur={() => {
                             if (defaultWeekdayHours === '') setDefaultWeekdayHours(0);
                         }}
-                        className="neu-pressed w-full px-4 py-2 border-none focus:ring-0 text-sm text-slate-700"
+                        className="neu-pressed w-full px-4 py-2.5 border-none focus:ring-2 focus:ring-indigo-400 focus:outline-none text-sm text-slate-700 rounded-xl"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">hrs</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">hrs</span>
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
+                <label htmlFor="weekendHours" className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
                     Def. Weekend
                 </label>
                 <div className="relative">
                     <input
+                        id="weekendHours"
                         type="number"
+                        inputMode="decimal"
                         min="0"
                         step="0.5"
                         value={defaultWeekendHours}
@@ -159,9 +199,9 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
                          onBlur={() => {
                             if (defaultWeekendHours === '') setDefaultWeekendHours(0);
                         }}
-                        className="neu-pressed w-full px-4 py-2 border-none focus:ring-0 text-sm text-slate-700"
+                        className="neu-pressed w-full px-4 py-2.5 border-none focus:ring-2 focus:ring-indigo-400 focus:outline-none text-sm text-slate-700 rounded-xl"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">hrs</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">hrs</span>
                 </div>
               </div>
           </div>
@@ -174,13 +214,15 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
               {colorOptions.map((color) => (
                 <button
                   key={color}
+                  id={`color-btn-${color}`}
                   type="button"
                   role="radio"
                   aria-checked={newJobColor === color}
-                  aria-label={`Select ${color}`}
-                  onClick={() => setNewJobColor(color)}
+                  aria-label={`Select ${color} color`}
+                  onClick={() => setNewJobColor(color as any)}
+                  onKeyDown={(e) => handleColorKeyDown(e, color)}
                   className={clsx(
-                    "w-8 h-8 rounded-full transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-slate-400",
+                    "w-10 h-10 rounded-full transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400",
                     dotColorMap[color],
                     newJobColor === color 
                       ? 'ring-2 ring-offset-2 ring-slate-400 scale-110 shadow-lg' 
@@ -195,7 +237,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
         <div className="px-6 py-4 border-t border-white/30 flex justify-end gap-3 bg-white/10">
           <button 
             onClick={onClose} 
-            className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
+            className="px-4 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors rounded-lg hover:bg-white/50 focus:outline-none focus:ring-2 focus:ring-slate-300"
           >
             Cancel
           </button>
@@ -203,7 +245,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
             onClick={handleAddJob} 
             disabled={!newJobName.trim()}
             className={clsx(
-              "neu-btn !bg-indigo-500 !text-white !shadow-none hover:!bg-indigo-600",
+              "neu-btn !bg-indigo-500 !text-white !shadow-none hover:!bg-indigo-600 focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2",
               !newJobName.trim() && "opacity-50 cursor-not-allowed"
             )}
           >

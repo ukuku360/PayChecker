@@ -16,7 +16,6 @@ import { ExpensesView } from './ExpensesView';
 import { EmptyState } from '../EmptyState';
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
-import { useCountry } from '../../hooks/useCountry';
 import {
   parseLocalDate,
   formatLocalDate,
@@ -49,13 +48,12 @@ export const Dashboard = ({
 }: DashboardProps) => {
   const { t } = useTranslation();
   const { formatCurrency } = useCurrency();
-  const { country, isAustralia } = useCountry();
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
-  const { shifts, jobConfigs, holidays, isStudentVisaHolder } = useScheduleStore();
+  const { shifts, jobConfigs, holidays, visaType } = useScheduleStore();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  // Get country-specific tax calculator
-  const taxCalculator = getTaxCalculator(country);
+  // Get Australian tax calculator with visa type
+  const taxCalculator = getTaxCalculator(visaType);
 
   const handleViewModeChange = (mode: 'monthly' | 'fiscal' | 'budget') => {
     setViewMode(mode);
@@ -88,10 +86,10 @@ export const Dashboard = ({
     return shifts.filter((s) => isDateInRange(s.date, monthStartStr, monthEndStr));
   }, [shifts, monthStart, monthEnd]);
 
-  // Memoize monthly pay calculation with country-aware holiday detection
+  // Memoize monthly pay calculation
   const monthlyPay = useMemo(
-    () => calculateTotalPay(monthlyShifts, jobConfigs, holidays, country),
-    [monthlyShifts, jobConfigs, holidays, country]
+    () => calculateTotalPay(monthlyShifts, jobConfigs, holidays, 'AU'),
+    [monthlyShifts, jobConfigs, holidays]
   );
 
   // Memoize getJobStats function
@@ -111,13 +109,12 @@ export const Dashboard = ({
       <DashboardHeader
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
-        country={country}
+        country={'AU'}
       >
         <PaySummaryCards
           monthlyPay={monthlyPay}
           formatCurrency={formatCurrency}
           taxCalculator={taxCalculator}
-          isStudentVisaHolder={isStudentVisaHolder}
         />
       </DashboardHeader>
 
@@ -145,7 +142,7 @@ export const Dashboard = ({
             />
           )}
 
-          {isStudentVisaHolder && isAustralia && fortnightlyHours.length > 0 && (
+          {visaType === 'student_visa' && fortnightlyHours.length > 0 && (
             <div className={clsx(
               "neu-flat px-4 py-3",
               isMobile ? "flex flex-col gap-3" : "flex items-center gap-4 overflow-x-auto"

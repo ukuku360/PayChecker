@@ -175,7 +175,7 @@ interface FilterResult {
 // ============================================
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-3-pro-preview';
 
 export class GeminiApiError extends Error {
   status: number;
@@ -196,8 +196,10 @@ function getModelCandidates(): string[] {
   const candidates = [
     envModel,
     DEFAULT_GEMINI_MODEL,
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-flash-latest'
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-pro'
   ].filter(Boolean) as string[];
 
   return Array.from(new Set(candidates));
@@ -240,65 +242,40 @@ function getCurrentDate(): string {
 // Phase 1: Pure OCR Prompt
 // ============================================
 
-const PHASE1_OCR_PROMPT = `You are an OCR assistant. Extract ALL visible text from this image and describe its layout.
+const PHASE1_OCR_PROMPT = `Analyze this image which contains a work roster or schedule.
 
-The image could be ANY format containing work schedule info:
-- Table/roster with names and shifts
-- **CALENDAR VIEW** (monthly grid with weekday headers like 일요일~토요일 or Sun~Sat)
-- Email or message with shift assignments
-- Bulleted list of dates and times
-- Screenshot from a scheduling app (e.g., Deputy, WhenIWork)
-- Handwritten notes
-- Mixed formats
+YOUR GOAL:
+Precisely extract the visual structure and text content into a structured JSON format.
 
-YOUR TASK:
-1. Transcribe ALL visible text exactly as shown.
-2. **DESCRIBE THE LAYOUT** briefly (e.g., "Rows are employees, columns are dates", "Calendar grid with shifts in cells").
-3. Identify the content structure (table, calendar, or freeform).
-4. Detect if multiple people are mentioned.
-5. **For CALENDAR views: Extract names from CELL CONTENTS, not just headers**.
-6. DO NOT normalize dates or times - preserve exact format.
-
-CRITICAL FOR CALENDAR FORMAT:
-- Calendar views have weekday headers (일요일, 월요일, ... 토요일 or Sun, Mon, ... Sat)
-- Names appear INSIDE cells in patterns like:
-  - Korean: "오픈 8 - 21 수연(13)" → name is "수연"
-  - Korean: "마감 21 - 24 태현(3)" → name is "태현"
-  - English: "Open 8-5 John(9)" → name is "John"
-- Parse format: "[shift type] [start] - [end] [NAME](hours)"
-- Extract ALL unique names from cell contents into potentialNames
-- **Layout Description**: Explicitly state "Calendar view with shifts inside day cells".
+KEY GUIDELINES:
+1. **Trust your vision**: Read the document exactly as a human would.
+2. **Handle any format**: It might be a grid table, a calendar view, a list, or a screenshot.
+3. **Preserve Structure**:
+   - If it's a **Table**, preserve the exact grid. **IMPORTANT**: If a cell is empty affecting the column alignment, represent it as an empty string "" to keep the columns aligned.
+   - If it's a **Calendar**, find shifts inside the date cells.
+4. **Weekends/Colors**: Colored rows or backgrounds are usually valid data (e.g. weekends). Do not ignore them.
 
 OUTPUT FORMAT (JSON only):
 {
   "contentType": "table" | "calendar" | "email" | "list" | "text" | "mixed",
-
-  "layoutDescription": "Brief description of how data is organized (e.g. 'Vertical list of dates', 'Grid with names on left')",
-
-  "rawText": "Complete word-for-word transcription of all visible text",
-
+  "layoutDescription": "Brief description (e.g., 'Grid with names in columns, dates in rows')",
+  "rawText": "All visible text transcribed",
   "structure": {
     "type": "table" | "calendar" | "freeform",
-    "headers": ["일요일", "월요일", ...] or ["Date", "Name1", ...],
-    "rows": [["cell1", "cell2", ...], ...]
+    "headers": ["header1", "header2", ...],
+    "rows": [
+      ["cell_content", "", "cell_content"],
+      ["", "cell_content", ""]
+    ]
   },
-
   "metadata": {
-    "title": "Document title if visible (e.g., '2026년 1월')",
-    "hasMultiplePeople": true | false,
-    "potentialNames": ["수연", "태현", "현승", ...],
-    "visibleDateRange": "raw date range as shown",
-    "language": "en" | "ko" | "other"
+    "title": "Document title",
+    "hasMultiplePeople": boolean,
+    "potentialNames": ["name1", "name2"],
+    "visibleDateRange": "e.g. Feb 2026",
+    "language": "en" | "ko"
   }
-}
-
-CRITICAL RULES:
-1. Preserve dates EXACTLY as shown.
-2. Preserve times EXACTLY as shown.
-3. For tables/calendars, keep exact cell values without modification.
-4. hasMultiplePeople should be true if you see multiple distinct names.
-5. Include ALL names you see in potentialNames array.
-6. **For CALENDAR: Scan ALL cell contents to find names in shift patterns like "오픈 8-21 수연(13)"**`;
+}`;
 
 // ============================================
 // Phase 2: Analysis + Question Generation Prompt

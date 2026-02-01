@@ -1,11 +1,36 @@
-import { X, User, GraduationCap, Plus, Trash2, Calendar } from 'lucide-react';
+import { X, User, GraduationCap, Plus, Trash2, Calendar, Plane, Home, Check } from 'lucide-react';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { useCountry } from '../../hooks/useCountry';
-import { COUNTRIES } from '../../data/countries';
-import type { CountryCode } from '../../data/countries';
+import type { AustraliaVisaType } from '../../types';
+
+// Visa type options for Australia
+const VISA_OPTIONS: Array<{
+  value: AustraliaVisaType;
+  labelKey: string;
+  descriptionKey: string;
+  icon: typeof Home;
+}> = [
+  {
+    value: 'domestic',
+    labelKey: 'profile.visaType.domestic',
+    descriptionKey: 'profile.visaType.domesticDesc',
+    icon: Home,
+  },
+  {
+    value: 'working_holiday',
+    labelKey: 'profile.visaType.workingHoliday',
+    descriptionKey: 'profile.visaType.workingHolidayDesc',
+    icon: Plane,
+  },
+  {
+    value: 'student_visa',
+    labelKey: 'profile.visaType.studentVisa',
+    descriptionKey: 'profile.visaType.studentVisaDesc',
+    icon: GraduationCap,
+  },
+];
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -15,22 +40,19 @@ interface ProfileModalProps {
 
 export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
   const { t } = useTranslation();
-  const { isAustralia } = useCountry();
-  const { isStudentVisaHolder, vacationPeriods, updateProfile, country, setCountry } = useScheduleStore();
+  const { visaType, vacationPeriods, updateProfile } = useScheduleStore();
   const [newPeriod, setNewPeriod] = useState({ start: '', end: '' });
   const [dateError, setDateError] = useState<string | null>(null);
 
   // Local state for editing
-  const [tempIsStudentVisaHolder, setTempIsStudentVisaHolder] = useState(isStudentVisaHolder);
-  const [tempCountry, setTempCountry] = useState<CountryCode>(country || 'AU');
+  const [tempVisaType, setTempVisaType] = useState<AustraliaVisaType>(visaType);
 
-  // Sync student visa holder state when modal opens
+  // Sync visa type state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setTempIsStudentVisaHolder(isStudentVisaHolder);
-      if (country) setTempCountry(country);
+      setTempVisaType(visaType);
     }
-  }, [isOpen, isStudentVisaHolder]);
+  }, [isOpen, visaType]);
 
   if (!isOpen) return null;
 
@@ -49,7 +71,7 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
     if (newPeriod.start && newPeriod.end) {
       if (!validateDateRange(newPeriod.start, newPeriod.end)) return;
       const updatedPeriods = [...(vacationPeriods || []), newPeriod];
-      await updateProfile(tempIsStudentVisaHolder, updatedPeriods);
+      await updateProfile(tempVisaType, updatedPeriods);
       setNewPeriod({ start: '', end: '' });
       setDateError(null);
     }
@@ -59,7 +81,7 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
   const handleRemovePeriod = async (index: number) => {
     const updated = [...(vacationPeriods || [])];
     updated.splice(index, 1);
-    await updateProfile(tempIsStudentVisaHolder, updated);
+    await updateProfile(tempVisaType, updated);
   };
 
   // Save Changes 시 입력칸의 날짜도 함께 저장
@@ -73,12 +95,7 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
       setNewPeriod({ start: '', end: '' });
     }
 
-    await updateProfile(tempIsStudentVisaHolder, periodsToSave);
-    
-    if (country !== tempCountry) {
-      await setCountry(tempCountry);
-    }
-    
+    await updateProfile(tempVisaType, periodsToSave);
     onClose();
   };
 
@@ -100,58 +117,42 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
                </div>
             </div>
 
-            {/* Region / Country Selection */}
-            <div>
-               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">{t('common.region') || 'Region'}</label>
-               <div className="grid grid-cols-2 gap-3">
-                 {(Object.keys(COUNTRIES) as CountryCode[]).map((code) => {
-                   const c = COUNTRIES[code];
-                   const isSelected = tempCountry === code;
-                   return (
-                     <button
-                       key={code}
-                       onClick={() => setTempCountry(code)}
-                       className={`px-3 py-2 rounded-lg border flex items-center gap-2 transition-all ${
-                         isSelected 
-                           ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-medium' 
-                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                       }`}
-                     >
-                       <span className="text-lg">{c.flag}</span>
-                       <span className="text-sm">{c.name}</span>
-                     </button>
-                   );
-                 })}
-               </div>
-            </div>
-
-           {isAustralia && (
+           {/* Visa Type Selection */}
            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">{t('common.settings')}</label>
-              <div className="px-4 py-3 neu-flat !shadow-sm border border-white/50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                   <div className="p-1.5 bg-blue-100 rounded-md">
-                     <GraduationCap className="w-4 h-4 text-blue-600" />
-                   </div>
-                   <div className="flex flex-col">
-                     <span className="text-sm font-medium text-slate-700">{t('profile.studentVisaHolder')}</span>
-                     <span className="text-xs text-slate-500">{t('profile.enableWorkingHourRestrictions')}</span>
-                   </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer"
-                    checked={tempIsStudentVisaHolder}
-                    onChange={(e) => setTempIsStudentVisaHolder(e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">{t('profile.visaType.title')}</label>
+              <div className="space-y-2">
+                {VISA_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  const isSelected = tempVisaType === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => setTempVisaType(option.value)}
+                      className={`w-full px-4 py-3 rounded-lg border flex items-center gap-3 transition-all text-left ${
+                        isSelected
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-md ${isSelected ? 'bg-indigo-100' : 'bg-slate-100'}`}>
+                        <Icon className={`w-4 h-4 ${isSelected ? 'text-indigo-600' : 'text-slate-500'}`} />
+                      </div>
+                      <div className="flex flex-col flex-1">
+                        <span className="text-sm font-medium">{t(option.labelKey)}</span>
+                        <span className="text-xs text-slate-500">{t(option.descriptionKey)}</span>
+                      </div>
+                      {isSelected && (
+                        <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
            </div>
-           )}
 
-           {isAustralia && tempIsStudentVisaHolder && (
+           {tempVisaType === 'student_visa' && (
              <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">{t('profile.holidayPeriods')}</label>
                 <div className="space-y-3">

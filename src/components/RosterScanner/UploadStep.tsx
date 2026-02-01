@@ -29,15 +29,15 @@ const RosterScannerHintBanner = () => {
             <Lightbulb className="w-4 h-4 text-indigo-500" />
           </div>
           <div className="space-y-2">
-            <h4 className="text-sm font-bold text-slate-700">로스터 스캔 팁</h4>
+            <h4 className="text-sm font-bold text-slate-700">Roster Scan Tips</h4>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <Image className="w-3 h-3 text-indigo-400" />
-                <span><strong>스크린샷:</strong> 로스터 앱이나 이메일을 스크린샷으로 캡쳐하세요</span>
+                <span><strong>Screenshot:</strong> Capture your roster app or email as a screenshot</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-600">
                 <Users className="w-3 h-3 text-indigo-400" />
-                <span><strong>여러 명 로스터:</strong> AI가 자동으로 당신의 시프트만 찾아냅니다</span>
+                <span><strong>Multiple People:</strong> AI will automatically find your shifts</span>
               </div>
             </div>
           </div>

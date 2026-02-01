@@ -6,14 +6,12 @@ interface PaySummaryCardsProps {
   monthlyPay: number;
   formatCurrency: (amount: number) => string;
   taxCalculator: TaxCalculator;
-  isStudentVisaHolder: boolean;
 }
 
-export const PaySummaryCards = ({ 
-  monthlyPay, 
-  formatCurrency, 
-  taxCalculator, 
-  isStudentVisaHolder 
+export const PaySummaryCards = ({
+  monthlyPay,
+  formatCurrency,
+  taxCalculator
 }: PaySummaryCardsProps) => {
   const { t } = useTranslation();
 
@@ -65,11 +63,7 @@ export const PaySummaryCards = ({
             </span>
             <span className="text-base font-bold text-emerald-600">
               {formatCurrency(
-                taxCalculator.calculateTakeHome(
-                  monthlyPay,
-                  'monthly',
-                  isStudentVisaHolder
-                ).netPay
+                taxCalculator.calculateTakeHome(monthlyPay, 'monthly').netPay
               )}
             </span>
           </div>

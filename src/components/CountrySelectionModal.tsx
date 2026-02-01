@@ -32,7 +32,6 @@ export const CountrySelectionModal = ({ isOpen }: CountrySelectionModalProps) =>
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-700">Select Your Country</h2>
-              <p className="text-sm text-slate-500">거주 국가를 선택해주세요</p>
             </div>
           </div>
         </div>
@@ -40,12 +39,12 @@ export const CountrySelectionModal = ({ isOpen }: CountrySelectionModalProps) =>
         <div className="p-6 space-y-6">
           <p className="text-sm text-slate-600 text-center">
             This will customize tax calculations and language settings.
-            <br />
-            <span className="text-slate-500">세금 계산과 언어 설정이 맞춤 설정됩니다.</span>
           </p>
 
           <div className="grid grid-cols-2 gap-4">
-            {(Object.keys(COUNTRIES) as CountryCode[]).map((code) => {
+            {(Object.keys(COUNTRIES) as CountryCode[])
+              .filter(code => code !== 'KR')
+              .map((code) => {
               const country = COUNTRIES[code];
               return (
                 <button

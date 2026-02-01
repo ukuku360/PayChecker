@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { calculateTotalPay } from '../../utils/calculatePay';
-import { calculateTakeHome } from '../../data/taxRates';
+import { getTaxCalculator } from '../../data/taxRates';
 import { EXPENSE_CATEGORIES } from '../../types';
 import type { Expense, ExpenseCategory } from '../../types';
 import { Plus, Trash2, Edit2, Check, X, Receipt, TrendingDown, Wallet, RefreshCw } from 'lucide-react';
@@ -19,7 +19,7 @@ import { useCurrency } from '../../hooks/useCurrency';
 export const ExpensesView = () => {
   const { t } = useTranslation();
   const { formatCurrency, symbol } = useCurrency();
-  const { shifts, jobConfigs, holidays, expenses, addExpense, updateExpense, removeExpense, isStudentVisaHolder } = useScheduleStore();
+  const { shifts, jobConfigs, holidays, expenses, addExpense, updateExpense, removeExpense, visaType } = useScheduleStore();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', amount: '', category: 'other' as ExpenseCategory, isRecurring: true });
@@ -34,7 +34,8 @@ export const ExpensesView = () => {
     return d >= monthStart && d <= monthEnd;
   });
   const grossMonthlyIncome = calculateTotalPay(monthlyShifts, jobConfigs, holidays);
-  const netMonthlyIncome = calculateTakeHome(grossMonthlyIncome, 'monthly', isStudentVisaHolder).netPay;
+  const taxCalculator = getTaxCalculator(visaType);
+  const netMonthlyIncome = taxCalculator.calculateTakeHome(grossMonthlyIncome, 'monthly').netPay;
 
   // Filter expenses for current month (recurring + this month's one-time)
   const visibleExpenses = expenses.filter(e => 
@@ -77,7 +78,7 @@ export const ExpensesView = () => {
     });
     
     const gross = calculateTotalPay(mShifts, jobConfigs, holidays);
-    const net = calculateTakeHome(gross, 'monthly', isStudentVisaHolder).netPay;
+    const net = taxCalculator.calculateTakeHome(gross, 'monthly').netPay;
     
     // User Request: If net income is 0 (no data), expenses should also be 0.
     // Expenses only apply when there is income activity (i.e. user started working/using app).

@@ -20,7 +20,7 @@ export const EmptyState = ({
 }: EmptyStateProps) => {
   return (
     <div className={clsx(
-      "flex flex-col items-center justify-center text-center py-12 px-6",
+      "flex flex-col items-center justify-center text-center py-12 px-6 animate-in zoom-in-95 fade-in duration-500",
       variant === 'subtle' && "py-8"
     )}>
       <div className={clsx(

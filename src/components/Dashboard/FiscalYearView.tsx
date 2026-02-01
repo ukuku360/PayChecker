@@ -76,8 +76,8 @@ const TaxCalculationAccordion = ({
 export const FiscalYearView = () => {
   const { t } = useTranslation();
   const { formatCurrency } = useCurrency();
-  const { country, isAustralia, isKorea } = useCountry();
-  const taxCalculator = getTaxCalculator(country);
+  const { isAustralia, isKorea } = useCountry();
+  const taxCalculator = getTaxCalculator();
   const taxBrackets = taxCalculator.getTaxBrackets();
 
   const {

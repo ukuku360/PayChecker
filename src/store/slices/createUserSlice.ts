@@ -2,13 +2,14 @@ import type { StateCreator } from 'zustand';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from '../useToastStore';
 import i18n from '../../i18n';
-import type { VacationPeriod, Expense } from '../../types';
+import type { VacationPeriod, Expense, AustraliaVisaType } from '../../types';
 import type { CountryCode } from '../../data/countries';
 
 export interface UserSlice {
   userId: string | null;
   holidays: string[];
-  isStudentVisaHolder: boolean;
+  isStudentVisaHolder: boolean; // Legacy: kept for backward compatibility
+  visaType: AustraliaVisaType; // New: visa type for tax calculation
   vacationPeriods: VacationPeriod[];
   savingsGoal: number;
   expenses: Expense[];
@@ -19,7 +20,7 @@ export interface UserSlice {
   markHelpSeen: () => Promise<void>;
   addHoliday: (date: string) => void;
   removeHoliday: (date: string) => void;
-  updateProfile: (isStudentVisaHolder: boolean, vacationPeriods?: VacationPeriod[]) => Promise<void>;
+  updateProfile: (visaType: AustraliaVisaType, vacationPeriods?: VacationPeriod[]) => Promise<void>;
   updateSavingsGoal: (goal: number) => Promise<void>;
   addExpense: (expense: Expense) => Promise<void>;
   updateExpense: (id: string, expense: Partial<Expense>) => Promise<void>;
@@ -32,7 +33,8 @@ export interface UserSlice {
 export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
   userId: null,
   holidays: [],
-  isStudentVisaHolder: false,
+  isStudentVisaHolder: false, // Legacy: kept for backward compatibility
+  visaType: 'domestic' as AustraliaVisaType, // New: default to domestic
   vacationPeriods: [],
   savingsGoal: 0,
   expenses: [],
@@ -87,10 +89,19 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     }
   },
 
-  updateProfile: async (isStudentVisaHolder, vacationPeriods) => {
+  updateProfile: async (visaType, vacationPeriods) => {
+    // Store previous state for rollback
+    const previousVisaType = get().visaType;
+    const previousVacationPeriods = get().vacationPeriods;
+    const previousIsStudentVisaHolder = get().isStudentVisaHolder;
+
     const periodsToSave = vacationPeriods || [];
+    // Keep legacy field in sync
+    const isStudentVisaHolder = visaType === 'student_visa';
+
     set({
-      isStudentVisaHolder: isStudentVisaHolder,
+      visaType,
+      isStudentVisaHolder, // Legacy: kept for backward compatibility
       vacationPeriods: periodsToSave,
     });
 
@@ -103,12 +114,20 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     if (userId) {
       const { error } = await supabase.from('profiles').upsert({
         id: userId,
-        is_student_visa_holder: isStudentVisaHolder,
+        visa_type: visaType,
+        is_student_visa_holder: isStudentVisaHolder, // Legacy: kept for backward compatibility
         vacation_periods: periodsToSave,
       });
 
       if (error) {
         console.error('Error updating profile:', error);
+        // Rollback on error
+        set({
+          visaType: previousVisaType,
+          isStudentVisaHolder: previousIsStudentVisaHolder,
+          vacationPeriods: previousVacationPeriods,
+        });
+        toast.error(i18n.t('profile.saveFailed'));
       }
     }
   },

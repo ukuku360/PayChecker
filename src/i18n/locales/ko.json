@@ -140,7 +140,17 @@
     "noHolidayPeriods": "등록된 휴가 기간 없음",
     "endDateError": "종료일은 시작일 이후여야 합니다",
     "saveChanges": "변경사항 저장",
-    "country": "거주 국가"
+    "country": "거주 국가",
+    "visaType": {
+      "title": "세금 거주 상태",
+      "domestic": "호주 거주자",
+      "domesticDesc": "면세 구간 $18,200 + 메디케어 부담금 2%",
+      "workingHoliday": "워킹홀리데이 (417/462)",
+      "workingHolidayDesc": "$45k까지 15% 단일 세율, 면세 구간 없음",
+      "studentVisa": "학생비자 (500)",
+      "studentVisaDesc": "거주자 세율 적용, 메디케어 면제"
+    },
+    "saveFailed": "프로필 저장에 실패했습니다. 다시 시도해주세요."
   },
   "rosterScanner": {
     "scanRoster": "로스터 스캔",

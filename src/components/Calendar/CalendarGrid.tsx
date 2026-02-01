@@ -77,7 +77,7 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
   const removeShift = useScheduleStore((state) => state.removeShift);
   const updateShift = useScheduleStore((state) => state.updateShift);
   const addShift = useScheduleStore((state) => state.addShift);
-  const isStudentVisaHolder = useScheduleStore((state) => state.isStudentVisaHolder);
+  const visaType = useScheduleStore((state) => state.visaType);
   const vacationPeriods = useScheduleStore((state) => state.vacationPeriods);
   
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -129,7 +129,7 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
   };
 
   const handleAddShift = (shift: Shift) => {
-      if (!isStudentVisaHolder) {
+      if (visaType !== 'student_visa') {
           addShift(shift);
           return;
       }
@@ -147,7 +147,7 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
   };
 
   const handleUpdateShift = (id: string, shiftUpdate: Partial<Shift>) => {
-      if (!isStudentVisaHolder) {
+      if (visaType !== 'student_visa') {
           updateShift(id, shiftUpdate);
           return;
       }
@@ -242,25 +242,28 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
           />
         </div>
       ) : (
-        <div className="grid grid-cols-7">
-          {calendarDays.map((day) => {
-            const dateKey = format(day, 'yyyy-MM-dd');
-            const dayShifts = shifts.filter(s => s.date === dateKey);
+      <div 
+        key={currentDate.toISOString()}
+        className="grid grid-cols-7 border-b border-indigo-100/50 bg-slate-50/50 animate-in fade-in duration-300"
+      >
+        {calendarDays.map((day) => {
+          const dateKey = format(day, 'yyyy-MM-dd');
+          const dayShifts = shifts.filter(s => s.date === dateKey);
 
-            return (
-              <DayCell
-                key={day.toISOString()}
-                date={day}
-                currentMonth={currentDate}
-                shifts={dayShifts}
-                onRemoveShift={removeShift}
-                onUpdateShift={handleUpdateShift}
-                onAddShift={handleAddShift}
-                onAddJobAddNewJob={onAddJob}
-              />
-            );
-          })}
-        </div>
+          return (
+            <DayCell
+              key={day.toISOString()}
+              date={day}
+              currentMonth={currentDate}
+              shifts={dayShifts}
+              onRemoveShift={removeShift}
+              onUpdateShift={handleUpdateShift}
+              onAddShift={handleAddShift}
+              onAddJobAddNewJob={onAddJob}
+            />
+          );
+        })}
+      </div>
       )}
       
       <VisaWarningModal 

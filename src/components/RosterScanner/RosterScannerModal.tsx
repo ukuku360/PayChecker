@@ -26,15 +26,7 @@ const STEP_TITLE_KEYS: Record<ExtendedScanStep, string> = {
   confirmation: 'rosterScanner.confirmShifts'
 };
 
-const STEP_DESCRIPTION_KEYS: Record<ExtendedScanStep, string> = {
-  upload: 'rosterScanner.uploadDescription',
-  processing: 'rosterScanner.processingDescription',
-  questions: 'rosterScanner.questionsDescription',
-  mapping: 'rosterScanner.mappingDescription',
-  confirmation: 'rosterScanner.confirmDescription'
-};
 
-const STEP_ORDER: ExtendedScanStep[] = ['upload', 'processing', 'questions', 'mapping', 'confirmation'];
 
 export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps) {
   const { t } = useTranslation();
@@ -85,7 +77,6 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
     }
   }, [isOpen]);
 
-  const getStepIndex = (s: ExtendedScanStep) => STEP_ORDER.indexOf(s);
 
   if (!isRendered) return null;
 
@@ -111,6 +102,9 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
             <h2 className="text-lg font-bold text-slate-700">
               {t(STEP_TITLE_KEYS[step])}
             </h2>
+            <span className="px-1.5 py-0.5 rounded-md bg-indigo-100 text-[10px] font-bold text-indigo-500 border border-indigo-200 uppercase tracking-wide">
+              Beta
+            </span>
           </div>
           <button
             onClick={onClose}
@@ -122,41 +116,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
         </div>
 
         {/* Step indicator */}
-        {!showSuccess && (
-          <div className="px-6 py-3 border-b border-white/20 bg-white/10">
-            <div className="flex items-center justify-between">
-              {STEP_ORDER.map((s, idx) => (
-                <div key={s} className="flex items-center">
-                  <div
-                    className={clsx(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
-                      step === s
-                        ? "bg-indigo-500 text-white"
-                        : getStepIndex(step) > idx
-                        ? "bg-emerald-500 text-white"
-                        : "bg-slate-200 text-slate-400"
-                    )}
-                  >
-                    {getStepIndex(step) > idx ? (
-                      <Check className="w-3 h-3" />
-                    ) : (
-                      idx + 1
-                    )}
-                  </div>
-                  {idx < STEP_ORDER.length - 1 && (
-                    <div
-                      className={clsx(
-                        "w-6 h-0.5 mx-0.5",
-                        getStepIndex(step) > idx ? "bg-emerald-500" : "bg-slate-200"
-                      )}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            <p className="text-center text-xs text-slate-500 mt-2">{t(STEP_DESCRIPTION_KEYS[step])}</p>
-          </div>
-        )}
+        {/* Step indicator removed as per user request */}
 
         {/* Content */}
         {showSuccess ? (

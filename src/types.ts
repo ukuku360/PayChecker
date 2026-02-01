@@ -257,3 +257,11 @@ export interface RosterIdentifier {
   position?: string;       // Row/column position (e.g., "3rd row", "column B")
   customNote?: string;     // Any other identifying information
 }
+
+// Australia Visa Types for tax calculation (2025-26 FY)
+export type AustraliaVisaType = 'domestic' | 'working_holiday' | 'student_visa';
+
+// Helper to convert legacy boolean to visa type
+export const legacyToVisaType = (isStudentVisaHolder: boolean): AustraliaVisaType => {
+  return isStudentVisaHolder ? 'student_visa' : 'domestic';
+};
