@@ -1,9 +1,12 @@
 import { useRef, useEffect, useState } from 'react';
-import { X, Clock, Check, Bookmark } from 'lucide-react';
+import { X, Clock, Check, Bookmark, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Shift, JobConfig } from '../../../types';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { BottomSheet } from '../../ui/BottomSheet';
+
+const MINUTES_PER_HOUR = 60;
+const HOURS_PER_DAY = 24;
 
 interface TimeEditorProps {
   position: { top: number; left: number; openAbove?: boolean };
@@ -34,8 +37,9 @@ export const TimeEditor = ({
     shift.endTime || job?.defaultEndTime || ''
   );
   const [tempBreakMinutes, setTempBreakMinutes] = useState(
-    (shift.breakMinutes ?? job?.defaultBreakMinutes ?? 0) / 60
+    (shift.breakMinutes ?? job?.defaultBreakMinutes ?? 0) / MINUTES_PER_HOUR
   );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isMobileQuery = useMediaQuery('(max-width: 768px)');
   const isMobile = isMobileProp ?? isMobileQuery;
 
@@ -66,13 +70,13 @@ export const TimeEditor = ({
     if (!start || !end) return 0;
     const [startH, startM] = start.split(':').map(Number);
     const [endH, endM] = end.split(':').map(Number);
-    let diff = endH * 60 + endM - (startH * 60 + startM);
-    if (diff < 0) diff += 24 * 60; // Handle overnight
-    return Math.max(0, Number((diff / 60).toFixed(2)));
+    let diff = endH * MINUTES_PER_HOUR + endM - (startH * MINUTES_PER_HOUR + startM);
+    if (diff < 0) diff += HOURS_PER_DAY * MINUTES_PER_HOUR; // Handle overnight
+    return Math.max(0, Number((diff / MINUTES_PER_HOUR).toFixed(2)));
   };
 
   const handleSave = () => {
-    const breakMinutesValue = Math.round(tempBreakMinutes * 60);
+    const breakMinutesValue = Math.round(tempBreakMinutes * MINUTES_PER_HOUR);
 
     const updates: Partial<Shift> = {
       startTime: tempStartTime,
@@ -155,26 +159,49 @@ export const TimeEditor = ({
       </button>
 
       <div className="pt-3 mt-3 border-t border-slate-100 flex gap-2">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onTemplateSave();
-          }}
-          className="flex-1 py-3 min-h-[48px] bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
-        >
-          <Bookmark className="w-4 h-4" /> Template
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (confirm('Delete this shift?')) {
-              onDelete();
-            }
-          }}
-          className="flex-1 py-3 min-h-[48px] bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
-        >
-          <X className="w-4 h-4" /> Delete
-        </button>
+        {showDeleteConfirm ? (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteConfirm(false);
+              }}
+              className="flex-1 py-3 min-h-[48px] bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="flex-1 py-3 min-h-[48px] bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4" /> Confirm
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTemplateSave();
+              }}
+              className="flex-1 py-3 min-h-[48px] bg-slate-50 text-slate-600 hover:bg-slate-100 active:bg-slate-200 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Bookmark className="w-4 h-4" /> Template
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteConfirm(true);
+              }}
+              className="flex-1 py-3 min-h-[48px] bg-rose-50 text-rose-600 hover:bg-rose-100 active:bg-rose-200 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              <X className="w-4 h-4" /> Delete
+            </button>
+          </>
+        )}
       </div>
     </>
   );
@@ -204,7 +231,7 @@ export const TimeEditor = ({
         position: 'fixed',
       }}
       className={clsx(
-        '-translate-x-1/2 z-[999] bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150 flex flex-col',
+        '-translate-x-1/2 z-[100] bg-white rounded-xl shadow-xl border border-slate-200 p-3 min-w-[220px] animate-in fade-in zoom-in-95 duration-150 flex flex-col',
         position.openAbove !== false ? '-translate-y-full mt-[-10px]' : 'mt-[10px]'
       )}
     >

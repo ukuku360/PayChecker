@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabaseClient';
 import type { JobConfig } from '../../types';
 import type { ShiftSlice } from './createShiftSlice';
 import type { UserSlice } from './createUserSlice';
+import { ensureUserId } from '../utils/ensureUserId';
+import { handleDbError } from '../utils/handleDbError';
 
 export interface JobSlice {
   jobConfigs: JobConfig[];
@@ -23,11 +25,7 @@ export const createJobSlice: StateCreator<JobSlice & ShiftSlice & UserSlice, [],
       jobConfigs: [...state.jobConfigs, config],
     }));
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('job_configs').insert({
@@ -46,7 +44,7 @@ export const createJobSlice: StateCreator<JobSlice & ShiftSlice & UserSlice, [],
         default_start_time: config.defaultStartTime || null,
         default_end_time: config.defaultEndTime || null,
       });
-      if (error) console.error('Error adding job config:', error);
+      handleDbError(error, { context: 'addJobConfig' });
     }
   },
 
@@ -55,11 +53,7 @@ export const createJobSlice: StateCreator<JobSlice & ShiftSlice & UserSlice, [],
       jobConfigs: state.jobConfigs.map((j) => (j.id === id ? { ...j, ...config } : j)),
     }));
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const state = get();
@@ -84,7 +78,7 @@ export const createJobSlice: StateCreator<JobSlice & ShiftSlice & UserSlice, [],
         })
         .eq('config_id', id)
         .eq('user_id', userId);
-      if (error) console.error('Error updating job config:', error);
+      handleDbError(error, { context: 'updateJobConfig' });
     }
   },
 
@@ -94,11 +88,7 @@ export const createJobSlice: StateCreator<JobSlice & ShiftSlice & UserSlice, [],
       shifts: state.shifts.filter((s) => s.type !== id),
     }));
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       // Delete all shifts with this job type first
@@ -107,14 +97,14 @@ export const createJobSlice: StateCreator<JobSlice & ShiftSlice & UserSlice, [],
         .delete()
         .eq('type', id)
         .eq('user_id', userId);
-      if (shiftError) console.error('Error deleting related shifts:', shiftError);
+      handleDbError(shiftError, { context: 'removeJobConfig:shifts' });
 
       // Then delete the job config
       const { error: configError } = await supabase
         .from('job_configs')
         .delete()
         .eq('config_id', id);
-      if (configError) console.error('Error deleting job config:', configError);
+      handleDbError(configError, { context: 'removeJobConfig:config' });
     }
   },
 });

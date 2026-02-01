@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabaseClient';
-import type { JobConfig, Shift, AustraliaVisaType } from '../types';
+import type { JobConfig, Shift, AustraliaVisaType, RateHistoryItem } from '../types';
 import { legacyToVisaType } from '../types';
 import i18n from '../i18n';
 import type { CountryCode } from '../data/countries';
@@ -12,6 +12,34 @@ import { createJobSlice, type JobSlice } from './slices/createJobSlice';
 import { createUserSlice, type UserSlice } from './slices/createUserSlice';
 
 const DEFAULT_JOB_CONFIGS: JobConfig[] = [];
+
+// Database row types for type-safe mapping
+interface DbJobConfig {
+  config_id: string;
+  name: string;
+  color: string;
+  default_hours_weekday: number | null;
+  default_hours_weekend: number | null;
+  hourly_rate_weekday: number | null;
+  hourly_rate_saturday: number | null;
+  hourly_rate_sunday: number | null;
+  hourly_rate_holiday: number | null;
+  rate_history: RateHistoryItem[] | null;
+  default_break_minutes: number | null;
+  default_start_time: string | null;
+  default_end_time: string | null;
+}
+
+interface DbShift {
+  id: string;
+  date: string;
+  type: string;
+  hours: number;
+  note: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  break_minutes: number | null;
+}
 
 // Combined Store Interface
 // We need to omit the slice-specific interfaces if there are clashes, but here we designed them to be unique or compatible.
@@ -51,52 +79,52 @@ export const useScheduleStore = create<ScheduleState>()(
 
       fetchData: async (userId?: string) => {
         const set = a[0];
-        let user: any = null;
-        
+        let user: { id: string } | null = null;
+
         if (userId) {
           user = { id: userId };
         } else {
           const { data } = await supabase.auth.getUser();
-          user = data.user;
+          user = data.user ? { id: data.user.id } : null;
         }
 
         if (!user) return;
 
         set({ userId: user.id });
 
-        // Fetch all data in parallel
+        // Fetch all data in parallel (user_id filter added for defense-in-depth, RLS also enforced)
         const [
            { data: jobData, error: jobError },
            { data: shiftData, error: shiftError },
            { data: profileData, error: profileError }
         ] = await Promise.all([
-          supabase.from('job_configs').select('*'),
-          supabase.from('shifts').select('*'),
+          supabase.from('job_configs').select('*').eq('user_id', user.id),
+          supabase.from('shifts').select('*').eq('user_id', user.id),
           supabase.from('profiles').select('is_student_visa_holder, visa_type, vacation_periods, savings_goal, holidays, expenses, country').eq('id', user.id).maybeSingle()
         ]);
         
         // Handle Job Configs
-        if (jobError) console.error('Error fetching job configs:', jobError);
+        if (jobError && import.meta.env.DEV) console.error('Error fetching job configs:', jobError);
 
         if (jobData && !jobError) {
-           const mappedJobs: JobConfig[] = jobData.map((j: any) => ({
+           const mappedJobs: JobConfig[] = (jobData as DbJobConfig[]).map((j) => ({
              id: j.config_id,
              name: j.name,
              color: j.color,
              defaultHours: {
-               weekday: Number(j.default_hours_weekday),
-               weekend: Number(j.default_hours_weekend),
+               weekday: j.default_hours_weekday ?? 0,
+               weekend: j.default_hours_weekend ?? 0,
              },
              hourlyRates: {
-               weekday: Number(j.hourly_rate_weekday),
-               saturday: Number(j.hourly_rate_saturday),
-               sunday: Number(j.hourly_rate_sunday),
-               holiday: Number(j.hourly_rate_holiday),
+               weekday: j.hourly_rate_weekday ?? 0,
+               saturday: j.hourly_rate_saturday ?? 0,
+               sunday: j.hourly_rate_sunday ?? 0,
+               holiday: j.hourly_rate_holiday ?? 0,
              },
              rateHistory: j.rate_history || [],
-             defaultBreakMinutes: j.default_break_minutes != null ? Number(j.default_break_minutes) : undefined,
-             defaultStartTime: j.default_start_time || undefined,
-             defaultEndTime: j.default_end_time || undefined,
+             defaultBreakMinutes: j.default_break_minutes ?? undefined,
+             defaultStartTime: j.default_start_time ?? undefined,
+             defaultEndTime: j.default_end_time ?? undefined,
            }));
            
            // Migration for existing data: if rateHistory is empty, seed it with current rates
@@ -119,24 +147,24 @@ export const useScheduleStore = create<ScheduleState>()(
         }
 
         // Handle Shifts
-        if (shiftError) console.error('Error fetching shifts:', shiftError);
+        if (shiftError && import.meta.env.DEV) console.error('Error fetching shifts:', shiftError);
 
         if (shiftData && !shiftError) {
-          const mappedShifts: Shift[] = shiftData.map((s: any) => ({
+          const mappedShifts: Shift[] = (shiftData as DbShift[]).map((s) => ({
             id: s.id,
             date: s.date,
             type: s.type,
-            hours: Number(s.hours),
-            note: s.note || undefined,
-            startTime: s.start_time || undefined,
-            endTime: s.end_time || undefined,
-            breakMinutes: s.break_minutes != null ? Number(s.break_minutes) : undefined,
+            hours: s.hours,
+            note: s.note ?? undefined,
+            startTime: s.start_time ?? undefined,
+            endTime: s.end_time ?? undefined,
+            breakMinutes: s.break_minutes ?? undefined,
           }));
           set({ shifts: mappedShifts });
         }
 
         // Handle Profile
-        if (profileError) {
+        if (profileError && import.meta.env.DEV) {
           console.error('Error fetching profile:', profileError);
         }
         
@@ -176,9 +204,8 @@ export const useScheduleStore = create<ScheduleState>()(
             holidays: []
           });
 
-          if (createError) {
+          if (createError && import.meta.env.DEV) {
             console.error('Error creating profile:', createError);
-            // Still set defaults locally even if DB fails
           }
 
           set({

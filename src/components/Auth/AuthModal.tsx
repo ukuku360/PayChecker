@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Home, Plane, GraduationCap, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
+import { useViewportHeight } from '../../hooks/useViewportHeight';
 import {
   getAuthErrorMessage,
   validateEmail,
@@ -51,6 +52,7 @@ interface FormErrors {
 export function AuthModal() {
   const { t } = useTranslation();
   const { isOpen, closeAuthModal, returnMessage, executePendingAction } = useAuthModalStore();
+  const { viewportHeight } = useViewportHeight();
 
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -179,16 +181,15 @@ export function AuthModal() {
 
         // Create profile with country and optional student visa
         if (data.user) {
-              try {
-                await supabase.from('profiles').upsert({
-                  id: data.user.id,
-                  visa_type: visaType,
-                  is_student_visa_holder: visaType === 'student_visa', // Legacy sync
-                  country: 'AU'
-                });
-              } catch (profileError) {
-                console.error('Profile creation error:', profileError);
-              }
+          const { error: profileError } = await supabase.from('profiles').upsert({
+            id: data.user.id,
+            visa_type: visaType,
+            is_student_visa_holder: visaType === 'student_visa', // Legacy sync
+            country: 'AU'
+          });
+          if (profileError && import.meta.env.DEV) {
+            console.error('Profile creation error:', profileError);
+          }
         }
 
         setMessage({
@@ -243,8 +244,14 @@ export function AuthModal() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200">
-      <div className="glass-panel w-full max-w-md mx-4 relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-[60] animate-in fade-in duration-200"
+      style={{ height: viewportHeight || '100vh' }}
+    >
+      <div
+        className="glass-panel w-full max-w-md mx-4 relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-200 overflow-y-auto"
+        style={{ maxHeight: viewportHeight ? `${viewportHeight - 32}px` : '90vh' }}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
           <div className="flex items-center gap-3">

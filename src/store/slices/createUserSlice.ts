@@ -1,9 +1,10 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../lib/supabaseClient';
-import { toast } from '../useToastStore';
 import i18n from '../../i18n';
 import type { VacationPeriod, Expense, AustraliaVisaType } from '../../types';
 import type { CountryCode } from '../../data/countries';
+import { ensureUserId } from '../utils/ensureUserId';
+import { handleDbError } from '../utils/handleDbError';
 
 export interface UserSlice {
   userId: string | null;
@@ -47,45 +48,33 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
 
   markHelpSeen: async () => {
     set({ hasSeenHelp: true });
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
-    
+    const userId = await ensureUserId(get().userId);
+
     if (userId) {
       const { error } = await supabase.from('profiles').update({ has_seen_help: true }).eq('id', userId);
-      if (error) console.error('Error marking help as seen:', error);
+      handleDbError(error, { context: 'markHelpSeen' });
     }
   },
 
   addHoliday: async (date) => {
     const newHolidays = [...get().holidays, date];
     set({ holidays: newHolidays });
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
-    
+    const userId = await ensureUserId(get().userId);
+
     if (userId) {
       const { error } = await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', userId);
-      if (error) console.error('Error adding holiday:', error);
+      handleDbError(error, { context: 'addHoliday' });
     }
   },
 
   removeHoliday: async (date) => {
     const newHolidays = get().holidays.filter((d) => d !== date);
     set({ holidays: newHolidays });
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('profiles').update({ holidays: newHolidays }).eq('id', userId);
-      if (error) console.error('Error removing holiday:', error);
+      handleDbError(error, { context: 'removeHoliday' });
     }
   },
 
@@ -105,11 +94,7 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
       vacationPeriods: periodsToSave,
     });
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('profiles').upsert({
@@ -119,30 +104,25 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
         vacation_periods: periodsToSave,
       });
 
-      if (error) {
-        console.error('Error updating profile:', error);
-        // Rollback on error
-        set({
+      handleDbError(error, {
+        context: 'updateProfile',
+        userMessage: i18n.t('profile.saveFailed'),
+        rollback: () => set({
           visaType: previousVisaType,
           isStudentVisaHolder: previousIsStudentVisaHolder,
           vacationPeriods: previousVacationPeriods,
-        });
-        toast.error(i18n.t('profile.saveFailed'));
-      }
+        }),
+      });
     }
   },
 
   updateSavingsGoal: async (goal) => {
     set({ savingsGoal: goal });
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('profiles').update({ savings_goal: goal }).eq('id', userId);
-      if (error) console.error('Failed to update savings goal:', error);
+      handleDbError(error, { context: 'updateSavingsGoal' });
     }
   },
 
@@ -151,19 +131,15 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     const newExpenses = [...previousExpenses, expense];
     set({ expenses: newExpenses });
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', userId);
-      if (error) {
-        console.error('Error adding expense:', error);
-        set({ expenses: previousExpenses }); // Rollback
-        toast.error('Failed to save expense. Please try again.');
-      }
+      handleDbError(error, {
+        context: 'addExpense',
+        userMessage: 'Failed to save expense. Please try again.',
+        rollback: () => set({ expenses: previousExpenses }),
+      });
     }
   },
 
@@ -172,19 +148,15 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     const newExpenses = previousExpenses.map((e) => (e.id === id ? { ...e, ...updatedExpense } : e));
     set({ expenses: newExpenses });
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', userId);
-      if (error) {
-        console.error('Error updating expense:', error);
-        set({ expenses: previousExpenses }); // Rollback
-        toast.error('Failed to update expense. Please try again.');
-      }
+      handleDbError(error, {
+        context: 'updateExpense',
+        userMessage: 'Failed to update expense. Please try again.',
+        rollback: () => set({ expenses: previousExpenses }),
+      });
     }
   },
 
@@ -193,19 +165,15 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     const newExpenses = previousExpenses.filter((e) => e.id !== id);
     set({ expenses: newExpenses });
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('profiles').update({ expenses: newExpenses }).eq('id', userId);
-      if (error) {
-        console.error('Error removing expense:', error);
-        set({ expenses: previousExpenses }); // Rollback
-        toast.error('Failed to delete expense. Please try again.');
-      }
+      handleDbError(error, {
+        context: 'removeExpense',
+        userMessage: 'Failed to delete expense. Please try again.',
+        rollback: () => set({ expenses: previousExpenses }),
+      });
     }
   },
 
@@ -214,15 +182,11 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     // Simplified: Always use English for AU-exclusive app
     i18n.changeLanguage('en');
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('profiles').update({ country }).eq('id', userId);
-      if (error) console.error('Error updating country:', error);
+      handleDbError(error, { context: 'setCountry' });
     }
   },
 });

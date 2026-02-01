@@ -1,7 +1,8 @@
 import type { StateCreator } from 'zustand';
 import { supabase } from '../../lib/supabaseClient';
-import { toast } from '../useToastStore';
 import type { Shift, ShiftTemplate } from '../../types';
+import { ensureUserId } from '../utils/ensureUserId';
+import { handleDbError } from '../utils/handleDbError';
 
 export interface ShiftSlice {
   shifts: Shift[];
@@ -50,11 +51,7 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
       ],
     }));
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { data, error } = await supabase
@@ -75,11 +72,14 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
         .select('id')
         .single();
 
-      if (error) {
-        console.error('Error adding shift:', error);
-        set({ shifts: previousShifts }); // Rollback
-        toast.error('Failed to save shift. Please try again.');
-      } else if (data) {
+      if (handleDbError(error, {
+        context: 'addShift',
+        userMessage: 'Failed to save shift. Please try again.',
+        rollback: () => set({ shifts: previousShifts }),
+      })) {
+        return;
+      }
+      if (data) {
         // Update local state with the actual UUID from database
         set((state) => ({
           shifts: state.shifts.map((s) =>
@@ -105,11 +105,7 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
       return { shifts: [...filteredShifts, ...newShifts] };
     });
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       // Bulk upsert to Supabase
@@ -129,11 +125,11 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
         .upsert(shiftsToUpsert, { onConflict: 'user_id, date, type' })
         .select('id, date, type');
 
-      if (error) {
-        console.error('Error adding multiple shifts:', error);
-        // Rollback on error
-        set({ shifts: previousShifts });
-        toast.error('Failed to save shifts. Changes have been reverted.');
+      if (handleDbError(error, {
+        context: 'addMultipleShifts',
+        userMessage: 'Failed to save shifts. Changes have been reverted.',
+        rollback: () => set({ shifts: previousShifts }),
+      })) {
         throw new Error('Failed to save shifts. Changes have been reverted.');
       }
 
@@ -155,11 +151,7 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
       shifts: state.shifts.map((s) => (s.id === id ? { ...s, ...updatedShift } : s)),
     }));
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase
@@ -174,11 +166,11 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
           }),
         })
         .eq('id', id);
-      if (error) {
-        console.error('Error updating shift:', error);
-        set({ shifts: previousShifts }); // Rollback
-        toast.error('Failed to update shift. Please try again.');
-      }
+      handleDbError(error, {
+        context: 'updateShift',
+        userMessage: 'Failed to update shift. Please try again.',
+        rollback: () => set({ shifts: previousShifts }),
+      });
     }
   },
 
@@ -188,19 +180,15 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
       shifts: state.shifts.filter((s) => s.id !== id),
     }));
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
+    const userId = await ensureUserId(get().userId);
 
     if (userId) {
       const { error } = await supabase.from('shifts').delete().eq('id', id);
-      if (error) {
-        console.error('Error removing shift:', error);
-        set({ shifts: previousShifts }); // Rollback
-        toast.error('Failed to delete shift. Please try again.');
-      }
+      handleDbError(error, {
+        context: 'removeShift',
+        userMessage: 'Failed to delete shift. Please try again.',
+        rollback: () => set({ shifts: previousShifts }),
+      });
     }
   },
 
@@ -210,12 +198,7 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
       shifts: previousShifts.filter((s) => s.date < startDate || s.date > endDate),
     });
 
-    let userId = get().userId;
-    if (!userId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id || null;
-    }
-
+    const userId = await ensureUserId(get().userId);
     if (!userId) return;
 
     const { error } = await supabase
@@ -224,10 +207,10 @@ export const createShiftSlice: StateCreator<ShiftSlice & UserSlice, [], [], Shif
       .eq('user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate);
-    if (error) {
-      console.error('Error removing shifts in range:', error);
-      set({ shifts: previousShifts }); // Rollback
-      toast.error('Failed to clear shifts. Please try again.');
-    }
+    handleDbError(error, {
+      context: 'removeShiftsInRange',
+      userMessage: 'Failed to clear shifts. Please try again.',
+      rollback: () => set({ shifts: previousShifts }),
+    });
   },
 });

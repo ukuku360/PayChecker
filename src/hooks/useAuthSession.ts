@@ -1,5 +1,5 @@
 // src/hooks/useAuthSession.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import { useScheduleStore } from '../store/useScheduleStore';
@@ -8,6 +8,18 @@ export const useAuthSession = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { fetchData, clearData, setUserId } = useScheduleStore();
+
+  // Use refs to avoid re-subscribing on every render (Zustand selectors may create new references)
+  const fetchDataRef = useRef(fetchData);
+  const clearDataRef = useRef(clearData);
+  const setUserIdRef = useRef(setUserId);
+
+  // Keep refs up-to-date
+  useEffect(() => {
+    fetchDataRef.current = fetchData;
+    clearDataRef.current = clearData;
+    setUserIdRef.current = setUserId;
+  });
 
   useEffect(() => {
     const initSession = async () => {
@@ -22,26 +34,28 @@ export const useAuthSession = () => {
               /jwt|invalid|expired/i.test(userError?.message ?? '');
 
             if (shouldClearSession) {
-              console.warn('Invalid session detected, clearing local auth:', userError);
+              if (import.meta.env.DEV) console.warn('Invalid session detected, clearing local auth:', userError);
               await supabase.auth.signOut({ scope: 'local' });
               setSession(null);
-              setUserId(null); // Ensure store knows user is gone
-              clearData();
+              setUserIdRef.current(null); // Ensure store knows user is gone
+              clearDataRef.current();
               setLoading(false);
               return;
             }
 
-            console.warn('Session validation failed, keeping local session:', userError);
+            if (import.meta.env.DEV) console.warn('Session validation failed, keeping local session:', userError);
           }
         }
 
         setSession(session);
         if (session?.user) {
-          setUserId(session.user.id);
-          fetchData(session.user.id).catch(err => console.error('Background fetch failed:', err));
+          setUserIdRef.current(session.user.id);
+          fetchDataRef.current(session.user.id).catch(err => {
+            if (import.meta.env.DEV) console.error('Background fetch failed:', err);
+          });
         }
       } catch (error) {
-        console.error('Error initializing session:', error);
+        if (import.meta.env.DEV) console.error('Error initializing session:', error);
       } finally {
         setLoading(false);
       }
@@ -53,20 +67,22 @@ export const useAuthSession = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
-      
+
       if (session?.user) {
-        setUserId(session.user.id);
-        fetchData(session.user.id).catch(err => console.error('Background fetch failed:', err));
-        setLoading(false); 
+        setUserIdRef.current(session.user.id);
+        fetchDataRef.current(session.user.id).catch(err => {
+          if (import.meta.env.DEV) console.error('Background fetch failed:', err);
+        });
+        setLoading(false);
       } else {
-        setUserId(null); // Ensure store knows user is gone
-        clearData();
+        setUserIdRef.current(null); // Ensure store knows user is gone
+        clearDataRef.current();
         setLoading(false);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchData, clearData, setUserId]);
+  }, []); // Empty dependency array - subscription created once
 
   const logout = async () => {
     clearData();

@@ -19,7 +19,11 @@ interface JobAliasInput {
 }
 
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
+const MAX_AUTH_RETRIES = 2;
+const RETRY_DELAY_MS = 500;
 
+// Mutex for token refresh to prevent race conditions when multiple API calls trigger refresh simultaneously
+let tokenRefreshPromise: Promise<string | null> | null = null;
 
 /** Validate token by checking with Supabase auth */
 async function validateToken(token: string): Promise<boolean> {
@@ -27,14 +31,30 @@ async function validateToken(token: string): Promise<boolean> {
   return !error && !!user;
 }
 
-/** Refresh the session and return new access token */
+/** Refresh the session and return new access token (with mutex to prevent concurrent refreshes) */
 async function refreshAndGetToken(): Promise<string | null> {
-  const { data: refreshed, error } = await supabase.auth.refreshSession();
-  if (error || !refreshed.session?.access_token) {
-    console.warn('Session refresh failed:', error);
-    return null;
+  // If a refresh is already in progress, wait for it instead of starting another
+  if (tokenRefreshPromise) {
+    return tokenRefreshPromise;
   }
-  return refreshed.session.access_token;
+
+  tokenRefreshPromise = (async () => {
+    try {
+      const { data: refreshed, error } = await supabase.auth.refreshSession();
+      if (error || !refreshed.session?.access_token) {
+        if (import.meta.env.DEV) console.warn('Session refresh failed:', error);
+        return null;
+      }
+      return refreshed.session.access_token;
+    } finally {
+      // Clear the mutex after a short delay to allow subsequent calls to benefit from the fresh token
+      setTimeout(() => {
+        tokenRefreshPromise = null;
+      }, 100);
+    }
+  })();
+
+  return tokenRefreshPromise;
 }
 
 /** Get a valid access token, refreshing if necessary */
@@ -42,7 +62,7 @@ async function getValidAccessToken(options: { forceRefresh?: boolean } = {}): Pr
   const { data: { session }, error } = await supabase.auth.getSession();
   const { forceRefresh = false } = options;
 
-  if (error) {
+  if (error && import.meta.env.DEV) {
     console.error('Failed to get session:', error);
   }
 
@@ -145,10 +165,6 @@ export async function processRoster(
       return { response, responseBody };
     };
 
-    // Retry logic with token refresh
-    const MAX_AUTH_RETRIES = 2;
-    const RETRY_DELAY_MS = 500;
-
     let response: Response;
     let responseBody: unknown;
 
@@ -161,20 +177,17 @@ export async function processRoster(
       }
 
       if (attempt < MAX_AUTH_RETRIES) {
-        console.log(`[Roster API] Auth failed (attempt ${attempt + 1}/${MAX_AUTH_RETRIES + 1}), refreshing token...`);
-
         // Small delay before refresh to allow server-side state propagation
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
 
-        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        // Use shared refresh function to prevent concurrent refreshes
+        const refreshedToken = await refreshAndGetToken();
 
-        if (refreshError || !refreshed.session?.access_token) {
-          console.warn('[Roster API] Token refresh failed:', refreshError);
+        if (!refreshedToken) {
           break;
         }
 
-        accessToken = refreshed.session.access_token;
-        console.log('[Roster API] Token refreshed successfully, retrying...');
+        accessToken = refreshedToken;
       }
     }
 
@@ -198,7 +211,7 @@ export async function processRoster(
         errorType = 'network';
       }
 
-      console.error('Edge function error:', response!.status, responseBody);
+      if (import.meta.env.DEV) console.error('Edge function error:', response!.status, responseBody);
 
       return {
         success: false,
@@ -217,7 +230,7 @@ export async function processRoster(
 
     return responseBody as RosterScanResult & { scansUsed?: number; scanLimit?: number };
   } catch (error) {
-    console.error('Process roster error:', error);
+    if (import.meta.env.DEV) console.error('Process roster error:', error);
     return {
       success: false,
       shifts: [],
@@ -275,7 +288,7 @@ export async function processRosterPhase1(
         })
       });
 
-      let responseBody: any = null;
+      let responseBody: QuestionGenerationResult | null = null;
       try {
         responseBody = await response.json();
       } catch {
@@ -285,12 +298,8 @@ export async function processRosterPhase1(
       return { response, responseBody };
     };
 
-    // Retry logic with token refresh
-    const MAX_AUTH_RETRIES = 2;
-    const RETRY_DELAY_MS = 500;
-
-    let response: Response;
-    let responseBody: any;
+    let response!: Response;
+    let responseBody: QuestionGenerationResult | null = null;
 
     for (let attempt = 0; attempt <= MAX_AUTH_RETRIES; attempt++) {
       ({ response, responseBody } = await callFunction(accessToken));
@@ -301,28 +310,25 @@ export async function processRosterPhase1(
       }
 
       if (attempt < MAX_AUTH_RETRIES) {
-        console.log(`[Roster API Phase 1] Auth failed (attempt ${attempt + 1}/${MAX_AUTH_RETRIES + 1}), refreshing token...`);
-
         // Small delay before refresh to allow server-side state propagation
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
 
-        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        // Use shared refresh function to prevent concurrent refreshes
+        const refreshedToken = await refreshAndGetToken();
 
-        if (refreshError || !refreshed.session?.access_token) {
-          console.warn('[Roster API Phase 1] Token refresh failed:', refreshError);
+        if (!refreshedToken) {
           break;
         }
 
-        accessToken = refreshed.session.access_token;
-        console.log('[Roster API Phase 1] Token refreshed successfully, retrying...');
+        accessToken = refreshedToken;
       }
     }
 
-    if (!response!.ok) {
-      let errorMessage = responseBody?.error || `Request failed (${response!.status})`;
+    if (!response.ok) {
+      let errorMessage = responseBody?.error || `Request failed (${response.status})`;
       let errorType = responseBody?.errorType || 'unknown';
 
-      if (response!.status === 401 || response!.status === 403) {
+      if (response.status === 401 || response.status === 403) {
         errorType = 'auth';
         if (/jwt|token|expired|invalid/i.test(errorMessage)) {
           errorMessage = 'Session expired. Please sign in again.';
@@ -342,7 +348,7 @@ export async function processRosterPhase1(
 
     return responseBody as QuestionGenerationResult;
   } catch (error) {
-    console.error('Phase 1 error:', error);
+    if (import.meta.env.DEV) console.error('Phase 1 error:', error);
     return {
       success: false,
       questions: [],
@@ -413,7 +419,7 @@ export async function processRosterPhase2(
         })
       });
 
-      let responseBody: any = null;
+      let responseBody: RosterScanResult | null = null;
       try {
         responseBody = await response.json();
       } catch {
@@ -423,12 +429,8 @@ export async function processRosterPhase2(
       return { response, responseBody };
     };
 
-    // Retry logic with token refresh
-    const MAX_AUTH_RETRIES = 2;
-    const RETRY_DELAY_MS = 500;
-
-    let response: Response;
-    let responseBody: any;
+    let response!: Response;
+    let responseBody: RosterScanResult | null = null;
 
     for (let attempt = 0; attempt <= MAX_AUTH_RETRIES; attempt++) {
       ({ response, responseBody } = await callFunction(accessToken));
@@ -439,28 +441,25 @@ export async function processRosterPhase2(
       }
 
       if (attempt < MAX_AUTH_RETRIES) {
-        console.log(`[Roster API Phase 2] Auth failed (attempt ${attempt + 1}/${MAX_AUTH_RETRIES + 1}), refreshing token...`);
-
         // Small delay before refresh to allow server-side state propagation
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
 
-        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        // Use shared refresh function to prevent concurrent refreshes
+        const refreshedToken = await refreshAndGetToken();
 
-        if (refreshError || !refreshed.session?.access_token) {
-          console.warn('[Roster API Phase 2] Token refresh failed:', refreshError);
+        if (!refreshedToken) {
           break;
         }
 
-        accessToken = refreshed.session.access_token;
-        console.log('[Roster API Phase 2] Token refreshed successfully, retrying...');
+        accessToken = refreshedToken;
       }
     }
 
-    if (!response!.ok) {
-      let errorMessage = responseBody?.error || `Request failed (${response!.status})`;
+    if (!response.ok) {
+      let errorMessage = responseBody?.error || `Request failed (${response.status})`;
       let errorType = responseBody?.errorType || 'unknown';
 
-      if (response!.status === 401 || response!.status === 403) {
+      if (response.status === 401 || response.status === 403) {
         errorType = 'auth';
         if (/jwt|token|expired|invalid/i.test(errorMessage)) {
           errorMessage = 'Session expired. Please sign in again.';
@@ -479,7 +478,7 @@ export async function processRosterPhase2(
 
     return responseBody as RosterScanResult;
   } catch (error) {
-    console.error('Phase 2 error:', error);
+    if (import.meta.env.DEV) console.error('Phase 2 error:', error);
     return {
       success: false,
       shifts: [],
@@ -503,7 +502,7 @@ export async function getJobAliases(): Promise<JobAlias[]> {
     .eq('user_id', user.id);
 
   if (error) {
-    console.error('Failed to fetch job aliases:', error);
+    if (import.meta.env.DEV) console.error('Failed to fetch job aliases:', error);
     return [];
   }
 
@@ -532,7 +531,7 @@ export async function saveJobAliases(aliases: JobAliasInput[]): Promise<void> {
         }
       );
 
-    if (error) {
+    if (error && import.meta.env.DEV) {
       console.error('Failed to save alias:', error);
     }
   }
@@ -547,7 +546,7 @@ export async function deleteJobAlias(aliasId: string): Promise<void> {
     .delete()
     .eq('id', aliasId);
 
-  if (error) {
+  if (error && import.meta.env.DEV) {
     console.error('Failed to delete alias:', error);
   }
 }
@@ -595,7 +594,7 @@ export async function getRosterScanHistory(limit = 10): Promise<Array<{
     .limit(limit);
 
   if (error) {
-    console.error('Failed to fetch scan history:', error);
+    if (import.meta.env.DEV) console.error('Failed to fetch scan history:', error);
     return [];
   }
 
@@ -635,7 +634,7 @@ export async function saveRosterIdentifier(identifier: RosterIdentifier): Promis
     .eq('id', user.id);
 
   if (error) {
-    console.error('Failed to save roster identifier:', error);
+    if (import.meta.env.DEV) console.error('Failed to save roster identifier:', error);
     throw error;
   }
 }
