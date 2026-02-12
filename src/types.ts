@@ -120,6 +120,19 @@ export interface FeedbackReply {
   created_at: string;
 }
 
+export interface UserProfile {
+  id: string;
+  is_student_visa_holder?: boolean;
+  visa_type?: AustraliaVisaType;
+  vacation_periods?: VacationPeriod[];
+  savings_goal?: number;
+  holidays?: string[];
+  expenses?: Expense[];
+  country?: string | null;
+  is_admin?: boolean;
+  has_seen_help?: boolean;
+}
+
 // Roster Scanner Types
 export interface ParsedShift {
   id: string;
@@ -145,7 +158,7 @@ export interface IdentifiedPerson {
 // Extracted content from image (flexible format)
 export interface OcrResult {
   success: boolean;
-  contentType?: 'table' | 'list' | 'email' | 'text' | 'mixed';
+  contentType?: 'table' | 'calendar' | 'list' | 'email' | 'text' | 'mixed';
   
   // For table format
   tableType?: 'column-based' | 'row-based' | 'unknown';
@@ -176,9 +189,20 @@ export interface OcrResult {
     language?: string;
   };
   
+  // Description of the visual layout
+  layoutDescription?: string;
+
   // Raw text for fallback parsing
   rawText?: string;
-  
+
+  // Cells where OCR is uncertain about the reading
+  uncertainCells?: Array<{
+    location: string;
+    readValue: string;
+    alternativeValue?: string;
+    reason: string;
+  }>;
+
   error?: string;
 }
 

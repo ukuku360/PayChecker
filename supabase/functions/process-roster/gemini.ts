@@ -10,13 +10,10 @@
  */
 
 import {
-  validateAndNormalizeDate,
-  validateAndNormalizeTime,
   validateShifts,
-  parseTimeRange,
   type AIExtractedShift,
-  type ValidatedShift
 } from './validators.ts';
+import { logger } from './logger.ts';
 
 // ============================================
 // Types
@@ -96,6 +93,14 @@ interface ExtractedContent {
   // Questions (only from Phase 2)
   questions?: SmartQuestion[];
 
+  // Cells where OCR is uncertain about the reading
+  uncertainCells?: Array<{
+    location: string;
+    readValue: string;
+    alternativeValue?: string;
+    reason: string;
+  }>;
+
   metadata?: {
     title?: string;
     dateRange?: string;
@@ -110,9 +115,6 @@ interface ExtractedContent {
   error?: string;
   errorType?: string;
 }
-
-// Backward compatible alias
-type OcrResult = ExtractedContent;
 
 // Smart Question Types
 interface QuestionOption {
@@ -151,23 +153,14 @@ interface QuestionAnswer {
   value: string;
 }
 
-interface FilterResult {
-  success: boolean;
-  identifiedPerson: {
-    nameFound: string;
-    location: string;
-    columnIndex?: number;
-    rowIndex?: number;
-    confidence: number;
-  } | null;
-  shifts: Array<{
-    date: string;
-    rosterJobName: string;
-    startTime?: string | null;
-    endTime?: string | null;
+interface GeminiApiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
   }>;
-  error?: string;
-  errorType?: string;
 }
 
 // ============================================
@@ -205,6 +198,14 @@ function getModelCandidates(): string[] {
   return Array.from(new Set(candidates));
 }
 
+function getFlashModelCandidates(): string[] {
+  return [
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash'
+  ];
+}
+
 function extractErrorMessage(errorText: string): string | null {
   try {
     const parsed = JSON.parse(errorText);
@@ -221,17 +222,21 @@ function generateShiftId(): string {
   return `shift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function parseJsonFromResponse(textContent: string): any {
+function parseJsonFromResponse<T>(textContent: string): T {
   let jsonStr = textContent;
   const jsonMatch = textContent.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
     jsonStr = jsonMatch[1].trim();
   }
-  return JSON.parse(jsonStr);
+  return JSON.parse(jsonStr) as T;
 }
 
 function getCurrentYear(): number {
   return new Date().getFullYear();
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function getCurrentDate(): string {
@@ -255,6 +260,8 @@ KEY GUIDELINES:
    - If it's a **Calendar**, find shifts inside the date cells.
 4. **Weekends/Colors**: Colored rows or backgrounds are usually valid data (e.g. weekends). Do not ignore them.
 
+5. **Flag Uncertainty**: If you are less than 80% confident in reading any cell, flag it.
+
 OUTPUT FORMAT (JSON only):
 {
   "contentType": "table" | "calendar" | "email" | "list" | "text" | "mixed",
@@ -268,6 +275,14 @@ OUTPUT FORMAT (JSON only):
       ["", "cell_content", ""]
     ]
   },
+  "uncertainCells": [
+    {
+      "location": "row 2, column 3",
+      "readValue": "what you think it says",
+      "alternativeValue": "what it might alternatively say",
+      "reason": "blurry" | "overlapping" | "ambiguous" | "partial" | "low_contrast"
+    }
+  ],
   "metadata": {
     "title": "Document title",
     "hasMultiplePeople": boolean,
@@ -275,7 +290,15 @@ OUTPUT FORMAT (JSON only):
     "visibleDateRange": "e.g. Feb 2026",
     "language": "en" | "ko"
   }
-}`;
+}
+
+UNCERTAINTY RULES:
+- If text is blurry, smudged, or partially obscured → add to uncertainCells
+- If an abbreviation could mean multiple things (e.g., "AM" = morning shift or job name?) → add
+- If a time value is ambiguous (e.g., "9-5" could be 9am-5pm or 9pm-5am) → add
+- If characters look similar and you're unsure (e.g., "RL" vs "BL", "1" vs "l") → add
+- Only include genuinely uncertain readings. Do NOT flag clear, easily readable text.
+- If there are no uncertain cells, return an empty array [].`;
 
 // ============================================
 // Phase 2: Analysis + Question Generation Prompt
@@ -303,6 +326,7 @@ WHEN TO ASK QUESTIONS:
 - **CALENDAR VIEW with multiple names in cell contents** → Ask who
 - Date format genuinely ambiguous (01/02 could be Jan 2 or Feb 1 in Australian context) → Ask format
 - Critical information missing that cannot be inferred → Ask
+- **UNCERTAIN DATA** (see below) → Ask data clarification questions
 
 WHEN NOT TO ASK:
 - Single person's schedule (email addressed to one person, text mentioning one person)
@@ -310,6 +334,38 @@ WHEN NOT TO ASK:
 - Only one name found in calendar cells
 - Dates are unambiguous (full month names, clear context)
 - Context makes meaning obvious (e.g., "Hi John, here are your shifts")
+
+**DATA CLARIFICATION QUESTIONS:**
+If the extracted content contains "uncertainCells", generate clarification questions for them.
+DO NOT GUESS uncertain values. ALWAYS ask the user.
+
+When to generate data clarification questions:
+- uncertainCells array has items → ask about each uncertain cell
+- Time values that could be interpreted multiple ways
+- Abbreviated codes that are ambiguous (e.g., "RL" vs "BL")
+- Text that is partially obscured or blurry
+
+Format for data clarification questions:
+{
+  "id": "data_clarify_<location_slug>",
+  "type": "single_select",
+  "question": "I couldn't clearly read [location]. Does it say '[readValue]' or '[alternativeValue]'?",
+  "options": [
+    {"label": "<readValue>", "value": "<readValue>"},
+    {"label": "<alternativeValue>", "value": "<alternativeValue>"}
+  ],
+  "required": true
+}
+
+If an uncertain cell has no alternativeValue, use type "text" instead:
+{
+  "id": "data_clarify_<location_slug>",
+  "type": "text",
+  "question": "I couldn't clearly read [location]. The text looks like '[readValue]' but I'm not sure. What does it actually say?",
+  "required": true
+}
+
+Set needsClarification to true if ANY data clarification questions are generated.
 
 **CALENDAR VIEW HANDLING:**
 When contentType is "calendar":
@@ -382,9 +438,19 @@ function buildPhase3ExtractionPrompt(
 
   // Build user clarifications section
   let clarificationSection = '';
-  if (answers.length > 0) {
-    const clarifications = answers.map(a => `- ${a.questionId}: ${a.value}`).join('\n');
+  const dataClarifications = answers.filter(a => a.questionId.startsWith('data_clarify_'));
+  const otherClarifications = answers.filter(a => !a.questionId.startsWith('data_clarify_'));
+
+  if (otherClarifications.length > 0) {
+    const clarifications = otherClarifications.map(a => `- ${a.questionId}: ${a.value}`).join('\n');
     clarificationSection = `\nUSER CLARIFICATIONS:\n${clarifications}\n`;
+  }
+
+  // Build data corrections section
+  let dataCorrectionSection = '';
+  if (dataClarifications.length > 0) {
+    const corrections = dataClarifications.map(a => `- ${a.questionId}: User confirmed the value is "${a.value}"`).join('\n');
+    dataCorrectionSection = `\nDATA CORRECTIONS FROM USER:\nThe user has clarified the following uncertain values. Use these corrected values instead of the original OCR reading:\n${corrections}\n`;
   }
 
   // Build pre-analysis section
@@ -409,7 +475,7 @@ EXTRACTED CONTENT:
 Layout: ${ocrData.layoutDescription || 'Unknown'}
 Content Type: ${ocrData.contentType}
 ${JSON.stringify(ocrData, null, 2)}
-${clarificationSection}${analysisSection}${targetPersonSection}
+${clarificationSection}${dataCorrectionSection}${analysisSection}${targetPersonSection}
 
 **LAYOUT-AWARE PARSING:**
 Use the 'Layout' description to guide your extraction.
@@ -504,11 +570,13 @@ If extraction fails:
 
 async function callGeminiApi(
   apiKey: string,
-  requestBody: any
-): Promise<any> {
-  const models = getModelCandidates();
+  requestBody: Record<string, unknown>,
+  requestId?: string,
+  modelCandidates?: string[],
+): Promise<GeminiApiResponse> {
+  const models = modelCandidates || getModelCandidates();
   let lastNotFoundError: GeminiApiError | null = null;
-  let data: any = null;
+  let data: GeminiApiResponse | null = null;
 
   for (const model of models) {
     const response = await fetch(`${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`, {
@@ -522,7 +590,7 @@ async function callGeminiApi(
       const message = extractErrorMessage(errorText) || `Gemini API error: ${response.status}`;
       const apiError = new GeminiApiError(response.status, message, model, errorText);
 
-      console.error('Gemini API error:', { status: response.status, model, message });
+      logger.error('Gemini API error', { requestId, status: response.status, model, message });
 
       if (response.status === 404) {
         lastNotFoundError = apiError;
@@ -549,9 +617,10 @@ async function callGeminiApi(
 
 async function extractContentPhase1(
   apiKey: string,
-  imageBase64: string
+  imageBase64: string,
+  requestId?: string,
 ): Promise<ExtractedContent> {
-  console.log('[Phase 1] Starting pure OCR extraction...');
+  logger.debug('Phase 1 OCR extraction started', { requestId });
 
   const requestBody = {
     contents: [{
@@ -575,7 +644,7 @@ async function extractContentPhase1(
   };
 
   try {
-    const data = await callGeminiApi(apiKey, requestBody);
+    const data = await callGeminiApi(apiKey, requestBody, requestId);
     const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!textContent) {
@@ -587,14 +656,57 @@ async function extractContentPhase1(
       };
     }
 
-    const parsed = parseJsonFromResponse(textContent);
+    const parsed = parseJsonFromResponse<{
+      contentType?: ExtractedContent['contentType'];
+      layoutDescription?: string;
+      rawText?: string;
+      structure?: {
+        type?: 'table' | 'calendar' | 'freeform';
+        headers?: string[];
+        rows?: string[][];
+      };
+      uncertainCells?: Array<{
+        location?: string;
+        readValue?: string;
+        alternativeValue?: string;
+        reason?: string;
+      }>;
+      metadata?: {
+        title?: string;
+        hasMultiplePeople?: boolean;
+        potentialNames?: string[];
+        visibleDateRange?: string;
+        language?: string;
+      };
+    }>(textContent);
 
-    console.log(`[Phase 1] OCR complete: contentType=${parsed.contentType}, hasMultiplePeople=${parsed.metadata?.hasMultiplePeople}`);
+    logger.debug('Phase 1 OCR extraction complete', {
+      requestId,
+      contentType: parsed.contentType,
+      hasMultiplePeople: parsed.metadata?.hasMultiplePeople,
+    });
 
     // Normalize structure
     const structure = parsed.structure || {};
     const headers = Array.isArray(structure.headers) ? structure.headers : [];
     const rows = Array.isArray(structure.rows) ? structure.rows : [];
+
+    // Normalize uncertainCells
+    const uncertainCells = Array.isArray(parsed.uncertainCells)
+      ? parsed.uncertainCells
+          .filter((c): c is { location: string; readValue: string; alternativeValue?: string; reason: string } =>
+            Boolean(c && c.location && c.readValue && c.reason))
+          .map(c => ({
+            location: c.location,
+            readValue: c.readValue,
+            alternativeValue: c.alternativeValue,
+            reason: c.reason,
+          }))
+      : [];
+
+    if (uncertainCells.length > 0) {
+      logger.debug('Phase 1 OCR found uncertain cells', { requestId, count: uncertainCells.length });
+    }
 
     return {
       success: true,
@@ -604,6 +716,7 @@ async function extractContentPhase1(
       headers,
       rows,
       rawText: parsed.rawText || '',
+      uncertainCells: uncertainCells.length > 0 ? uncertainCells : undefined,
       metadata: {
         title: parsed.metadata?.title,
         hasMultiplePeople: parsed.metadata?.hasMultiplePeople || false,
@@ -614,7 +727,7 @@ async function extractContentPhase1(
     };
 
   } catch (error) {
-    console.error('[Phase 1] OCR error:', error);
+    logger.error('Phase 1 OCR extraction error', { requestId, message: toErrorMessage(error) });
 
     if (error instanceof SyntaxError) {
       return {
@@ -635,9 +748,10 @@ async function extractContentPhase1(
 
 async function analyzeContentPhase2(
   apiKey: string,
-  ocrData: ExtractedContent
+  ocrData: ExtractedContent,
+  requestId?: string,
 ): Promise<{ questions: SmartQuestion[]; preAnalysis: PreAnalysis; needsClarification: boolean }> {
-  console.log('[Phase 2] Analyzing content for questions...');
+  logger.debug('Phase 2 analysis started', { requestId });
 
   const prompt = buildPhase2AnalysisPrompt(ocrData);
 
@@ -647,12 +761,12 @@ async function analyzeContentPhase2(
       temperature: 0.2,
       topP: 0.9,
       topK: 40,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 2048,
     }
   };
 
   try {
-    const data = await callGeminiApi(apiKey, requestBody);
+    const data = await callGeminiApi(apiKey, requestBody, requestId, getFlashModelCandidates());
     const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!textContent) {
@@ -663,15 +777,34 @@ async function analyzeContentPhase2(
       };
     }
 
-    const parsed = parseJsonFromResponse(textContent);
+    const parsed = parseJsonFromResponse<{
+      questions?: Array<{
+        id?: string;
+        type?: SmartQuestion['type'];
+        question?: string;
+        options?: Array<{ label?: string; value?: string; description?: string }>;
+        required?: boolean;
+      }>;
+      preAnalysis?: {
+        detectedPerson?: string | null;
+        dateFormat?: string;
+        timeFormat?: string;
+        shiftPatterns?: string[];
+      };
+      needsClarification?: boolean;
+    }>(textContent);
 
     const questions: SmartQuestion[] = (Array.isArray(parsed.questions) ? parsed.questions : [])
-      .filter((q: any) => q && q.question)
-      .map((q: any) => ({
+      .filter((q): q is NonNullable<typeof parsed.questions>[number] & { question: string } => Boolean(q && q.question))
+      .map((q) => ({
         id: q.id || `q_${Math.random().toString(36).substr(2, 6)}`,
         type: q.type || 'single_select',
         question: q.question,
-        options: Array.isArray(q.options) ? q.options.filter((o: any) => o && o.label && o.value) : undefined,
+        options: Array.isArray(q.options)
+          ? q.options
+              .filter((o): o is { label: string; value: string; description?: string } => Boolean(o && o.label && o.value))
+              .map((o) => ({ label: o.label, value: o.value, description: o.description }))
+          : undefined,
         required: q.required !== false
       }));
 
@@ -682,7 +815,11 @@ async function analyzeContentPhase2(
       shiftPatterns: Array.isArray(parsed.preAnalysis?.shiftPatterns) ? parsed.preAnalysis.shiftPatterns : []
     };
 
-    console.log(`[Phase 2] Analysis complete: needsClarification=${parsed.needsClarification}, questions=${questions.length}`);
+    logger.debug('Phase 2 analysis complete', {
+      requestId,
+      needsClarification: parsed.needsClarification === true,
+      questionCount: questions.length,
+    });
 
     return {
       questions,
@@ -691,7 +828,7 @@ async function analyzeContentPhase2(
     };
 
   } catch (error) {
-    console.error('[Phase 2] Analysis error:', error);
+    logger.error('Phase 2 analysis error', { requestId, message: toErrorMessage(error) });
     return {
       questions: [],
       preAnalysis: { detectedPerson: null, dateFormat: 'unknown', timeFormat: 'unknown', shiftPatterns: [] },
@@ -708,9 +845,10 @@ async function extractShiftsPhase3(
   apiKey: string,
   ocrData: ExtractedContent,
   answers: QuestionAnswer[],
-  preAnalysis?: PreAnalysis
+  preAnalysis?: PreAnalysis,
+  requestId?: string,
 ): Promise<{ shifts: AIExtractedShift[]; identifiedPerson: IdentifiedPerson | null; error?: string }> {
-  console.log('[Phase 3] Extracting and normalizing shifts...');
+  logger.debug('Phase 3 extraction started', { requestId });
 
   const prompt = buildPhase3ExtractionPrompt(ocrData, answers, preAnalysis);
 
@@ -725,14 +863,23 @@ async function extractShiftsPhase3(
   };
 
   try {
-    const data = await callGeminiApi(apiKey, requestBody);
+    const data = await callGeminiApi(apiKey, requestBody, requestId, getFlashModelCandidates());
     const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!textContent) {
       return { shifts: [], identifiedPerson: null, error: 'No content in extraction response' };
     }
 
-    const parsed = parseJsonFromResponse(textContent);
+    const parsed = parseJsonFromResponse<{
+      success?: boolean;
+      shifts?: AIExtractedShift[];
+      error?: string;
+      identifiedPerson?: {
+        nameFound?: string;
+        location?: string;
+        confidence?: number;
+      } | null;
+    }>(textContent);
 
     if (!parsed.success) {
       return { shifts: [], identifiedPerson: null, error: parsed.error || 'Extraction failed' };
@@ -743,16 +890,16 @@ async function extractShiftsPhase3(
     const identifiedPerson: IdentifiedPerson | null = parsed.identifiedPerson ? {
       nameFound: parsed.identifiedPerson.nameFound || 'Unknown',
       location: parsed.identifiedPerson.location || 'unknown',
-      matchType: 'exact',
+      matchType: (parsed.identifiedPerson.confidence ?? 0.9) >= 0.95 ? 'exact' : 'substring',
       confidence: parsed.identifiedPerson.confidence || 0.9
     } : null;
 
-    console.log(`[Phase 3] Extraction complete: ${shifts.length} shifts found`);
+    logger.debug('Phase 3 extraction complete', { requestId, shiftCount: shifts.length });
 
     return { shifts, identifiedPerson };
 
   } catch (error) {
-    console.error('[Phase 3] Extraction error:', error);
+    logger.error('Phase 3 extraction error', { requestId, message: toErrorMessage(error) });
 
     if (error instanceof SyntaxError) {
       return { shifts: [], identifiedPerson: null, error: 'Failed to parse extraction result' };
@@ -767,6 +914,11 @@ async function extractShiftsPhase3(
 // ============================================
 
 function detectSimpleContent(ocrData: ExtractedContent): boolean {
+  // If there are uncertain cells, force the question step so user can clarify
+  if (ocrData.uncertainCells && ocrData.uncertainCells.length > 0) {
+    return false;
+  }
+
   // Email or text message → usually single person
   if (ocrData.contentType === 'email' || ocrData.contentType === 'text') {
     return true;
@@ -816,12 +968,13 @@ function isMetadataColumn(header: string): boolean {
 
 export async function processRosterPhase1(
   apiKey: string,
-  imageBase64: string
+  imageBase64: string,
+  requestId?: string,
 ): Promise<QuestionGenerationResult> {
-  console.log('[processRosterPhase1] Starting...');
+  logger.debug('processRosterPhase1 started', { requestId });
 
   // Phase 1: Pure OCR
-  const ocrResult = await extractContentPhase1(apiKey, imageBase64);
+  const ocrResult = await extractContentPhase1(apiKey, imageBase64, requestId);
 
   if (!ocrResult.success) {
     return {
@@ -835,7 +988,7 @@ export async function processRosterPhase1(
 
   // Check if simple content (can skip Phase 2)
   const isSimple = detectSimpleContent(ocrResult);
-  console.log(`[processRosterPhase1] isSimple=${isSimple}`);
+  logger.debug('processRosterPhase1 content complexity checked', { requestId, isSimple });
 
   if (isSimple) {
     // Skip Phase 2, tell frontend to go straight to extraction
@@ -854,7 +1007,7 @@ export async function processRosterPhase1(
   }
 
   // Phase 2: Analysis + Question Generation
-  const analysisResult = await analyzeContentPhase2(apiKey, ocrResult);
+  const analysisResult = await analyzeContentPhase2(apiKey, ocrResult, requestId);
 
   return {
     success: true,
@@ -874,14 +1027,15 @@ export async function processRosterPhase2(
   ocrData: ExtractedContent,
   answers: QuestionAnswer[],
   jobConfigs: JobConfig[],
-  jobAliases: JobAlias[]
+  jobAliases: JobAlias[],
+  requestId?: string,
 ): Promise<ProcessResult> {
-  console.log('[processRosterPhase2] Processing with answers...');
+  logger.debug('processRosterPhase2 started', { requestId });
 
   const currentYear = getCurrentYear();
 
   // Phase 3: Extract and normalize shifts
-  const extractionResult = await extractShiftsPhase3(apiKey, ocrData, answers);
+  const extractionResult = await extractShiftsPhase3(apiKey, ocrData, answers, undefined, requestId);
 
   if (extractionResult.error) {
     return {
@@ -897,17 +1051,25 @@ export async function processRosterPhase2(
   const validationResult = validateShifts(extractionResult.shifts, currentYear);
 
   if (validationResult.errors.length > 0) {
-    console.warn('[processRosterPhase2] Validation errors:', validationResult.errors);
+    logger.warn('processRosterPhase2 validation errors', {
+      requestId,
+      count: validationResult.errors.length,
+      errors: validationResult.errors,
+    });
   }
   if (validationResult.warnings.length > 0) {
-    console.log('[processRosterPhase2] Validation warnings:', validationResult.warnings);
+    logger.debug('processRosterPhase2 validation warnings', {
+      requestId,
+      count: validationResult.warnings.length,
+      warnings: validationResult.warnings,
+    });
   }
 
   if (validationResult.validShifts.length === 0) {
     // Try fallback: parse from rawText
     if (ocrData.rawText && ocrData.rawText.length > 50) {
-      console.log('[processRosterPhase2] Trying rawText fallback...');
-      const fallbackResult = await parseShiftsFromText(apiKey, ocrData.rawText, jobConfigs, jobAliases);
+      logger.debug('processRosterPhase2 rawText fallback started', { requestId });
+      const fallbackResult = await parseShiftsFromText(apiKey, ocrData.rawText, jobConfigs, jobAliases, requestId);
       if (fallbackResult.success && fallbackResult.shifts.length > 0) {
         return { ...fallbackResult, ocrData };
       }
@@ -927,6 +1089,11 @@ export async function processRosterPhase2(
     const jobName = s.jobName || s.location || 'Work';
     const mappedJobId = findJobMapping(jobName, jobConfigs, jobAliases);
 
+    // Calculate confidence based on data completeness
+    let confidence = 0.95;
+    if (!s.startTime || !s.endTime) confidence = 0.7;
+    else if (!s.jobName) confidence = 0.85;
+
     return {
       id: generateShiftId(),
       date: s.date,
@@ -935,12 +1102,12 @@ export async function processRosterPhase2(
       totalHours: null,
       rosterJobName: jobName,
       mappedJobId,
-      confidence: 0.95,
+      confidence,
       selected: true
     };
   });
 
-  console.log(`[processRosterPhase2] Complete: ${shifts.length} valid shifts`);
+  logger.debug('processRosterPhase2 complete', { requestId, shiftCount: shifts.length });
 
   return {
     success: true,
@@ -958,7 +1125,8 @@ async function parseShiftsFromText(
   apiKey: string,
   rawText: string,
   jobConfigs: JobConfig[],
-  jobAliases: JobAlias[]
+  jobAliases: JobAlias[],
+  requestId?: string,
 ): Promise<ProcessResult> {
   const currentYear = getCurrentYear();
   const currentDate = getCurrentDate();
@@ -996,11 +1164,11 @@ OUTPUT JSON:
   };
 
   try {
-    const data = await callGeminiApi(apiKey, requestBody);
+    const data = await callGeminiApi(apiKey, requestBody, requestId);
     const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textContent) throw new Error('No content');
 
-    const parsed = parseJsonFromResponse(textContent);
+    const parsed = parseJsonFromResponse<{ shifts?: AIExtractedShift[] }>(textContent);
     const rawShifts: AIExtractedShift[] = Array.isArray(parsed.shifts) ? parsed.shifts : [];
 
     // Validate with validators.ts
@@ -1033,7 +1201,7 @@ OUTPUT JSON:
       }
     };
   } catch (error) {
-    console.error('[parseShiftsFromText] Error:', error);
+    logger.error('parseShiftsFromText error', { requestId, message: toErrorMessage(error) });
     return { success: false, shifts: [] };
   }
 }
@@ -1057,11 +1225,15 @@ function findJobMapping(
   const exactMatch = jobConfigs.find(j => j.name.toLowerCase() === lower);
   if (exactMatch) return exactMatch.id;
 
-  // Check partial match
-  const partialMatch = jobConfigs.find(
-    j => j.name.toLowerCase().includes(lower) || lower.includes(j.name.toLowerCase())
-  );
-  if (partialMatch) return partialMatch.id;
+  // Check partial match (require minimum 3 chars to avoid false positives like "RL" matching "Grill")
+  if (lower.length >= 3) {
+    const partialMatch = jobConfigs.find(
+      j => j.name.toLowerCase().length >= 3 && (
+        j.name.toLowerCase().includes(lower) || lower.includes(j.name.toLowerCase())
+      )
+    );
+    if (partialMatch) return partialMatch.id;
+  }
 
   return undefined;
 }
@@ -1075,12 +1247,16 @@ export async function processWithGemini(
   imageBase64: string,
   jobConfigs: JobConfig[],
   jobAliases: JobAlias[],
-  identifier?: RosterIdentifier
+  identifier?: RosterIdentifier,
+  requestId?: string,
 ): Promise<ProcessResult> {
-  console.log('[processWithGemini] Legacy entry point...');
+  logger.debug('processWithGemini legacy entry point', { requestId });
+  if (identifier && Object.values(identifier).some(Boolean)) {
+    logger.debug('processWithGemini identifier hint received', { requestId });
+  }
 
   // Use new Phase 1
-  const phase1Result = await processRosterPhase1(apiKey, imageBase64);
+  const phase1Result = await processRosterPhase1(apiKey, imageBase64, requestId);
 
   if (!phase1Result.success) {
     return {
@@ -1098,7 +1274,8 @@ export async function processWithGemini(
     phase1Result.ocrData,
     [],
     jobConfigs,
-    jobAliases
+    jobAliases,
+    requestId
   );
 
   return phase2Result;

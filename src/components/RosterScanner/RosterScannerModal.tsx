@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { X, Sparkles, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +29,6 @@ const STEP_TITLE_KEYS: Record<ExtendedScanStep, string> = {
 
 export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps) {
   const { t } = useTranslation();
-  const [isRendered, setIsRendered] = useState(false);
 
   // Use the extracted hook
   const {
@@ -67,18 +65,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
     setParsedShifts
   } = useRosterScanner({ initialIsOpen: isOpen, onClose });
 
-  // Animation delay effect
-  useEffect(() => {
-    if (isOpen) {
-      setIsRendered(true);
-    } else {
-      const timer = setTimeout(() => setIsRendered(false), 200);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-
-
-  if (!isRendered) return null;
+  if (!isOpen) return null;
 
   return (
     <div
@@ -125,10 +112,10 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
               <Check className="w-10 h-10 text-emerald-500" />
             </div>
             <h3 className="text-xl font-bold text-slate-700 mb-2">
-              {addedCount} Shifts Added!
+              {t('rosterScanner.shiftsAdded', { count: addedCount })}
             </h3>
             <p className="text-sm text-slate-500">
-              Your calendar has been updated.
+              {t('rosterScanner.calendarUpdated')}
             </p>
           </div>
         ) : (

@@ -25,12 +25,6 @@ const RETRY_DELAY_MS = 500;
 // Mutex for token refresh to prevent race conditions when multiple API calls trigger refresh simultaneously
 let tokenRefreshPromise: Promise<string | null> | null = null;
 
-/** Validate token by checking with Supabase auth */
-async function validateToken(token: string): Promise<boolean> {
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  return !error && !!user;
-}
-
 /** Refresh the session and return new access token (with mutex to prevent concurrent refreshes) */
 async function refreshAndGetToken(): Promise<string | null> {
   // If a refresh is already in progress, wait for it instead of starting another
@@ -57,10 +51,13 @@ async function refreshAndGetToken(): Promise<string | null> {
   return tokenRefreshPromise;
 }
 
-/** Get a valid access token, refreshing if necessary */
+/** Get a valid access token, refreshing if necessary.
+ *  Token validation is delegated to the Edge Function (server-side).
+ *  Client only checks session existence and local expiry timestamp. */
 async function getValidAccessToken(options: { forceRefresh?: boolean } = {}): Promise<string | null> {
-  const { data: { session }, error } = await supabase.auth.getSession();
   const { forceRefresh = false } = options;
+
+  const { data: { session }, error } = await supabase.auth.getSession();
 
   if (error && import.meta.env.DEV) {
     console.error('Failed to get session:', error);
@@ -69,28 +66,20 @@ async function getValidAccessToken(options: { forceRefresh?: boolean } = {}): Pr
   if (!session?.access_token) return null;
 
   const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
-  const isExpiringSoon = expiresAtMs && (expiresAtMs - Date.now() < TOKEN_REFRESH_THRESHOLD_MS);
+  const isExpiringSoon = expiresAtMs > 0 && (expiresAtMs - Date.now() < TOKEN_REFRESH_THRESHOLD_MS);
 
-  // If not forcing refresh and token isn't expiring soon, validate current token
+  // If token is not expiring soon and no force refresh, use it directly.
+  // The Edge Function validates server-side; no need for client-side getUser() call.
   if (!forceRefresh && !isExpiringSoon) {
-    if (await validateToken(session.access_token)) {
-      return session.access_token;
-    }
-    // Token invalid, try to refresh
-    const refreshedToken = await refreshAndGetToken();
-    if (refreshedToken && await validateToken(refreshedToken)) {
-      return refreshedToken;
-    }
-    return null;
+    return session.access_token;
   }
 
-  // Token expiring soon or force refresh requested
+  // Token expiring soon or force refresh requested - get a fresh one
   const refreshedToken = await refreshAndGetToken();
-  if (refreshedToken && await validateToken(refreshedToken)) {
-    return refreshedToken;
-  }
 
-  return null;
+  // Fall back to the current token rather than returning null.
+  // The Edge Function will reject it if truly invalid, triggering the retry loop.
+  return refreshedToken || session.access_token;
 }
 
 function getResponseErrorMessage(responseBody: unknown, status: number): string {
@@ -411,6 +400,8 @@ export async function processRosterPhase2(
             rows: ocrData.rows,
             extractedShifts: ocrData.extractedShifts,
             rawText: ocrData.rawText,
+            layoutDescription: ocrData.layoutDescription,
+            uncertainCells: ocrData.uncertainCells,
             metadata: ocrData.metadata
           },
           answers,
@@ -556,7 +547,7 @@ export async function deleteJobAlias(aliasId: string): Promise<void> {
  */
 export async function getRosterScanUsage(): Promise<{ used: number; limit: number }> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { used: 0, limit: 20 };
+  if (!user) return { used: 0, limit: 5 };
 
   const { data, error } = await supabase
     .from('profiles')
@@ -565,12 +556,12 @@ export async function getRosterScanUsage(): Promise<{ used: number; limit: numbe
     .single();
 
   if (error || !data) {
-    return { used: 0, limit: 20 };
+    return { used: 0, limit: 5 };
   }
 
   return {
     used: data.roster_scans_this_month || 0,
-    limit: data.roster_scan_limit || 20
+    limit: data.roster_scan_limit || 5
   };
 }
 

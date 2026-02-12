@@ -55,6 +55,9 @@
     "estPay": "예상 급여",
     "super": "퇴직연금",
     "netPay": "실수령액",
+    "tax": "세금",
+    "taxApprox": "~세금",
+    "taxDisclaimer": "추정치. 실제 원천징수액과 다를 수 있습니다.",
     "grossIncome": "세전 총소득",
     "monthly": "월별",
     "details": "상세",
@@ -167,7 +170,12 @@
     "processingDescription": "AI가 시프트 정보를 추출하고 있습니다",
     "questionsDescription": "정확한 추출을 위해 몇 가지 질문에 답해주세요",
     "mappingDescription": "로스터의 직업명을 앱의 Job과 연결합니다",
-    "confirmDescription": "추출된 시프트를 확인하고 캘린더에 추가합니다"
+    "confirmDescription": "추출된 시프트를 확인하고 캘린더에 추가합니다",
+    "jobMappingTitle": "Job Mapping이란?",
+    "jobMappingDesc": "로스터에 표시된 직업명(예: \"Kitchen\")을 앱에 등록된 Job(예: \"Cafe\")과 연결합니다.",
+    "jobMappingHint": "\"Remember this mapping\"을 체크하면 다음 스캔 시 자동으로 연결됩니다.",
+    "shiftsAdded": "{{count}}개의 시프트가 추가되었습니다!",
+    "calendarUpdated": "캘린더가 업데이트되었습니다."
   },
   "emptyState": {
     "addFirstJob": "첫 번째 직업을 추가하세요!",
@@ -250,17 +258,79 @@
     "subtitle": "개인 로스터 & 급여 관리 매니저",
     "intro": "PayChecker를 통해 근무 일정을 관리하고, 예상 급여를 계산하며, 재정 목표를 한 곳에서 쉽게 추적하세요.",
     "autoRoster": "자동 로스터 스캐너",
-    "autoRosterDesc": "<li><strong>촬영 & 업로드:</strong> 로스터 파일(PDF 또는 이미지)을 드래그하여 업로드하세요.</li><li><strong>자동 일정 등록:</strong> 앱이 날짜, 시간, 역할을 읽어 캘린더에 자동으로 추가합니다.</li><li><strong>스마트 매핑:</strong> 직업 코드(예: \"Shift A\" → \"바텐더\")를 기억합니다.</li>",
+    "autoRosterItems": [
+      {
+        "title": "촬영 & 업로드",
+        "description": "로스터 파일(PDF 또는 이미지)을 드래그하여 업로드하세요."
+      },
+      {
+        "title": "자동 일정 등록",
+        "description": "앱이 날짜, 시간, 역할을 읽어 캘린더에 자동으로 추가합니다."
+      },
+      {
+        "title": "스마트 매핑",
+        "description": "직업 코드(예: \"Shift A\" -> \"바텐더\")를 기억합니다."
+      }
+    ],
     "dashboard": "스마트 대시보드 & 저축 목표",
-    "dashboardDesc": "<li><strong>수입 추적:</strong> 주간/월간 예상 수입을 즉시 확인하세요.</li><li><strong>목표 설정:</strong> 저축 목표를 설정하고 시프트 완료에 따른 진행 상황을 지켜보세요.</li>",
+    "dashboardItems": [
+      {
+        "title": "수입 추적",
+        "description": "주간/월간 예상 수입을 즉시 확인하세요."
+      },
+      {
+        "title": "목표 설정",
+        "description": "저축 목표를 설정하고 시프트 완료에 따른 진행 상황을 지켜보세요."
+      }
+    ],
     "fiscal": "회계연도 개요",
-    "fiscalDesc": "<li><strong>간편한 세금 관리:</strong> 지정된 회계연도(예: 1월-12월) 기준 소득을 확인하세요.</li><li><strong>누적 소득 추적 (YTD):</strong> 세율 구간 관리를 위해 누적 소득을 모니터링하세요.</li>",
+    "fiscalItems": [
+      {
+        "title": "간편한 세금 관리",
+        "description": "지정된 회계연도(예: 1월-12월) 기준 소득을 확인하세요."
+      },
+      {
+        "title": "누적 소득 추적 (YTD)",
+        "description": "세율 구간 관리를 위해 누적 소득을 모니터링하세요."
+      }
+    ],
     "expense": "지출 트래커",
-    "expenseDesc": "<li><strong>공제 항목 기록:</strong> 유니폼이나 교육비 등 업무 관련 지출을 기록하세요.</li><li><strong>세금 신고 준비:</strong> 세금 신고를 위해 지출을 분류하여 관리하세요.</li>",
+    "expenseItems": [
+      {
+        "title": "공제 항목 기록",
+        "description": "유니폼이나 교육비 등 업무 관련 지출을 기록하세요."
+      },
+      {
+        "title": "세금 신고 준비",
+        "description": "세금 신고를 위해 지출을 분류하여 관리하세요."
+      }
+    ],
     "multipleJobs": "다중 직업 관리",
-    "multipleJobsDesc": "<li><strong>다양한 시급:</strong> 서로 다른 기본급을 가진 여러 직업을 추가하세요.</li><li><strong>수당(Penalty) 설정:</strong> 주말, 공휴일, 오버타임 등 맞춤형 규칙을 설정하세요.</li>",
+    "multipleJobsItems": [
+      {
+        "title": "다양한 시급",
+        "description": "서로 다른 기본급을 가진 여러 직업을 추가하세요."
+      },
+      {
+        "title": "수당(Penalty) 설정",
+        "description": "주말, 공휴일, 오버타임 등 맞춤형 규칙을 설정하세요."
+      }
+    ],
     "getStarted": "시작하기",
-    "getStartedDesc": "<li><strong>직업 추가:</strong> 설정이나 \"+\" 버튼을 통해 직업과 시급을 설정하세요.</li><li><strong>로스터 업로드:</strong> <strong>스캐너</strong> 탭(반짝이 아이콘)을 사용하여 로스터를 업로드하세요.</li><li><strong>대시보드 확인:</strong> 다가오는 일정과 예상 수입을 확인하세요!</li>",
+    "getStartedItems": [
+      {
+        "title": "직업 추가",
+        "description": "설정이나 + 버튼을 통해 직업과 시급을 설정하세요."
+      },
+      {
+        "title": "로스터 업로드",
+        "description": "스캐너 탭(반짝이 아이콘)을 사용하여 로스터를 업로드하세요."
+      },
+      {
+        "title": "대시보드 확인",
+        "description": "다가오는 일정과 예상 수입을 확인하세요."
+      }
+    ],
     "gotIt": "확인했습니다!"
   },
   "feedback": {

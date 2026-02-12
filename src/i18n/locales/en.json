@@ -56,6 +56,8 @@
     "super": "Super",
     "netPay": "Net Pay",
     "tax": "Tax",
+    "taxApprox": "~Tax",
+    "taxDisclaimer": "Approximate. Actual withholding may vary.",
     "grossIncome": "Gross Income",
     "monthly": "Monthly",
     "details": "Details",
@@ -168,7 +170,12 @@
     "processingDescription": "AI is extracting shift information",
     "questionsDescription": "Answer a few questions for accurate extraction",
     "mappingDescription": "Connect roster job names to your app Jobs",
-    "confirmDescription": "Review extracted shifts and add to calendar"
+    "confirmDescription": "Review extracted shifts and add to calendar",
+    "jobMappingTitle": "What is Job Mapping?",
+    "jobMappingDesc": "Connect roster job names (e.g. \"Kitchen\") to your registered Jobs (e.g. \"Cafe\").",
+    "jobMappingHint": "Check \"Remember this mapping\" to auto-connect on future scans.",
+    "shiftsAdded": "{{count}} Shifts Added!",
+    "calendarUpdated": "Your calendar has been updated."
   },
   "emptyState": {
     "addFirstJob": "Add your first job!",
@@ -190,6 +197,13 @@
   "hourlyRateModal": {
     "settings": "Settings",
     "configureRates": "Configure rates & defaults",
+    "jobAppearance": "Job Style",
+    "jobName": "Job Name",
+    "jobNamePlaceholder": "e.g., Cafe Shift",
+    "jobNameRequired": "Job name is required",
+    "jobNameFallback": "Job",
+    "jobColor": "Job Color (Pastel)",
+    "jobColorOption": "Select {{color}} color",
     "defaultDuration": "Default Duration",
     "weekday": "Weekday",
     "weekend": "Weekend",
@@ -251,17 +265,79 @@
     "subtitle": "Your Personal Roster & Pay Manager",
     "intro": "PayChecker makes it effortless to manage your work schedule, calculate accurate expected pay, and track your financial goals—all in one place.",
     "autoRoster": "Auto Roster Scanner (Upload & Go)",
-    "autoRosterDesc": "<li><strong>Snap & Upload:</strong> Just drag and drop your roster file (PDF or Image).</li><li><strong>Automatic Schedule:</strong> The app reads your shifts—dates, times, and roles—and adds them to your calendar.</li><li><strong>Smart Mapping:</strong> It remembers your job codes (e.g., \"Shift A\" → \"Bartender\").</li>",
+    "autoRosterItems": [
+      {
+        "title": "Snap & Upload",
+        "description": "Just drag and drop your roster file (PDF or image)."
+      },
+      {
+        "title": "Automatic Schedule",
+        "description": "The app reads your shifts, including dates, times, and roles, and adds them to your calendar."
+      },
+      {
+        "title": "Smart Mapping",
+        "description": "It remembers your job codes (e.g., \"Shift A\" to \"Bartender\")."
+      }
+    ],
     "dashboard": "Smart Dashboard & Savings Goals",
-    "dashboardDesc": "<li><strong>Track Your Earnings:</strong> See estimated earnings for the week or month instantly.</li><li><strong>Set Goals:</strong> Set a Savings Goal and watch your progress bar grow as you complete shifts.</li>",
+    "dashboardItems": [
+      {
+        "title": "Track Your Earnings",
+        "description": "See estimated earnings for the week or month instantly."
+      },
+      {
+        "title": "Set Goals",
+        "description": "Set a savings goal and watch your progress grow as you complete shifts."
+      }
+    ],
     "fiscal": "Fiscal Year Overview",
-    "fiscalDesc": "<li><strong>Tax Made Easy:</strong> View income based on the financial year.</li><li><strong>Year-to-Date Tracking:</strong> Monitor your total cumulative income to stay on top of tax brackets.</li>",
+    "fiscalItems": [
+      {
+        "title": "Tax Made Easy",
+        "description": "View income based on the financial year."
+      },
+      {
+        "title": "Year-to-Date Tracking",
+        "description": "Monitor your cumulative income to stay on top of tax brackets."
+      }
+    ],
     "expense": "Expense Tracker",
-    "expenseDesc": "<li><strong>Log Deductions:</strong> Record work-related expenses like uniforms or courses.</li><li><strong>Organized for Tax Time:</strong> Keep expenses categorized for easy tax filing.</li>",
+    "expenseItems": [
+      {
+        "title": "Log Deductions",
+        "description": "Record work-related expenses like uniforms or courses."
+      },
+      {
+        "title": "Organized for Tax Time",
+        "description": "Keep expenses categorized for easier tax filing."
+      }
+    ],
     "multipleJobs": "Manage Multiple Jobs",
-    "multipleJobsDesc": "<li><strong>Multiple Rates:</strong> Add different employers with specific base rates.</li><li><strong>Penalty Rates:</strong> Define custom rules for weekends, public holidays, or overtime.</li>",
+    "multipleJobsItems": [
+      {
+        "title": "Multiple Rates",
+        "description": "Add different employers with specific base rates."
+      },
+      {
+        "title": "Penalty Rates",
+        "description": "Define custom rules for weekends, public holidays, or overtime."
+      }
+    ],
     "getStarted": "Get Started",
-    "getStartedDesc": "<li><strong>Add Your Jobs:</strong> Go to settings or use the \"+\" button to set up employers/rates.</li><li><strong>Upload Roster:</strong> Use the <strong>Scanner</strong> tab (Sparkles icon) to upload your roster.</li><li><strong>Check Dashboard:</strong> See your upcoming schedule and projected earnings!</li>",
+    "getStartedItems": [
+      {
+        "title": "Add Your Jobs",
+        "description": "Go to settings or use the + button to set up employers and rates."
+      },
+      {
+        "title": "Upload Roster",
+        "description": "Use the Scanner tab (sparkles icon) to upload your roster."
+      },
+      {
+        "title": "Check Dashboard",
+        "description": "See your upcoming schedule and projected earnings."
+      }
+    ],
     "gotIt": "Got it!"
   },
   "feedback": {

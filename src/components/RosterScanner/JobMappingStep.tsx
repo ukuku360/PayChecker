@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, Save, HelpCircle, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 import type { JobConfig } from '../../types';
 import type { JobMapping } from './types';
 import { dotColorMap } from '../../utils/colorUtils';
-import { InlineJobCreator } from './InlineJobCreator';
+import { AddJobModal } from '../Dashboard/AddJobModal';
 
 interface JobMappingStepProps {
   unmappedJobNames: string[];
@@ -21,6 +22,7 @@ export function JobMappingStep({
   onBack,
   onAddJob
 }: JobMappingStepProps) {
+  const { t } = useTranslation();
   const [mappings, setMappings] = useState<Record<string, { jobId: string; saveAlias: boolean }>>(() => {
     const initial: Record<string, { jobId: string; saveAlias: boolean }> = {};
     unmappedJobNames.forEach(name => {
@@ -95,12 +97,12 @@ export function JobMappingStep({
       <div className="flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-600">
         <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />
         <div className="space-y-1.5">
-          <p className="font-medium">🔗 Job Mapping이란?</p>
+          <p className="font-medium">{t('rosterScanner.jobMappingTitle')}</p>
           <p className="text-xs text-blue-500">
-            로스터에 표시된 직업명(예: "Kitchen")을 앱에 등록된 Job(예: "Cafe")과 연결합니다.
+            {t('rosterScanner.jobMappingDesc')}
           </p>
           <p className="text-xs text-blue-500">
-            💡 "Remember this mapping"을 체크하면 다음 스캔 시 자동으로 연결됩니다.
+            {t('rosterScanner.jobMappingHint')}
           </p>
         </div>
       </div>
@@ -163,16 +165,15 @@ export function JobMappingStep({
                 )}
               </div>
 
-              {/* Inline job creator */}
-              {creatingJobFor === rosterName && (
-                <div className="mt-3">
-                  <InlineJobCreator
-                    suggestedName={rosterName}
-                    onJobCreated={(job) => handleJobCreated(rosterName, job)}
-                    onCancel={() => setCreatingJobFor(null)}
-                  />
-                </div>
-              )}
+              {/* Job creation modal */}
+              <AddJobModal
+                isOpen={creatingJobFor === rosterName}
+                onClose={() => setCreatingJobFor(null)}
+                onAdd={(job) => handleJobCreated(rosterName, job)}
+                existingJobIds={localJobConfigs.map(j => j.id)}
+                initialName={rosterName}
+                zIndex={60}
+              />
             </div>
 
             {/* Save alias checkbox */}

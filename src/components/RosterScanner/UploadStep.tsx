@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Upload, Camera, FileText, X, AlertCircle, Sparkles, Lightbulb, Image, Users } from 'lucide-react';
 import { clsx } from 'clsx';
 import { isValidImageFormat, isPDF } from '../../utils/imageUtils';
@@ -7,12 +7,10 @@ import type { RosterIdentifier } from '../../types';
 const SCANNER_HINTS_DISMISSED_KEY = 'paychecker_scanner_hints_dismissed';
 
 const RosterScannerHintBanner = () => {
-  const [isDismissed, setIsDismissed] = useState(true);
-  
-  useEffect(() => {
-    const dismissed = localStorage.getItem(SCANNER_HINTS_DISMISSED_KEY);
-    setIsDismissed(dismissed === 'true');
-  }, []);
+  const [isDismissed, setIsDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(SCANNER_HINTS_DISMISSED_KEY) === 'true';
+  });
 
   const handleDismiss = () => {
     localStorage.setItem(SCANNER_HINTS_DISMISSED_KEY, 'true');
@@ -45,7 +43,7 @@ const RosterScannerHintBanner = () => {
         <button 
           onClick={handleDismiss}
           className="p-1 hover:bg-white/50 rounded-lg transition-colors shrink-0"
-          aria-label="닫기"
+          aria-label="Dismiss"
         >
           <X className="w-4 h-4 text-slate-400" />
         </button>

@@ -1,11 +1,21 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { processWithGemini, processRosterPhase1, processRosterPhase2, GeminiApiError } from './gemini.ts';
+import { logger } from './logger.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+const BASE_CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  Vary: 'Origin',
+} as const;
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 interface RosterIdentifier {
   name?: string;
@@ -28,6 +38,13 @@ interface OcrData {
     note?: string;
   }>;
   rawText?: string;
+  layoutDescription?: string;
+  uncertainCells?: Array<{
+    location: string;
+    readValue: string;
+    alternativeValue?: string;
+    reason: string;
+  }>;
   metadata?: {
     title?: string;
     rowCount?: number;
@@ -37,13 +54,6 @@ interface OcrData {
     potentialNames?: string[];
     language?: string;
   };
-}
-
-interface PreAnalysis {
-  detectedPerson: string | null;
-  dateFormat: string;
-  timeFormat: string;
-  shiftPatterns?: string[];
 }
 
 interface QuestionAnswer {
@@ -76,7 +86,67 @@ interface LegacyRequestBody {
 
 type RequestBody = Phase1RequestBody | Phase2RequestBody | LegacyRequestBody;
 
+type JsonRecord = Record<string, unknown>;
+
+function getAllowedOrigins(): string[] {
+  const envValue = Deno.env.get('ALLOWED_ORIGINS');
+  if (!envValue) return DEFAULT_ALLOWED_ORIGINS;
+
+  const parsed = envValue
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+  return parsed.length > 0 ? parsed : DEFAULT_ALLOWED_ORIGINS;
+}
+
+function getCorsHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = { ...BASE_CORS_HEADERS };
+  const origin = req.headers.get('Origin');
+
+  if (origin && getAllowedOrigins().includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+
+  return headers;
+}
+
+function isOriginAllowed(req: Request): boolean {
+  const origin = req.headers.get('Origin');
+  if (!origin) return true;
+  return getAllowedOrigins().includes(origin);
+}
+
+function decodeBase64Length(base64Value: string): number {
+  const normalized = (base64Value.includes(',') ? base64Value.split(',').pop() || '' : base64Value)
+    .replace(/\s/g, '');
+
+  const padding = normalized.endsWith('==') ? 2 : normalized.endsWith('=') ? 1 : 0;
+  return Math.floor((normalized.length * 3) / 4) - padding;
+}
+
+function isImagePayloadTooLarge(imageBase64: string): boolean {
+  return decodeBase64Length(imageBase64) > MAX_IMAGE_BYTES;
+}
+
 serve(async (req) => {
+  const requestId = crypto.randomUUID();
+  const corsHeaders = getCorsHeaders(req);
+
+  const json = (status: number, body: JsonRecord) =>
+    new Response(JSON.stringify({ ...body, requestId }), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  if (!isOriginAllowed(req)) {
+    return json(403, {
+      success: false,
+      error: 'Origin not allowed',
+      errorType: 'auth',
+    });
+  }
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -87,11 +157,21 @@ serve(async (req) => {
   try {
     // 1. Verify authentication
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing authorization header', errorType: 'auth' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return json(401, {
+        success: false,
+        error: 'Missing or invalid authorization header',
+        errorType: 'auth',
+      });
+    }
+
+    const token = authHeader.slice('Bearer '.length).trim();
+    if (!token) {
+      return json(401, {
+        success: false,
+        error: 'Missing bearer token',
+        errorType: 'auth',
+      });
     }
 
     // Create Supabase client and validate token explicitly
@@ -99,42 +179,57 @@ serve(async (req) => {
     // Use custom secret name (SUPABASE_ prefix is reserved)
     const supabaseServiceKey = Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Extract token from Bearer header
-    const token = authHeader.replace('Bearer ', '');
-
     // Create client with service role key to validate user tokens
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Validate token explicitly by passing it to getUser
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(token);
+
     if (userError || !user) {
-      console.error('Auth error:', {
+      logger.warn('Auth error', {
+        requestId,
         message: userError?.message,
         status: userError?.status,
-        tokenLength: token?.length,
-        tokenPrefix: token?.substring(0, 20)
       });
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: userError?.message || 'Unauthorized',
-          errorType: 'auth'
-        }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json(401, {
+        success: false,
+        error: userError?.message || 'Unauthorized',
+        errorType: 'auth',
+      });
     }
 
     // 2. Parse request body
-    const body: RequestBody = await req.json();
+    let body: RequestBody;
+    try {
+      body = (await req.json()) as RequestBody;
+    } catch {
+      return json(400, {
+        success: false,
+        error: 'Invalid JSON request body',
+        errorType: 'invalid_input',
+      });
+    }
+
+    if (!body || typeof body !== 'object') {
+      return json(400, {
+        success: false,
+        error: 'Invalid request body',
+        errorType: 'invalid_input',
+      });
+    }
 
     // Get Gemini API key
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     if (!geminiApiKey) {
-      console.error('GEMINI_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ success: false, error: 'AI service not configured', errorType: 'config' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      logger.error('GEMINI_API_KEY not configured', { requestId });
+      return json(500, {
+        success: false,
+        error: 'AI service not configured',
+        errorType: 'config',
+      });
     }
 
     // Determine which phase to execute
@@ -147,29 +242,35 @@ serve(async (req) => {
       const { imageBase64 } = body as Phase1RequestBody;
 
       if (!imageBase64) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Missing image data', errorType: 'invalid_input' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return json(400, {
+          success: false,
+          error: 'Missing image data',
+          errorType: 'invalid_input',
+        });
+      }
+
+      if (isImagePayloadTooLarge(imageBase64)) {
+        return json(413, {
+          success: false,
+          error: 'Image payload too large (max 10MB).',
+          errorType: 'invalid_input',
+        });
       }
 
       // Check usage limits (Phase 1 counts as a scan)
-      const limitCheck = await checkUsageLimits(supabase, user.id);
+      const limitCheck = await checkUsageLimits(supabase, user.id, requestId);
       if (!limitCheck.allowed) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: limitCheck.error,
-            errorType: 'limit_exceeded',
-            scansUsed: limitCheck.scansUsed,
-            scanLimit: limitCheck.scanLimit
-          }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return json(429, {
+          success: false,
+          error: limitCheck.error,
+          errorType: 'limit_exceeded',
+          scansUsed: limitCheck.scansUsed,
+          scanLimit: limitCheck.scanLimit,
+        });
       }
 
       // Process Phase 1
-      const result = await processRosterPhase1(geminiApiKey, imageBase64);
+      const result = await processRosterPhase1(geminiApiKey, imageBase64, requestId);
       const processingTime = Date.now() - startTime;
 
       // Increment usage count
@@ -183,9 +284,9 @@ serve(async (req) => {
           ...result,
           processingTimeMs: processingTime,
           scansUsed: limitCheck.scansUsed + 1,
-          scanLimit: limitCheck.scanLimit
+          scanLimit: limitCheck.scanLimit,
         }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -196,10 +297,11 @@ serve(async (req) => {
       const { ocrData, answers, jobConfigs, jobAliases } = body as Phase2RequestBody;
 
       if (!ocrData || !answers) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Missing OCR data or answers', errorType: 'invalid_input' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return json(400, {
+          success: false,
+          error: 'Missing OCR data or answers',
+          errorType: 'invalid_input',
+        });
       }
 
       // Phase 2 does NOT count against scan limit (already counted in Phase 1)
@@ -212,7 +314,9 @@ serve(async (req) => {
         rows: Array.isArray(ocrData.rows) ? ocrData.rows : [],
         extractedShifts: Array.isArray(ocrData.extractedShifts) ? ocrData.extractedShifts : [],
         rawText: ocrData.rawText || '',
-        metadata: ocrData.metadata
+        layoutDescription: ocrData.layoutDescription,
+        uncertainCells: Array.isArray(ocrData.uncertainCells) ? ocrData.uncertainCells : undefined,
+        metadata: ocrData.metadata,
       };
 
       const result = await processRosterPhase2(
@@ -220,28 +324,35 @@ serve(async (req) => {
         safeOcrData,
         Array.isArray(answers) ? answers : [],
         jobConfigs || [],
-        jobAliases || []
+        jobAliases || [],
+        requestId,
       );
 
       const processingTime = Date.now() - startTime;
 
       // Save scan record
-      await supabase
-        .from('roster_scans')
-        .insert({
-          user_id: user.id,
-          parsed_result: result,
-          shifts_created: 0,
-          processing_time_ms: processingTime
-        });
+      await supabase.from('roster_scans').insert({
+        user_id: user.id,
+        parsed_result: result,
+        shifts_created: 0,
+        processing_time_ms: processingTime,
+      });
 
       return new Response(
         JSON.stringify({
           ...result,
-          processingTimeMs: processingTime
+          processingTimeMs: processingTime,
         }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
+    }
+
+    if (phase !== 'legacy') {
+      return json(400, {
+        success: false,
+        error: 'Unsupported phase',
+        errorType: 'invalid_input',
+      });
     }
 
     // ============================================
@@ -250,28 +361,34 @@ serve(async (req) => {
     const { imageBase64, jobConfigs, jobAliases, identifier } = body as LegacyRequestBody;
 
     if (!imageBase64) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing image data', errorType: 'invalid_input' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json(400, {
+        success: false,
+        error: 'Missing image data',
+        errorType: 'invalid_input',
+      });
+    }
+
+    if (isImagePayloadTooLarge(imageBase64)) {
+      return json(413, {
+        success: false,
+        error: 'Image payload too large (max 10MB).',
+        errorType: 'invalid_input',
+      });
     }
 
     // Check usage limits
-    const limitCheck = await checkUsageLimits(supabase, user.id);
+    const limitCheck = await checkUsageLimits(supabase, user.id, requestId);
     if (!limitCheck.allowed) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: limitCheck.error,
-          errorType: 'limit_exceeded',
-          scansUsed: limitCheck.scansUsed,
-          scanLimit: limitCheck.scanLimit
-        }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json(429, {
+        success: false,
+        error: limitCheck.error,
+        errorType: 'limit_exceeded',
+        scansUsed: limitCheck.scansUsed,
+        scanLimit: limitCheck.scanLimit,
+      });
     }
 
-    const result = await processWithGemini(geminiApiKey, imageBase64, jobConfigs, jobAliases, identifier);
+    const result = await processWithGemini(geminiApiKey, imageBase64, jobConfigs, jobAliases, identifier, requestId);
     const processingTime = Date.now() - startTime;
 
     // Increment usage count and save scan record
@@ -280,14 +397,12 @@ serve(async (req) => {
         .from('profiles')
         .update({ roster_scans_this_month: limitCheck.scansUsed + 1 })
         .eq('id', user.id),
-      supabase
-        .from('roster_scans')
-        .insert({
-          user_id: user.id,
-          parsed_result: result,
-          shifts_created: 0,
-          processing_time_ms: processingTime
-        })
+      supabase.from('roster_scans').insert({
+        user_id: user.id,
+        parsed_result: result,
+        shifts_created: 0,
+        processing_time_ms: processingTime,
+      }),
     ]);
 
     return new Response(
@@ -295,13 +410,15 @@ serve(async (req) => {
         ...result,
         processingTimeMs: processingTime,
         scansUsed: limitCheck.scansUsed + 1,
-        scanLimit: limitCheck.scanLimit
+        scanLimit: limitCheck.scanLimit,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
-
   } catch (error) {
-    console.error('Process roster error:', error);
+    logger.error('Process roster error', {
+      requestId,
+      message: error instanceof Error ? error.message : String(error),
+    });
 
     const processingTime = Date.now() - startTime;
 
@@ -309,54 +426,51 @@ serve(async (req) => {
       const errorType =
         error.status === 404
           ? 'config'
-          : (error.status === 401 || error.status === 403)
-          ? 'auth'
-          : error.status >= 500
-          ? 'network'
-          : 'unknown';
+          : error.status === 401 || error.status === 403
+            ? 'auth'
+            : error.status >= 500
+              ? 'network'
+              : 'unknown';
 
-      const errorMessage = error.status === 404
-        ? `Gemini model not found (${error.model}). Check GEMINI_MODEL or API access.`
-        : error.message || 'Gemini API error';
+      const errorMessage =
+        error.status === 404
+          ? `Gemini model not found (${error.model}). Check GEMINI_MODEL or API access.`
+          : error.message || 'Gemini API error';
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: errorMessage,
-          errorType,
-          processingTimeMs: processingTime
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return json(502, {
+        success: false,
+        error: errorMessage,
+        errorType,
+        processingTimeMs: processingTime,
+      });
     }
 
     // Handle timeout
-    if (error.name === 'TimeoutError' || processingTime > 55000) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Request timed out. Please try again.',
-          errorType: 'timeout',
-          processingTimeMs: processingTime
-        }),
-        { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if ((error instanceof Error && error.name === 'TimeoutError') || processingTime > 55000) {
+      return json(504, {
+        success: false,
+        error: 'Request timed out. Please try again.',
+        errorType: 'timeout',
+        processingTimeMs: processingTime,
+      });
     }
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'An unexpected error occurred',
-        errorType: 'unknown',
-        processingTimeMs: processingTime
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    const message = error instanceof Error ? error.message : 'An unexpected error occurred';
+    return json(500, {
+      success: false,
+      error: message,
+      errorType: 'unknown',
+      processingTimeMs: processingTime,
+    });
   }
 });
 
 // Helper function to check usage limits
-async function checkUsageLimits(supabase: any, userId: string): Promise<{
+async function checkUsageLimits(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  requestId: string,
+): Promise<{
   allowed: boolean;
   scansUsed: number;
   scanLimit: number;
@@ -370,11 +484,15 @@ async function checkUsageLimits(supabase: any, userId: string): Promise<{
     .single();
 
   if (profileError) {
-    console.error('Profile fetch error:', profileError);
+    logger.warn('Profile fetch error', {
+      requestId,
+      message: profileError.message,
+      code: profileError.code,
+    });
   }
 
   let scansThisMonth = profile?.roster_scans_this_month || 0;
-  const scanLimit = profile?.roster_scan_limit || 20;
+  const scanLimit = profile?.roster_scan_limit || 5;
 
   // Reset count if new month
   if (profile?.roster_scan_reset_month !== currentMonth) {
@@ -390,13 +508,13 @@ async function checkUsageLimits(supabase: any, userId: string): Promise<{
       allowed: false,
       scansUsed: scansThisMonth,
       scanLimit,
-      error: `Monthly scan limit (${scanLimit}) reached. Resets next month.`
+      error: `Monthly scan limit (${scanLimit}) reached. Resets next month.`,
     };
   }
 
   return {
     allowed: true,
     scansUsed: scansThisMonth,
-    scanLimit
+    scanLimit,
   };
 }
