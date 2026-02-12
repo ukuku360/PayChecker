@@ -14,6 +14,8 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'https://paychecker.app',
+  'https://www.paychecker.app',
 ];
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
@@ -100,11 +102,21 @@ function getAllowedOrigins(): string[] {
   return parsed.length > 0 ? parsed : DEFAULT_ALLOWED_ORIGINS;
 }
 
+function isAllowedOrigin(origin: string): boolean {
+  if (getAllowedOrigins().includes(origin)) return true;
+  // Allow Vercel preview deployments
+  try {
+    const url = new URL(origin);
+    if (url.hostname.endsWith('.vercel.app') && url.hostname.includes('paychecker')) return true;
+  } catch { /* ignore invalid URLs */ }
+  return false;
+}
+
 function getCorsHeaders(req: Request): Record<string, string> {
   const headers: Record<string, string> = { ...BASE_CORS_HEADERS };
   const origin = req.headers.get('Origin');
 
-  if (origin && getAllowedOrigins().includes(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     headers['Access-Control-Allow-Origin'] = origin;
   }
 
@@ -114,7 +126,7 @@ function getCorsHeaders(req: Request): Record<string, string> {
 function isOriginAllowed(req: Request): boolean {
   const origin = req.headers.get('Origin');
   if (!origin) return true;
-  return getAllowedOrigins().includes(origin);
+  return isAllowedOrigin(origin);
 }
 
 function decodeBase64Length(base64Value: string): number {
