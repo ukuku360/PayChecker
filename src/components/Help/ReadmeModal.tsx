@@ -6,8 +6,32 @@ interface ReadmeModalProps {
   onClose: () => void;
 }
 
+interface HelpListItem {
+  title: string;
+  description: string;
+}
+
 export const ReadmeModal = ({ isOpen, onClose }: ReadmeModalProps) => {
   const { t } = useTranslation();
+  const getHelpItems = (key: string): HelpListItem[] => {
+    const translated = t(key, { returnObjects: true });
+    if (!Array.isArray(translated)) return [];
+
+    return translated.filter(
+      (item): item is HelpListItem =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as HelpListItem).title === 'string' &&
+        typeof (item as HelpListItem).description === 'string',
+    );
+  };
+
+  const autoRosterItems = getHelpItems('help.autoRosterItems');
+  const dashboardItems = getHelpItems('help.dashboardItems');
+  const fiscalItems = getHelpItems('help.fiscalItems');
+  const expenseItems = getHelpItems('help.expenseItems');
+  const multipleJobsItems = getHelpItems('help.multipleJobsItems');
+  const getStartedItems = getHelpItems('help.getStartedItems');
 
   if (!isOpen) return null;
 
@@ -36,60 +60,42 @@ export const ReadmeModal = ({ isOpen, onClose }: ReadmeModalProps) => {
               icon={<Calendar className="w-5 h-5 text-indigo-500" />}
               title={t('help.autoRoster')}
             >
-              <ul 
-                className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-1"
-                dangerouslySetInnerHTML={{ __html: t('help.autoRosterDesc') }}
-              />
+              <HelpItemList items={autoRosterItems} />
             </FeatureSection>
 
             <FeatureSection 
               icon={<PieChart className="w-5 h-5 text-emerald-500" />}
               title={t('help.dashboard')}
             >
-              <ul 
-                className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-1"
-                dangerouslySetInnerHTML={{ __html: t('help.dashboardDesc') }}
-              />
+              <HelpItemList items={dashboardItems} />
             </FeatureSection>
 
             <FeatureSection 
               icon={<Wallet className="w-5 h-5 text-amber-500" />}
               title={t('help.fiscal')}
             >
-              <ul 
-                className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-1"
-                dangerouslySetInnerHTML={{ __html: t('help.fiscalDesc') }}
-              />
+              <HelpItemList items={fiscalItems} />
             </FeatureSection>
 
             <FeatureSection 
               icon={<CreditCard className="w-5 h-5 text-pink-500" />}
               title={t('help.expense')}
             >
-              <ul 
-                className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-1"
-                dangerouslySetInnerHTML={{ __html: t('help.expenseDesc') }}
-              />
+              <HelpItemList items={expenseItems} />
             </FeatureSection>
 
             <FeatureSection 
               icon={<Briefcase className="w-5 h-5 text-blue-500" />}
               title={t('help.multipleJobs')}
             >
-              <ul 
-                className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-1"
-                dangerouslySetInnerHTML={{ __html: t('help.multipleJobsDesc') }}
-              />
+              <HelpItemList items={multipleJobsItems} />
             </FeatureSection>
             
             <FeatureSection 
               icon={<Download className="w-5 h-5 text-slate-500" />}
               title={t('help.getStarted')}
             >
-               <ol 
-                 className="list-decimal list-inside text-sm text-slate-600 space-y-1 ml-1"
-                 dangerouslySetInnerHTML={{ __html: t('help.getStartedDesc') }} 
-               />
+               <HelpItemList items={getStartedItems} ordered />
             </FeatureSection>
           </div>
           
@@ -120,3 +126,20 @@ const FeatureSection = ({ icon, title, children }: { icon: React.ReactNode, titl
     </div>
   </div>
 );
+
+const HelpItemList = ({ items, ordered = false }: { items: HelpListItem[]; ordered?: boolean }) => {
+  const ListTag = ordered ? 'ol' : 'ul';
+  const listClassName = ordered
+    ? 'list-decimal list-inside text-sm text-slate-600 space-y-1 ml-1'
+    : 'list-disc list-inside text-sm text-slate-600 space-y-1 ml-1';
+
+  return (
+    <ListTag className={listClassName}>
+      {items.map((item, index) => (
+        <li key={`${item.title}-${index}`}>
+          <strong>{item.title}:</strong> {item.description}
+        </li>
+      ))}
+    </ListTag>
+  );
+};

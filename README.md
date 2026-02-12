@@ -47,8 +47,53 @@ Click on a section below to learn how PayChecker can help you.
 
 <br/>
 
+## Local Development (Port 3000)
+
+1. Run `npm ci`.
+2. Run `npm run dev:3000`.
+3. Open `http://localhost:3000`.
+
 ## � Get Started
 
 1.  **Add Your Jobs**: Go to the settings or Job Manager to set up your employers and hourly rates.
 2.  **Upload Roster**: Use the **Scanner** tab to upload your weekly or monthly roster.
 3.  **Check Dashboard**: Visit the **Dashboard** to see your upcoming schedule and projected earnings!
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in the following values.
+
+| Variable | Required | Description |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Yes | Supabase project URL for frontend API calls |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon key for frontend auth and queries |
+| `GEMINI_API_KEY` | Yes (Edge Function) | Gemini API key used by roster OCR/extraction |
+| `SERVICE_ROLE_KEY` | Yes (Edge Function) | Supabase service role key used for token validation and privileged writes |
+| `ALLOWED_ORIGINS` | Yes (Edge Function) | Comma-separated CORS allowlist for `process-roster` (`localhost:3000` + `localhost:5173` in local dev) |
+| `LOG_LEVEL` | Recommended (Edge Function) | `debug`, `info`, `warn`, or `error` (recommended `warn` for public production) |
+
+## Supabase Migration Order
+
+Apply SQL migrations in filename order. Current required order:
+
+1. `supabase/migrations/20260126_roster_scanning.sql`
+2. `supabase/migrations/20260127_add_has_seen_help.sql`
+3. `supabase/migrations/20260127_add_shift_time_fields.sql`
+4. `supabase/migrations/20260127_add_job_default_times.sql`
+5. `supabase/migrations/20260127_add_roster_identifier.sql`
+6. `supabase/migrations/20260201_add_visa_type.sql`
+7. `supabase/migrations/20260206_add_admin_role_and_feedback_policies.sql`
+8. `supabase/migrations/20260206_set_roster_scan_limit_5.sql`
+
+## Deployment Checklist
+
+1. Run `npm ci`.
+2. Run `npm run lint`.
+3. Run `npm run check:no-danger`.
+4. Run `npm run test`.
+5. Run `npm run build`.
+6. Run `npm audit --omit=dev --audit-level=high`.
+7. Deploy frontend with production `VITE_*` env vars.
+8. Deploy Supabase Edge Function `process-roster` with `GEMINI_API_KEY`, `SERVICE_ROLE_KEY`, `ALLOWED_ORIGINS`, and `LOG_LEVEL`.
+9. Confirm `profiles.is_admin` is set to `true` for admin users only.
+10. Verify roster scan limit policy (`profiles.roster_scan_limit = 5`) in production DB.

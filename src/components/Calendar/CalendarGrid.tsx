@@ -1,7 +1,7 @@
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, format } from 'date-fns';
 import { ChevronLeft, ChevronRight, Save, X, GripVertical, MousePointerClick, Lightbulb, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DayCell } from './DayCell';
 import { WeekView } from './WeekView';
@@ -18,12 +18,10 @@ const CALENDAR_HINTS_DISMISSED_KEY = 'paychecker_calendar_hints_dismissed';
 
 const CalendarHintBanner = () => {
   const { t } = useTranslation();
-  const [isDismissed, setIsDismissed] = useState(true);
-  
-  useEffect(() => {
-    const dismissed = localStorage.getItem(CALENDAR_HINTS_DISMISSED_KEY);
-    setIsDismissed(dismissed === 'true');
-  }, []);
+  const [isDismissed, setIsDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(CALENDAR_HINTS_DISMISSED_KEY) === 'true';
+  });
 
   const handleDismiss = () => {
     localStorage.setItem(CALENDAR_HINTS_DISMISSED_KEY, 'true');
@@ -71,6 +69,10 @@ interface CalendarGridProps {
   onAddJob?: () => void;
 }
 
+type PendingAction =
+  | { type: 'add'; data: Shift }
+  | { type: 'update'; data: { id: string; shiftUpdate: Partial<Shift> } };
+
 export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarGridProps) => {
   const shifts = useScheduleStore((state) => state.shifts);
   const jobConfigs = useScheduleStore((state) => state.jobConfigs);
@@ -83,7 +85,7 @@ export const CalendarGrid = ({ currentDate, onMonthChange, onAddJob }: CalendarG
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [isWarningOpen, setIsWarningOpen] = useState(false);
   const [overageAmount, setOverageAmount] = useState(0);
-  const [pendingAction, setPendingAction] = useState<{ type: 'add' | 'update', data: any } | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   // Swipe handlers for month navigation on mobile
   const handleSwipeLeft = useCallback(() => {
@@ -280,29 +282,21 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
   const { t } = useTranslation();
   const shifts = useScheduleStore((state) => state.shifts);
   const removeShiftsInRange = useScheduleStore((state) => state.removeShiftsInRange);
-  const [confirming, setConfirming] = useState(false);
+  const [confirmingMonth, setConfirmingMonth] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
 
   const startKey = format(monthStart, 'yyyy-MM-dd');
   const endKey = format(monthEnd, 'yyyy-MM-dd');
+  const monthKey = `${startKey}:${endKey}`;
   const monthShiftCount = shifts.filter(s => s.date >= startKey && s.date <= endKey).length;
-
-  useEffect(() => {
-    setConfirming(false);
-  }, [startKey, endKey]);
-
-  useEffect(() => {
-    if (confirming && monthShiftCount === 0) {
-      setConfirming(false);
-    }
-  }, [confirming, monthShiftCount]);
+  const confirming = confirmingMonth === monthKey && monthShiftCount > 0;
 
   const handleClear = async () => {
     if (clearing || monthShiftCount === 0) return;
     setClearing(true);
     await removeShiftsInRange(startKey, endKey);
     setClearing(false);
-    setConfirming(false);
+    setConfirmingMonth(null);
   };
 
   return (
@@ -310,7 +304,7 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
       {!confirming ? (
         <button
           type="button"
-          onClick={() => setConfirming(true)}
+          onClick={() => setConfirmingMonth(monthKey)}
           disabled={monthShiftCount === 0}
           className={clsx(
             "neu-btn flex items-center gap-2 !bg-rose-50 !text-rose-700 border border-rose-100",
@@ -341,7 +335,7 @@ const ClearMonthButton = ({ monthStart, monthEnd }: { monthStart: Date; monthEnd
           </button>
           <button
             type="button"
-            onClick={() => setConfirming(false)}
+            onClick={() => setConfirmingMonth(null)}
             className="neu-icon-btn w-9 h-9 !rounded-lg text-slate-500 hover:text-slate-700"
             aria-label={t('calendar.cancelDelete')}
           >

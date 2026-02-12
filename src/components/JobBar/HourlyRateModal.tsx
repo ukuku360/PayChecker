@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { JobConfig } from '../../types';
-import { X, Trash2, Calendar, History, Coffee, Info } from 'lucide-react';
+import { X, Trash2, Calendar, History, Coffee, Info, Palette } from 'lucide-react';
 import { clsx } from 'clsx';
-import { dotColorMap } from '../../utils/colorUtils';
+import { colorOptions, dotColorMap } from '../../utils/colorUtils';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -18,6 +18,45 @@ interface HourlyRateModalProps {
   shiftCount?: number;
 }
 
+interface TooltipIconProps {
+  id: string;
+  position?: 'left' | 'right';
+  isMobile: boolean;
+  activeTooltip: string | null;
+  onToggle: (id: string) => void;
+  children: React.ReactNode;
+}
+
+const TooltipIcon = ({
+  id,
+  position = 'right',
+  isMobile,
+  activeTooltip,
+  onToggle,
+  children,
+}: TooltipIconProps) => (
+  <div className="relative">
+    <button
+      type="button"
+      onClick={() => isMobile && onToggle(id)}
+      className="p-2 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
+      aria-label="Show info"
+    >
+      <Info className="w-4 h-4 text-slate-400" />
+    </button>
+    <div className={clsx(
+      "absolute top-full mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 transition-opacity",
+      position === 'right' ? 'right-0' : 'left-0',
+      isMobile
+        ? (activeTooltip === id ? 'opacity-100 visible' : 'opacity-0 invisible')
+        : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
+    )}>
+      {children}
+      <div className={clsx("absolute -top-1.5 w-3 h-3 bg-slate-800 rotate-45", position === 'right' ? 'right-4' : 'left-4')} />
+    </div>
+  </div>
+);
+
 export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0 }: HourlyRateModalProps) => {
   const { t } = useTranslation();
   const { symbol } = useCurrency();
@@ -27,6 +66,11 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   const {
+    jobName,
+    jobColor,
+    jobNameError,
+    handleJobNameChange,
+    setJobColor,
     rates,
     defaultHours,
     effectiveDate,
@@ -58,39 +102,17 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
   const handleTooltipToggle = (id: string) => {
     setActiveTooltip(activeTooltip === id ? null : id);
   };
-
-  // Tooltip component that works on both mobile (tap) and desktop (hover)
-  const TooltipIcon = ({ id, children, position = 'right' }: { id: string; children: React.ReactNode; position?: 'left' | 'right' }) => (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => isMobile && handleTooltipToggle(id)}
-        className="p-2 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
-        aria-label="Show info"
-      >
-        <Info className="w-4 h-4 text-slate-400" />
-      </button>
-      <div className={clsx(
-        "absolute top-full mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 transition-opacity",
-        position === 'right' ? 'right-0' : 'left-0',
-        isMobile
-          ? (activeTooltip === id ? 'opacity-100 visible' : 'opacity-0 invisible')
-          : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
-      )}>
-        {children}
-        <div className={clsx("absolute -top-1.5 w-3 h-3 bg-slate-800 rotate-45", position === 'right' ? 'right-4' : 'left-4')} />
-      </div>
-    </div>
-  );
+  const breakTooltipExample = t('hourlyRateModal.breakTooltipExample');
+  const [breakTooltipPrefix, breakTooltipSuffix = ''] = breakTooltipExample.split('7.5h');
 
   const modalContent = (
     <>
       {/* Header - Only show on mobile BottomSheet */}
       {isMobile && (
         <div className="flex items-center gap-3 mb-6 pt-2">
-          <div className={clsx("w-3 h-3 rounded-full shadow-inner", dotColorMap[job.color] || 'bg-slate-500')} />
+          <div className={clsx("w-3 h-3 rounded-full shadow-inner", dotColorMap[jobColor] || 'bg-slate-300')} />
           <div>
-            <h2 className="text-lg font-bold text-slate-700">{job.name} {t('hourlyRateModal.settings')}</h2>
+            <h2 className="text-lg font-bold text-slate-700">{jobName || t('hourlyRateModal.jobNameFallback')} {t('hourlyRateModal.settings')}</h2>
             <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">{t('hourlyRateModal.configureRates')}</p>
           </div>
         </div>
@@ -98,6 +120,55 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
 
       {/* Body */}
       <div className="space-y-6">
+        {/* Job Identity Configuration */}
+        <div className="neu-flat p-4 rounded-xl space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="p-1.5 bg-violet-50 rounded-lg text-violet-500"><Palette className="w-3.5 h-3.5" /></div>
+            <h3 className="text-sm font-bold text-slate-700">{t('hourlyRateModal.jobAppearance')}</h3>
+          </div>
+          <div>
+            <label className={labelClass}>{t('hourlyRateModal.jobName')}</label>
+            <input
+              type="text"
+              value={jobName}
+              onChange={(e) => handleJobNameChange(e.target.value)}
+              placeholder={t('hourlyRateModal.jobNamePlaceholder')}
+              className={clsx(
+                inputClass,
+                "pl-3 bg-white/60 border-white/50 shadow-sm",
+                jobNameError && "border-rose-300 focus:ring-rose-400"
+              )}
+            />
+            {jobNameError && (
+              <p className="text-xs text-rose-500 mt-1.5 font-medium">
+                {t('hourlyRateModal.jobNameRequired')}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className={labelClass}>{t('hourlyRateModal.jobColor')}</label>
+            <div className="flex gap-2.5 flex-wrap" role="radiogroup" aria-label={t('hourlyRateModal.jobColor')}>
+              {colorOptions.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  role="radio"
+                  aria-checked={jobColor === color}
+                  aria-label={t('hourlyRateModal.jobColorOption', { color })}
+                  onClick={() => setJobColor(color)}
+                  className={clsx(
+                    "w-8 h-8 rounded-full transition-all border border-white/80 shadow-sm hover:scale-105",
+                    dotColorMap[color],
+                    jobColor === color
+                      ? 'ring-2 ring-slate-300 ring-offset-2 scale-110'
+                      : 'opacity-90 hover:opacity-100'
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Default Hours Configuration */}
         <div className="neu-flat p-4 rounded-xl space-y-3">
           <div className="flex items-center gap-2 mb-1">
@@ -172,9 +243,19 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
             <div className="p-1.5 bg-amber-50 rounded-lg text-amber-500"><Coffee className="w-3.5 h-3.5" /></div>
             <h3 className="text-sm font-bold text-slate-700">{t('hourlyRateModal.unpaidBreak')}</h3>
             <div className="group ml-auto">
-              <TooltipIcon id="break-tooltip" position="right">
+              <TooltipIcon
+                id="break-tooltip"
+                position="right"
+                isMobile={isMobile}
+                activeTooltip={activeTooltip}
+                onToggle={handleTooltipToggle}
+              >
                 <p className="font-medium mb-1">{t('hourlyRateModal.breakTooltipTitle')}</p>
-                <p className="text-slate-300" dangerouslySetInnerHTML={{ __html: t('hourlyRateModal.breakTooltipExample').replace('7.5h', '<strong>7.5h</strong>') }} />
+                <p className="text-slate-300">
+                  {breakTooltipPrefix}
+                  <strong>7.5h</strong>
+                  {breakTooltipSuffix}
+                </p>
               </TooltipIcon>
             </div>
           </div>
@@ -217,7 +298,13 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-sm font-bold text-slate-700">{t('hourlyRateModal.hourlyRates')}</h3>
                   <div className="group">
-                    <TooltipIcon id="rates-tooltip" position="left">
+                    <TooltipIcon
+                      id="rates-tooltip"
+                      position="left"
+                      isMobile={isMobile}
+                      activeTooltip={activeTooltip}
+                      onToggle={handleTooltipToggle}
+                    >
                       <p className="font-medium mb-2">{t('hourlyRateModal.penaltyRatesTooltipTitle')}</p>
                       <div className="space-y-1 text-slate-300">
                         <p>{t('hourlyRateModal.weekday')}: <strong>{symbol}25</strong></p>
@@ -277,7 +364,13 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
                   {showHistory ? t('hourlyRateModal.hideHistory') : t('hourlyRateModal.viewHistory', { count: rateHistory.length })}
                 </button>
                 <div className="group">
-                  <TooltipIcon id="history-tooltip" position="right">
+                  <TooltipIcon
+                    id="history-tooltip"
+                    position="right"
+                    isMobile={isMobile}
+                    activeTooltip={activeTooltip}
+                    onToggle={handleTooltipToggle}
+                  >
                     <p className="font-medium mb-1">{t('hourlyRateModal.rateHistoryTooltipTitle')}</p>
                     <p className="text-slate-300">{t('hourlyRateModal.rateHistoryTooltipDesc')}</p>
                   </TooltipIcon>
@@ -405,9 +498,9 @@ export const HourlyRateModal = ({ job, onClose, onSave, onDelete, shiftCount = 0
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
           <div className="flex items-center gap-3">
-            <div className={clsx("w-3 h-3 rounded-full shadow-inner", dotColorMap[job.color] || 'bg-slate-500')} />
+            <div className={clsx("w-3 h-3 rounded-full shadow-inner", dotColorMap[jobColor] || 'bg-slate-300')} />
             <div>
-              <h2 className="text-lg font-bold text-slate-700">{job.name} {t('hourlyRateModal.settings')}</h2>
+              <h2 className="text-lg font-bold text-slate-700">{jobName || t('hourlyRateModal.jobNameFallback')} {t('hourlyRateModal.settings')}</h2>
               <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">{t('hourlyRateModal.configureRates')}</p>
             </div>
           </div>

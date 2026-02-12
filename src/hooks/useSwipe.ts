@@ -148,20 +148,20 @@ export function useSwipeReveal({
   onClose,
 }: UseSwipeRevealOptions = {}): UseSwipeRevealReturn {
   const swipeState = useRef<{ startX: number; currentOffset: number } | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
   const offsetRef = useRef(0);
-  const isOpenRef = useRef(false);
-  const forceUpdate = useRef<() => void>(() => {});
 
-  // Force re-render mechanism
-  const [, setTick] = useState(0);
-  forceUpdate.current = () => setTick((t) => t + 1);
+  const setOffsetAndSync = useCallback((nextOffset: number) => {
+    offsetRef.current = nextOffset;
+    setOffset(nextOffset);
+  }, []);
 
   const close = useCallback(() => {
-    offsetRef.current = 0;
-    isOpenRef.current = false;
-    forceUpdate.current();
+    setOffsetAndSync(0);
+    setIsOpen(false);
     onClose?.();
-  }, [onClose]);
+  }, [onClose, setOffsetAndSync]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
@@ -187,10 +187,9 @@ export function useSwipeReveal({
         newOffset = maxOffset * 0.9 + (newOffset - maxOffset * 0.9) * 0.2;
       }
 
-      offsetRef.current = newOffset;
-      forceUpdate.current();
+      setOffsetAndSync(newOffset);
     },
-    [maxOffset]
+    [maxOffset, setOffsetAndSync]
   );
 
   const handleTouchEnd = useCallback(() => {
@@ -198,26 +197,25 @@ export function useSwipeReveal({
 
     // Snap to open or closed state
     if (offsetRef.current > threshold) {
-      offsetRef.current = maxOffset;
-      if (!isOpenRef.current) {
-        isOpenRef.current = true;
+      setOffsetAndSync(maxOffset);
+      if (!isOpen) {
+        setIsOpen(true);
         onOpen?.();
       }
     } else {
-      offsetRef.current = 0;
-      if (isOpenRef.current) {
-        isOpenRef.current = false;
+      setOffsetAndSync(0);
+      if (isOpen) {
+        setIsOpen(false);
         onClose?.();
       }
     }
 
     swipeState.current = null;
-    forceUpdate.current();
-  }, [threshold, maxOffset, onOpen, onClose]);
+  }, [threshold, maxOffset, onOpen, onClose, isOpen, setOffsetAndSync]);
 
   return {
-    offset: offsetRef.current,
-    isOpen: isOpenRef.current,
+    offset,
+    isOpen,
     handlers: {
       onTouchStart: handleTouchStart,
       onTouchMove: handleTouchMove,
@@ -226,4 +224,3 @@ export function useSwipeReveal({
     close,
   };
 }
-

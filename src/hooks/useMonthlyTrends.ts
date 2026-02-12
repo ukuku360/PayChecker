@@ -3,6 +3,12 @@ import { useScheduleStore } from '../store/useScheduleStore';
 import { calculateTotalPay } from '../utils/calculatePay';
 import { format, parseISO } from 'date-fns';
 
+interface MonthlyTrendRow {
+  name: string;
+  originalDate: number;
+  [jobId: string]: string | number;
+}
+
 export const useMonthlyTrends = (numberOfMonths = 6) => {
   const { shifts, jobConfigs, holidays } = useScheduleStore();
 
@@ -26,7 +32,7 @@ export const useMonthlyTrends = (numberOfMonths = 6) => {
        
        // Initialize object with readable date
        const monthDate = parseISO(`${monthKey}-01`);
-       const row: any = {
+       const row: MonthlyTrendRow = {
          name: format(monthDate, 'MMM yy'),
          originalDate: monthDate.getTime(), // for sorting if needed
        };

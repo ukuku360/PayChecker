@@ -86,7 +86,7 @@ export const exportToCSV = (data: ExportData): void => {
 };
 
 // Export to PDF
-export const exportToPDF = (data: ExportData): void => {
+export const exportToPDF = async (data: ExportData): Promise<void> => {
   const country = data.country || 'AU';
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();

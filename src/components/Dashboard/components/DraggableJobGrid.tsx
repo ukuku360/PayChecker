@@ -2,14 +2,13 @@ import { Plus, Download, Sparkles } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { useLongPress } from '../../../hooks/useLongPress';
 import { dotColorMap, borderColorMap } from '../../../utils/colorUtils';
 import type { JobConfig } from '../../../types';
 
 interface DraggableJobGridProps {
   jobConfigs: JobConfig[];
   getJobStats: (jobId: string) => { totalHours: number; actualHours: number };
-  onJobDoubleClick?: (job: JobConfig) => void;
+  onJobClick?: (job: JobConfig) => void;
   onAddJob?: () => void;
   onAIScan?: () => void;
   onExport?: () => void;
@@ -18,11 +17,11 @@ interface DraggableJobGridProps {
 const DraggableJobCard = ({
   job,
   stats,
-  onDoubleClick,
+  onClick,
 }: {
   job: JobConfig;
   stats: { totalHours: number; actualHours: number };
-  onDoubleClick: () => void;
+  onClick: () => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -32,11 +31,6 @@ const DraggableJobCard = ({
         isSource: true,
       },
     });
-
-  const longPressProps = useLongPress({
-    onLongPress: onDoubleClick,
-    onDoubleClick: onDoubleClick,
-  });
 
   const style = transform
     ? {
@@ -50,7 +44,7 @@ const DraggableJobCard = ({
       style={style}
       {...listeners}
       {...attributes}
-      {...longPressProps}
+      onClick={onClick}
       className={clsx(
         'neu-flat px-4 py-3 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-all select-none border-t border-l border-white/50 touch-none',
         borderColorMap[job.color] ? '' : 'border-transparent',
@@ -60,7 +54,7 @@ const DraggableJobCard = ({
       <div
         className={clsx(
           'w-3 h-3 rounded-full shadow-inner',
-          dotColorMap[job.color] || 'bg-slate-500'
+          dotColorMap[job.color] || 'bg-slate-300'
         )}
       />
       <div className="flex items-center gap-2">
@@ -81,7 +75,7 @@ const DraggableJobCard = ({
 export const DraggableJobGrid = ({
   jobConfigs,
   getJobStats,
-  onJobDoubleClick,
+  onJobClick,
   onAddJob,
   onAIScan,
   onExport,
@@ -135,7 +129,7 @@ export const DraggableJobGrid = ({
             key={job.id}
             job={job}
             stats={getJobStats(job.id)}
-            onDoubleClick={() => onJobDoubleClick?.(job)}
+            onClick={() => onJobClick?.(job)}
           />
         ))}
       </div>

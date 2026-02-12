@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 import { useScheduleStore } from '../../store/useScheduleStore';
 import { calculateTotalPay } from '../../utils/calculatePay';
 import { Briefcase, Clock, Wallet } from 'lucide-react';
@@ -6,13 +7,26 @@ import { useCurrency } from '../../hooks/useCurrency';
 
 const COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#f43f5e', '#06b6d4'];
 
-const CustomTooltip = ({ active, payload, formatter }: any) => {
+interface JobTooltipPayload {
+  name: string;
+  value: number;
+  hours: number;
+}
+
+type TooltipValue = number | string | ReadonlyArray<number | string>;
+type TooltipName = number | string;
+
+interface CustomTooltipProps extends TooltipContentProps<TooltipValue, TooltipName> {
+  formatValue?: (value: number) => string;
+}
+
+const CustomTooltip = ({ active, payload, formatValue }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload;
+    const data = payload[0].payload as JobTooltipPayload;
     return (
       <div className="glass-panel p-3">
         <p className="font-semibold text-slate-700 text-sm">{data.name}</p>
-        <p className="text-xs text-slate-500">{formatter ? formatter(data.value) : data.value}</p>
+        <p className="text-xs text-slate-500">{formatValue ? formatValue(data.value) : data.value}</p>
         <p className="text-xs text-slate-400">{data.hours}h worked</p>
       </div>
     );
@@ -74,7 +88,7 @@ export const JobBreakdown = () => {
                   <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip formatter={formatCurrency} />} />
+              <Tooltip content={(props) => <CustomTooltip {...props} formatValue={formatCurrency} />} />
               <Legend 
                 iconType="circle"
                 iconSize={8}

@@ -68,12 +68,9 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
       const fetchUsage = async () => {
         try {
           const usage = await getRosterScanUsage();
-          const { data: { user } } = await supabase.auth.getUser();
-          const isDev = user?.email === 'nayoonho2001@gmail.com';
-          
           setScanUsage({
             used: usage.used,
-            limit: isDev ? usage.limit : 5
+            limit: usage.limit
           });
         } catch (err) {
           console.error(err);
@@ -119,7 +116,7 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
 
 
   // Helper for Phase 2
-  const executePhase2 = async (answers: QuestionAnswer[], contentData: OcrResult) => {
+  const executePhase2 = useCallback(async (answers: QuestionAnswer[], contentData: OcrResult) => {
     setStep('processing');
     setIsLoading(true);
     setError(null);
@@ -169,7 +166,7 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [jobConfigs, jobAliases]);
 
   const handleQuestionSubmit = useCallback(async (answers: QuestionAnswer[], contentData?: OcrResult) => {
     const dataToUse = contentData || ocrData;
@@ -179,7 +176,7 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
       return;
     }
     await executePhase2(answers, dataToUse);
-  }, [ocrData, jobConfigs, jobAliases]);
+  }, [ocrData, executePhase2]);
 
   // Fix: Chain Phase 1 to Phase 2 if needed.
   // We need to modify handleProcess to call executePhase2 directly if skipping.
@@ -217,11 +214,9 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
       }
 
       if (result.scansUsed !== undefined && result.scanLimit !== undefined) {
-        const { data: { user } } = await supabase.auth.getUser();
-        const isDev = user?.email === 'nayoonho2001@gmail.com';
         setScanUsage({ 
           used: result.scansUsed, 
-          limit: isDev ? result.scanLimit : 5 
+          limit: result.scanLimit 
         });
       }
 
@@ -246,7 +241,7 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
       setScanLimit(null);
       setIsLoading(false);
     }
-  }, [file, jobConfigs, jobAliases]);
+  }, [file, scanUsage, executePhase2]);
 
   const handleRetry = useCallback(() => {
     handleProcessWithSkip();
@@ -326,7 +321,7 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
         
         const jobConfig = jobConfigs.find(j => j.id === s.mappedJobId);
         let hours = s.totalHours ?? 0;
-        let startTime = s.startTime;
+        const startTime = s.startTime;
         let endTime = s.endTime;
 
         if (jobConfig) {

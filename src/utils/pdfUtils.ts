@@ -5,6 +5,7 @@
 
 // PDF.js is dynamically imported to reduce bundle size
 let pdfjsLib: typeof import('pdfjs-dist') | null = null;
+const LOCAL_PDF_WORKER_SRC = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 // Constants
 const DEFAULT_RENDER_SCALE = 2.0;
@@ -18,9 +19,14 @@ async function loadPdfJs(): Promise<typeof import('pdfjs-dist')> {
 
   pdfjsLib = await import('pdfjs-dist');
 
-  // Set worker source - using CDN for simplicity
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  // Prefer local worker to avoid runtime dependency on external CDN.
+  // Fall back to CDN only if local worker assignment fails.
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = LOCAL_PDF_WORKER_SRC;
+  } catch {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  }
 
   return pdfjsLib;
 }
@@ -53,11 +59,12 @@ export async function extractFirstPageAsImage(file: File, scale = DEFAULT_RENDER
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  await page.render({
+  const renderContext: Parameters<typeof page.render>[0] = {
     canvasContext: ctx,
     viewport,
     canvas
-  } as any).promise;
+  };
+  await page.render(renderContext).promise;
 
   // Convert to JPEG with decent quality
   const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
@@ -120,11 +127,12 @@ export async function extractPagesAsImages(
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    await page.render({
+    const renderContext: Parameters<typeof page.render>[0] = {
       canvasContext: ctx,
       viewport,
       canvas
-    } as any).promise;
+    };
+    await page.render(renderContext).promise;
 
     const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
     images.push(dataUrl.split(',')[1]);

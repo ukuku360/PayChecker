@@ -15,13 +15,9 @@
 import {
   parseLocalDate,
   formatLocalDate,
-  toDateKey,
   isValidDateString,
   getWeekStartSunday,
-  getWeekStartSundayFromString,
   addDaysToDate,
-  addDaysToDateString,
-  compareDateStrings,
   isDateInRange,
   doRangesOverlap,
   tryParseLocalDate,

@@ -10,6 +10,9 @@ export const useHourlyRateLogic = (
   onClose: () => void,
   onDelete?: (id: string) => void
 ) => {
+  const [jobName, setJobName] = useState(job.name);
+  const [jobColor, setJobColor] = useState(job.color);
+  const [jobNameError, setJobNameError] = useState<string | null>(null);
   const [rates, setRates] = useState(job.hourlyRates);
   const [defaultHours, setDefaultHours] = useState({
       weekday: job.defaultHours?.weekday ?? 0,
@@ -23,6 +26,13 @@ export const useHourlyRateLogic = (
   const [defaultStartTime, setDefaultStartTime] = useState(job.defaultStartTime || '');
   const [defaultEndTime, setDefaultEndTime] = useState(job.defaultEndTime || '');
   const [breakError, setBreakError] = useState<string | null>(null);
+
+  const handleJobNameChange = (value: string) => {
+    setJobName(value);
+    if (jobNameError && value.trim()) {
+      setJobNameError(null);
+    }
+  };
 
   // Validate break time doesn't exceed shift duration
   const validateBreakTime = (breakHrs: number) => {
@@ -40,6 +50,12 @@ export const useHourlyRateLogic = (
   };
 
   const handleSave = () => {
+    const trimmedJobName = jobName.trim();
+    if (!trimmedJobName) {
+      setJobNameError('Job name is required');
+      return;
+    }
+
     if (!validateBreakTime(breakHours)) return;
 
     // Validate date format using dateUtils
@@ -79,6 +95,8 @@ export const useHourlyRateLogic = (
     const ratesToSave = isRateEffectiveNow ? sanitizedRates : job.hourlyRates;
 
     onSave(job.id, {
+        name: trimmedJobName,
+        color: jobColor,
         hourlyRates: ratesToSave,
         defaultHours: defaultHours,
         rateHistory: updatedHistory,
@@ -127,6 +145,12 @@ export const useHourlyRateLogic = (
   };
 
   return {
+    jobName,
+    setJobName,
+    jobColor,
+    setJobColor,
+    jobNameError,
+    handleJobNameChange,
     rates,
     setRates,
     defaultHours,

@@ -16,16 +16,33 @@ on feedback for select
 to authenticated
 using (auth.uid() = user_id);
 
--- Policy: Admin can view ALL feedback
--- Replace 'nayoonho2001@gmail.com' with your actual admin email if different
+-- Policy: Admin can view ALL feedback (role-based)
 create policy "Admins can view all feedback"
 on feedback for select
 to authenticated
-using (auth.jwt() ->> 'email' = 'nayoonho2001@gmail.com');
+using (
+  exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
+);
 
 -- Policy: Admin can update feedback (reply, status change)
 create policy "Admins can update feedback"
 on feedback for update
 to authenticated
-using (auth.jwt() ->> 'email' = 'nayoonho2001@gmail.com')
-with check (auth.jwt() ->> 'email' = 'nayoonho2001@gmail.com');
+using (
+  exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
+)
+with check (
+  exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
+);

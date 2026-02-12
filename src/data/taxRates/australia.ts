@@ -39,6 +39,158 @@ export const AU_MEDICARE_LEVY_THRESHOLD = 27222; // Low-income threshold for sin
 // Superannuation (12% from 1 July 2025)
 export const AU_SUPER_RATE = 0.12;
 
+/**
+ * ATO NAT 1004 Schedule 1 - PAYG Withholding Coefficients
+ * Effective from 1 July 2024 (Stage 3 Tax Cuts)
+ *
+ * Formula: Weekly Tax = (a × Weekly Earnings) - b
+ * Weekly Earnings should be rounded down to whole dollars plus 99 cents
+ *
+ * Reference: https://www.ato.gov.au/tax-rates-and-codes/payg-withholding-schedule-1-statement-of-formulas-for-calculating-amounts-to-be-withheld
+ */
+
+interface PAYGCoefficient {
+  min: number;      // Weekly earnings minimum (inclusive)
+  max: number;      // Weekly earnings maximum (inclusive)
+  a: number;        // Coefficient 'a'
+  b: number;        // Coefficient 'b'
+}
+
+// Scale 2: Resident claiming tax-free threshold (with Medicare Levy)
+// Use for: Domestic residents
+const PAYG_SCALE_2: PAYGCoefficient[] = [
+  { min: 0, max: 359, a: 0, b: 0 },
+  { min: 359, max: 438, a: 0.1900, b: 68.3462 },
+  { min: 438, max: 548, a: 0.2900, b: 112.1942 },
+  { min: 548, max: 721, a: 0.2100, b: 68.3465 },
+  { min: 721, max: 865, a: 0.2190, b: 74.8369 },
+  { min: 865, max: 1282, a: 0.3477, b: 186.2119 },
+  { min: 1282, max: 2307, a: 0.3450, b: 182.7504 },
+  { min: 2307, max: 3461, a: 0.3900, b: 286.5965 },
+  { min: 3461, max: Infinity, a: 0.4700, b: 563.5196 },
+];
+
+// Scale 6: Resident claiming tax-free threshold (Medicare Levy EXEMPTION)
+// Use for: Student Visa holders with Medicare Levy Exemption Certificate
+const PAYG_SCALE_6: PAYGCoefficient[] = [
+  { min: 0, max: 359, a: 0, b: 0 },
+  { min: 359, max: 721, a: 0.1900, b: 68.3462 },
+  { min: 721, max: 865, a: 0.1990, b: 74.8365 },
+  { min: 865, max: 2307, a: 0.3250, b: 183.7058 },
+  { min: 2307, max: 3461, a: 0.3700, b: 287.5504 },
+  { min: 3461, max: Infinity, a: 0.4500, b: 564.4731 },
+];
+
+// Schedule 15: Working Holiday Makers (417/462 visa)
+// 15% flat rate on first $45,000, then ordinary rates
+const PAYG_SCHEDULE_15: PAYGCoefficient[] = [
+  { min: 0, max: 865, a: 0.1500, b: 0 },           // 15% flat rate
+  { min: 865, max: 2307, a: 0.3250, b: 151.4423 }, // 30% + 2% Medicare - cumulative
+  { min: 2307, max: 3461, a: 0.3700, b: 255.2869 },
+  { min: 3461, max: Infinity, a: 0.4500, b: 532.2096 },
+];
+
+/**
+ * Convert gross pay to weekly equivalent
+ */
+const convertToWeekly = (grossPay: number, period: PayPeriod): number => {
+  switch (period) {
+    case 'weekly':
+      return grossPay;
+    case 'fortnightly':
+      return grossPay / 2;
+    case 'monthly':
+      return (grossPay * 12) / 52;
+    case 'annual':
+      return grossPay / 52;
+    default:
+      return grossPay;
+  }
+};
+
+/**
+ * Convert weekly tax back to the original period
+ */
+const convertFromWeekly = (weeklyTax: number, period: PayPeriod): number => {
+  switch (period) {
+    case 'weekly':
+      return weeklyTax;
+    case 'fortnightly':
+      return weeklyTax * 2;
+    case 'monthly':
+      return (weeklyTax * 52) / 12;
+    case 'annual':
+      return weeklyTax * 52;
+    default:
+      return weeklyTax;
+  }
+};
+
+/**
+ * Get the appropriate PAYG coefficient table based on visa type
+ */
+const getPAYGCoefficients = (visaType: AustraliaVisaType): PAYGCoefficient[] => {
+  switch (visaType) {
+    case 'working_holiday':
+      return PAYG_SCHEDULE_15;
+    case 'student_visa':
+      return PAYG_SCALE_6;
+    case 'domestic':
+    default:
+      return PAYG_SCALE_2;
+  }
+};
+
+/**
+ * Calculate PAYG withholding using ATO coefficient formula
+ * Formula: Tax = (a × weekly_earnings) - b
+ *
+ * This provides more accurate withholding amounts that match actual payslips
+ * compared to the annual tax / period method.
+ */
+const calculatePAYGWithholding = (
+  grossPay: number,
+  period: PayPeriod,
+  visaType: AustraliaVisaType = 'domestic'
+): number => {
+  if (grossPay <= 0) return 0;
+
+  // Convert to weekly earnings (rounded down to whole dollars + 99 cents as per ATO)
+  const weeklyEarnings = convertToWeekly(grossPay, period);
+  const roundedWeekly = Math.floor(weeklyEarnings) + 0.99;
+
+  // Get the appropriate coefficient table
+  const coefficients = getPAYGCoefficients(visaType);
+
+  // Find the matching coefficient bracket
+  let coeff: PAYGCoefficient | undefined;
+  for (const c of coefficients) {
+    if (roundedWeekly >= c.min && roundedWeekly < c.max) {
+      coeff = c;
+      break;
+    }
+    // Handle the last bracket (max = Infinity)
+    if (c.max === Infinity && roundedWeekly >= c.min) {
+      coeff = c;
+      break;
+    }
+  }
+
+  if (!coeff) {
+    // Fallback: no tax for very low income
+    return 0;
+  }
+
+  // Calculate weekly tax using the formula: y = ax - b
+  const weeklyTax = Math.max(0, (coeff.a * roundedWeekly) - coeff.b);
+
+  // Round to nearest dollar as per ATO
+  const roundedWeeklyTax = Math.round(weeklyTax);
+
+  // Convert back to the original period
+  return convertFromWeekly(roundedWeeklyTax, period);
+};
+
 // Calculate income tax based on visa type
 const calculateIncomeTaxForVisa = (annualIncome: number, visaType: AustraliaVisaType = 'domestic'): number => {
   if (annualIncome <= 0) return 0;
@@ -120,50 +272,59 @@ const calculateTotalTax = (annualIncome: number, excludeMedicare = false): numbe
 };
 
 // Calculate take-home pay based on visa type
+// Uses ATO PAYG withholding coefficients for accurate payslip matching
 const calculateTakeHomeForVisa = (
   grossPay: number,
   period: PayPeriod = 'fortnightly',
   visaType: AustraliaVisaType = 'domestic'
 ): TaxCalculationResult => {
-  // Annualize income based on period
-  let annualIncome = 0;
-  let scale = 1;
+  // Calculate PAYG withholding using ATO coefficient formula
+  // This already includes Medicare Levy for domestic residents (Scale 2)
+  // and excludes it for student visa (Scale 6) and WHM (Schedule 15)
+  const paygWithholding = calculatePAYGWithholding(grossPay, period, visaType);
 
+  // Annualize for effective rate calculation
+  let annualIncome = 0;
   switch (period) {
     case 'weekly':
       annualIncome = grossPay * 52;
-      scale = 1 / 52;
       break;
     case 'fortnightly':
       annualIncome = grossPay * 26;
-      scale = 1 / 26;
       break;
     case 'monthly':
       annualIncome = grossPay * 12;
-      scale = 1 / 12;
       break;
     case 'annual':
       annualIncome = grossPay;
-      scale = 1;
       break;
   }
 
-  const incomeTax = calculateIncomeTaxForVisa(annualIncome, visaType);
-  const socialContributions = calculateSocialContributionsForVisa(annualIncome, visaType);
-  const socialTotal = socialContributions.reduce((sum, c) => sum + c.amount, 0);
-  const totalDeductions = incomeTax + socialTotal;
-  const netPay = annualIncome - totalDeductions;
-  const effectiveRate = annualIncome > 0 ? totalDeductions / annualIncome : 0;
+  // For domestic residents, Medicare Levy is already included in PAYG withholding (Scale 2)
+  // We still show it separately for informational purposes
+  const socialContributions: SocialContribution[] = [];
+  if (visaType === 'domestic' && annualIncome > AU_MEDICARE_LEVY_THRESHOLD) {
+    // Calculate Medicare portion for display (approx 2% of gross)
+    // Note: This is informational only - actual withholding uses PAYG formula
+    const medicareAmount = grossPay * AU_MEDICARE_LEVY_RATE;
+    socialContributions.push({
+      name: 'Medicare Levy',
+      nameKey: 'dashboard.includesMedicare',
+      amount: medicareAmount,
+      rate: AU_MEDICARE_LEVY_RATE,
+    });
+  }
+
+  const totalDeductions = paygWithholding;
+  const netPay = grossPay - totalDeductions;
+  const effectiveRate = grossPay > 0 ? totalDeductions / grossPay : 0;
 
   return {
     grossPay,
-    incomeTax: incomeTax * scale,
-    socialContributions: socialContributions.map(c => ({
-      ...c,
-      amount: c.amount * scale,
-    })),
-    totalDeductions: totalDeductions * scale,
-    netPay: netPay * scale,
+    incomeTax: paygWithholding, // PAYG withholding is the total tax (includes Medicare for domestic)
+    socialContributions,
+    totalDeductions,
+    netPay,
     effectiveRate,
   };
 };

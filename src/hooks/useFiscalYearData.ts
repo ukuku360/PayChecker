@@ -9,8 +9,8 @@ export const useFiscalYearData = () => {
 
   const { start: fyStart, end: fyEnd, label: fyLabel } = getFiscalYearRange(new Date(), 'AU');
 
-  // Get tax calculator with visa type
-  const taxCalculator = getTaxCalculator(visaType);
+  // Memoize calculator by visa type so downstream calculations only rerun when it changes.
+  const taxCalculator = useMemo(() => getTaxCalculator(visaType), [visaType]);
 
   const data = useMemo(() => {
     // 1. Group shifts
@@ -51,7 +51,7 @@ export const useFiscalYearData = () => {
       estimatedRefund,
       fortnights
     };
-  }, [shifts, jobConfigs, holidays, visaType, fyStart, taxCalculator]);
+  }, [shifts, jobConfigs, holidays, fyStart, fyEnd, fyLabel, taxCalculator]);
 
   return data;
 };

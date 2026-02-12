@@ -16,18 +16,35 @@ alter table feedback enable row level security;
 create policy "Users can insert their own feedback"
 on feedback for insert
 to authenticated
-with check (true);
+with check (auth.uid() = user_id);
 
--- Policy: Only Admin can select/view feedback
--- REPLACE 'your_email@example.com' with the actual developer email
+-- Policy: Admin can select/view all feedback (role-based)
 create policy "Admins can view all feedback"
 on feedback for select
 to authenticated
-using (auth.jwt() ->> 'email' = 'nayoonho2001@gmail.com');
+using (
+  exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
+);
 
--- Policy: Only Admin can update feedback (e.g. status)
+-- Policy: Admin can update feedback (e.g. status)
 create policy "Admins can update feedback status"
 on feedback for update
 to authenticated
-using (auth.jwt() ->> 'email' = 'your_email@example.com')
-with check (auth.jwt() ->> 'email' = 'your_email@example.com');
+using (
+  exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
+)
+with check (
+  exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
+);

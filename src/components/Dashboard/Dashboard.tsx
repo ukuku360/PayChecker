@@ -5,13 +5,7 @@ import type { JobType, JobConfig } from '../../types';
 import { Clock, AlertTriangle, Briefcase, Calendar } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { clsx } from 'clsx';
-import { useState, useMemo, useCallback } from 'react';
-import { FiscalYearView } from './FiscalYearView';
-import { IncomeChart } from './IncomeChart';
-import { JobBreakdown } from './JobBreakdown';
-import { WorkStats } from './WorkStats';
-import { SavingsGoal } from './SavingsGoal';
-import { ExpensesView } from './ExpensesView';
+import { useState, useMemo, useCallback, Suspense, lazy } from 'react';
 import { EmptyState } from '../EmptyState';
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
@@ -28,9 +22,16 @@ import { DashboardHeader } from './components/DashboardHeader';
 import { PaySummaryCards } from './components/PaySummaryCards';
 import { DraggableJobGrid } from './components/DraggableJobGrid';
 
+const FiscalYearView = lazy(() => import('./FiscalYearView').then(module => ({ default: module.FiscalYearView })));
+const IncomeChart = lazy(() => import('./IncomeChart').then(module => ({ default: module.IncomeChart })));
+const JobBreakdown = lazy(() => import('./JobBreakdown').then(module => ({ default: module.JobBreakdown })));
+const WorkStats = lazy(() => import('./WorkStats').then(module => ({ default: module.WorkStats })));
+const SavingsGoal = lazy(() => import('./SavingsGoal').then(module => ({ default: module.SavingsGoal })));
+const ExpensesView = lazy(() => import('./ExpensesView').then(module => ({ default: module.ExpensesView })));
+
 interface DashboardProps {
   currentMonth: Date;
-  onJobDoubleClick?: (job: JobConfig) => void;
+  onJobClick?: (job: JobConfig) => void;
   onAddJob?: () => void;
   onExport?: () => void;
   onAIScan?: () => void;
@@ -39,7 +40,7 @@ interface DashboardProps {
 
 export const Dashboard = ({
   currentMonth,
-  onJobDoubleClick,
+  onJobClick,
   onAddJob,
   onExport,
   onAIScan,
@@ -116,23 +117,27 @@ export const Dashboard = ({
       </DashboardHeader>
 
       {viewMode === 'fiscal' ? (
-        <div className="space-y-6">
-          <SavingsGoal />
-          <FiscalYearView />
-          <IncomeChart />
-          <JobBreakdown />
-          <WorkStats />
-        </div>
+        <Suspense fallback={<div className="neu-flat p-8 text-center text-slate-400">Loading view...</div>}>
+          <div className="space-y-6">
+            <SavingsGoal />
+            <FiscalYearView />
+            <IncomeChart />
+            <JobBreakdown />
+            <WorkStats />
+          </div>
+        </Suspense>
       ) : viewMode === 'budget' ? (
-        <ExpensesView />
+        <Suspense fallback={<div className="neu-flat p-8 text-center text-slate-400">Loading view...</div>}>
+          <ExpensesView />
+        </Suspense>
       ) : (
         <div className="space-y-6">
-          {/* Row 2: Job Cards - Draggable + Double-click for settings */}
+          {/* Row 2: Job Cards - Draggable + Click for settings */}
           {jobConfigs.length > 0 && (
             <DraggableJobGrid
               jobConfigs={jobConfigs}
               getJobStats={getJobStats}
-              onJobDoubleClick={onJobDoubleClick}
+              onJobClick={onJobClick}
               onAddJob={onAddJob}
               onAIScan={onAIScan}
               onExport={onExport}

@@ -8,6 +8,8 @@ interface Options {
   shouldStopPropagation?: boolean;
 }
 
+type LongPressNativeEvent = Event & { _longPressHandled?: boolean };
+
 export const useLongPress = ({ 
   onLongPress, 
   onClick, 
@@ -20,15 +22,22 @@ export const useLongPress = ({
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const clickCountRef = useRef(0);
 
+  const wasHandled = useCallback((e: React.MouseEvent | React.TouchEvent) =>
+    Boolean((e.nativeEvent as LongPressNativeEvent)._longPressHandled), []);
+
+  const markHandled = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    (e.nativeEvent as LongPressNativeEvent)._longPressHandled = true;
+  }, []);
+
   const start = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     // Check if already handled by a child component
-    if ((e.nativeEvent as any)._longPressHandled) {
+    if (wasHandled(e)) {
       return;
     }
 
     if (shouldStopPropagation) {
       e.stopPropagation();
-      (e.nativeEvent as any)._longPressHandled = true;
+      markHandled(e);
     }
     // Only left click or touch
     if ('button' in e && e.button !== 0) return;
@@ -38,7 +47,7 @@ export const useLongPress = ({
       isLongPressRef.current = true;
       onLongPress(e);
     }, threshold);
-  }, [onLongPress, threshold, shouldStopPropagation]);
+  }, [onLongPress, threshold, shouldStopPropagation, wasHandled, markHandled]);
 
   const clear = useCallback(() => {
     if (timerRef.current) {
@@ -49,20 +58,24 @@ export const useLongPress = ({
 
   const end = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     // Check if already handled by a child component
-    if ((e.nativeEvent as any)._longPressHandled) {
+    if (wasHandled(e)) {
       clear();
       return;
     }
 
     if (shouldStopPropagation) {
       e.stopPropagation();
-      (e.nativeEvent as any)._longPressHandled = true;
+      markHandled(e);
     }
     clear();
 
     // If it wasn't a long press, it's a click or double click
     if (!isLongPressRef.current) {
         if (onDoubleClick) {
+            // Clear any previous timeout to prevent stale state
+            if (clickTimeoutRef.current) {
+                clearTimeout(clickTimeoutRef.current);
+            }
             clickCountRef.current += 1;
             if (clickCountRef.current === 1) {
                 clickTimeoutRef.current = setTimeout(() => {
@@ -70,9 +83,10 @@ export const useLongPress = ({
                          onClick(e);
                     }
                     clickCountRef.current = 0;
+                    clickTimeoutRef.current = null;
                 }, 250); // Typical double click threshold
-            } else if (clickCountRef.current === 2) {
-                if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
+            } else if (clickCountRef.current >= 2) {
+                clickTimeoutRef.current = null;
                 onDoubleClick(e);
                 clickCountRef.current = 0;
             }
@@ -80,7 +94,7 @@ export const useLongPress = ({
             onClick(e);
         }
     }
-  }, [clear, onClick, onDoubleClick, shouldStopPropagation]);
+  }, [clear, onClick, onDoubleClick, shouldStopPropagation, wasHandled, markHandled]);
 
   return {
     onMouseDown: start,

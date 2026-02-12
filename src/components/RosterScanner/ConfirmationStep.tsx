@@ -5,7 +5,7 @@ import { format, parseISO, isValid } from 'date-fns';
 import type { ParsedShift, JobConfig, Shift, IdentifiedPerson } from '../../types';
 import { dotColorMap } from '../../utils/colorUtils';
 import { calculateTotalHours, isOvernightShift } from '../../utils/timeUtils';
-import { InlineJobCreator } from './InlineJobCreator';
+import { AddJobModal } from '../Dashboard/AddJobModal';
 
 interface ConfirmationStepProps {
   shifts: ParsedShift[];
@@ -390,12 +390,15 @@ export function ConfirmationStep({
                     </div>
                   </div>
 
-                  {/* Inline job creator */}
+                  {/* Job creation modal */}
                   {creatingJobForShift === shift.id && onAddJob && (
-                    <InlineJobCreator
-                      suggestedName={shift.rosterJobName}
-                      onJobCreated={(job) => handleJobCreated(shift.id, job)}
-                      onCancel={() => setCreatingJobForShift(null)}
+                    <AddJobModal
+                      isOpen={true}
+                      onClose={() => setCreatingJobForShift(null)}
+                      onAdd={(job) => handleJobCreated(shift.id, job)}
+                      existingJobIds={localJobConfigs.map(j => j.id)}
+                      initialName={shift.rosterJobName}
+                      zIndex={60}
                     />
                   )}
 

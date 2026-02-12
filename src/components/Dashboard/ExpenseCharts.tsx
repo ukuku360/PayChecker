@@ -2,15 +2,27 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { useTranslation } from 'react-i18next';
 import { useCurrency } from '../../hooks/useCurrency';
 
+interface ChartDataPoint {
+  name: string;
+  value?: number;
+  netIncome?: number;
+  realIncome?: number;
+  [key: string]: string | number | undefined;
+}
+
 const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#14b8a6', '#f59e0b', '#3b82f6', '#ef4444', '#64748b'];
 
 interface ChartProps {
-  data: any[];
+  data: ChartDataPoint[];
 }
 
 export const ExpensePieChart = ({ data }: ChartProps) => {
   const { t } = useTranslation();
   const { formatCurrency } = useCurrency();
+  const formatTooltipValue = (value: number | string | ReadonlyArray<number | string> | undefined) => {
+    const amount = Array.isArray(value) ? Number(value[0] ?? 0) : Number(value ?? 0);
+    return formatCurrency(amount);
+  };
 
   if (data.length === 0) {
     return (
@@ -33,14 +45,14 @@ export const ExpensePieChart = ({ data }: ChartProps) => {
             paddingAngle={5}
             dataKey="value"
           >
-            {data.map((_entry: any, index: number) => (
+            {data.map((_entry, index: number) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <RechartsTooltip 
-            formatter={(value: any) => formatCurrency(Number(value))}
-            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-          />
+	          <RechartsTooltip 
+	            formatter={(value) => formatTooltipValue(value)}
+	            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+	          />
           <Legend 
             verticalAlign="bottom" 
             height={36}
@@ -56,6 +68,10 @@ export const ExpensePieChart = ({ data }: ChartProps) => {
 export const RealIncomeChart = ({ data }: ChartProps) => {
   const { t } = useTranslation();
   const { formatCurrency } = useCurrency();
+  const formatTooltipValue = (value: number | string | ReadonlyArray<number | string> | undefined) => {
+    const amount = Array.isArray(value) ? Number(value[0] ?? 0) : Number(value ?? 0);
+    return formatCurrency(amount);
+  };
 
   return (
     <div className="h-64 w-full">
@@ -88,10 +104,10 @@ export const RealIncomeChart = ({ data }: ChartProps) => {
             tick={{ fontSize: 10, fill: '#64748b' }} 
             tickFormatter={(value) => `$${value}`}
           />
-          <RechartsTooltip 
-            formatter={(value: any) => formatCurrency(Number(value))}
-            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-          />
+	          <RechartsTooltip 
+	            formatter={(value) => formatTooltipValue(value)}
+	            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+	          />
           <Area 
             type="monotone" 
             dataKey="netIncome" 

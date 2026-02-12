@@ -31,8 +31,6 @@ export function BottomSheet({
   className,
 }: BottomSheetProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isRendering, setIsRendering] = useState(false);
   
   // Track visual viewport for virtual keyboard support
   const [viewportHeight, setViewportHeight] = useState(
@@ -57,22 +55,6 @@ export function BottomSheet({
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-
-  // Handle opening/closing animation
-  useEffect(() => {
-    if (isOpen) {
-      setIsRendering(true);
-      // Small delay to trigger CSS transition
-      requestAnimationFrame(() => {
-        setIsVisible(true);
-      });
-    } else {
-      setIsVisible(false);
-      // Wait for close animation
-      const timer = setTimeout(() => setIsRendering(false), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
 
   // Focus trap and ESC key handling
   useEffect(() => {
@@ -121,7 +103,7 @@ export function BottomSheet({
     };
   }, [isOpen, onClose]);
 
-  if (!isRendering) return null;
+  if (!isOpen) return null;
 
   return (
     <div
@@ -137,7 +119,7 @@ export function BottomSheet({
       <div
         className={clsx(
           'absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 pointer-events-auto',
-          isVisible ? 'opacity-100' : 'opacity-0'
+          isOpen ? 'opacity-100' : 'opacity-0'
         )}
         onClick={(e) => {
           e.stopPropagation();
@@ -153,7 +135,7 @@ export function BottomSheet({
       <div
         className={clsx(
           'absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl overflow-hidden flex flex-col pointer-events-auto transition-transform duration-300 ease-out',
-          isVisible ? 'translate-y-0' : 'translate-y-full',
+          isOpen ? 'translate-y-0' : 'translate-y-full',
           className
         )}
         style={{

@@ -39,6 +39,7 @@ export const ShiftItem = memo(function ShiftItem({
   // Swipe-to-delete state
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwipeOpen, setIsSwipeOpen] = useState(false);
+  const [isSwiping, setIsSwiping] = useState(false);
   const swipeState = useRef<{ startX: number; startOffset: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +51,7 @@ export const ShiftItem = memo(function ShiftItem({
       startX: clientX,
       startOffset: swipeOffset,
     };
+    setIsSwiping(true);
   }, [swipeOffset]);
 
   const handleSwipeMove = useCallback((clientX: number) => {
@@ -76,11 +78,13 @@ export const ShiftItem = memo(function ShiftItem({
     }
 
     swipeState.current = null;
+    setIsSwiping(false);
   }, [swipeOffset]);
 
   const closeSwipe = useCallback(() => {
     setSwipeOffset(0);
     setIsSwipeOpen(false);
+    setIsSwiping(false);
   }, []);
 
   // Touch handlers for swipe
@@ -115,7 +119,7 @@ export const ShiftItem = memo(function ShiftItem({
     }
   }, [isSwipeOpen, handleClickOutside]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+   
   const shiftLongPressProps = useLongPress({
     onLongPress: (e) => {
       if (swipeOffset === 0) onTimeEditOpen(shift, e);
@@ -182,7 +186,7 @@ export const ShiftItem = memo(function ShiftItem({
         title="Double-click (or long press) to edit time"
         style={{
           transform: `translateX(-${swipeOffset}px)`,
-          transition: swipeState.current ? 'none' : 'transform 0.2s ease-out',
+          transition: isSwiping ? 'none' : 'transform 0.2s ease-out',
         }}
         className={clsx(
           'text-xs px-2.5 py-1.5 rounded-lg border flex flex-col gap-1 shadow-sm transition-shadow hover:shadow-md group relative select-none',

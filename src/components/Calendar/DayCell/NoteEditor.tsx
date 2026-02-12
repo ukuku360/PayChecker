@@ -105,7 +105,7 @@ export const NoteEditor = ({ position, initialNote, onClose, onSave, isMobile: i
         position: 'fixed',
       }}
       className={clsx(
-        '-translate-x-1/2 z-[999] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col',
+        '-translate-x-1/2 z-[100] bg-yellow-50 rounded-xl shadow-xl border border-yellow-200 p-3 min-w-[200px] animate-in fade-in zoom-in-95 duration-150 flex flex-col',
         position.openAbove !== false ? '-translate-y-full mt-[-10px]' : 'mt-[10px]'
       )}
     >

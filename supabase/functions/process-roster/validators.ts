@@ -312,7 +312,7 @@ function attemptTimeParse(timeStr: string): string | null {
   // Pattern: "9am", "9:00am", "9:30pm", "12pm"
   const ampmMatch = cleaned.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
   if (ampmMatch) {
-    let [, hours, minutes = '00', period] = ampmMatch;
+    const [, hours, minutes = '00', period] = ampmMatch;
     let h = parseInt(hours, 10);
 
     if (period === 'pm' && h !== 12) h += 12;
@@ -326,7 +326,7 @@ function attemptTimeParse(timeStr: string): string | null {
   // Pattern: "9:00 am" or "9:00 pm" (with space)
   const ampmSpaceMatch = timeStr.toLowerCase().match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
   if (ampmSpaceMatch) {
-    let [, hours, minutes, period] = ampmSpaceMatch;
+    const [, hours, minutes, period] = ampmSpaceMatch;
     let h = parseInt(hours, 10);
 
     if (period === 'pm' && h !== 12) h += 12;

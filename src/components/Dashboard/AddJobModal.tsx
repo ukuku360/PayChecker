@@ -10,18 +10,35 @@ interface AddJobModalProps {
   onClose: () => void;
   onAdd: (job: JobConfig) => void;
   existingJobIds?: string[];
+  initialName?: string;
+  zIndex?: number;
 }
 
-export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: AddJobModalProps) {
+type JobColor = (typeof colorOptions)[number];
+
+export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initialName, zIndex }: AddJobModalProps) {
   const [newJobName, setNewJobName] = useState('');
-  const [newJobColor, setNewJobColor] = useState('purple');
+  const [newJobColor, setNewJobColor] = useState<JobColor>('purple');
   const [defaultWeekdayHours, setDefaultWeekdayHours] = useState<string | number>(7.5);
   const [defaultWeekendHours, setDefaultWeekendHours] = useState<string | number>(7.5);
+  const [weekdayRate, setWeekdayRate] = useState<string | number>(25);
+  const [saturdayRate, setSaturdayRate] = useState<string | number>(30);
+  const [sundayRate, setSundayRate] = useState<string | number>(35);
+  const [holidayRate, setHolidayRate] = useState<string | number>(40);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
-  const [isRendered, setIsRendered] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Pre-fill name when modal opens with initialName
+  useEffect(() => {
+    if (isOpen && initialName) {
+      setNewJobName(initialName);
+    }
+    if (isOpen && !initialName) {
+      setNewJobName('');
+    }
+  }, [isOpen, initialName]);
 
   // Check for duplicate job ID
   const checkDuplicate = (name: string): boolean => {
@@ -33,19 +50,6 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
     setDuplicateError(null);
     return false;
   };
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsRendered(true);
-      setNewJobName('');
-      setNewJobColor('purple');
-      setDefaultWeekdayHours(7.5); 
-      setDefaultWeekendHours(7.5);
-    } else {
-      const timer = setTimeout(() => setIsRendered(false), 200); // Wait for exit animation
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -71,10 +75,10 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
         weekend: Number(defaultWeekendHours) || 0,
       },
       hourlyRates: {
-        weekday: 25,
-        saturday: 30,
-        sunday: 35,
-        holiday: 40,
+        weekday: Number(weekdayRate) || 25,
+        saturday: Number(saturdayRate) || 30,
+        sunday: Number(sundayRate) || 35,
+        holiday: Number(holidayRate) || 40,
       },
       rateHistory: [],
     };
@@ -83,38 +87,39 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
   };
 
   // Keyboard navigation for color picker
-  const handleColorKeyDown = (e: React.KeyboardEvent, color: string) => {
+  const handleColorKeyDown = (e: React.KeyboardEvent, color: JobColor) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       setNewJobColor(color);
     } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault();
-      const currentIndex = colorOptions.indexOf(color as any);
+      const currentIndex = colorOptions.indexOf(color);
       const nextIndex = (currentIndex + 1) % colorOptions.length;
       document.getElementById(`color-btn-${colorOptions[nextIndex]}`)?.focus();
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       e.preventDefault();
-      const currentIndex = colorOptions.indexOf(color as any);
+      const currentIndex = colorOptions.indexOf(color);
       const prevIndex = (currentIndex - 1 + colorOptions.length) % colorOptions.length;
       document.getElementById(`color-btn-${colorOptions[prevIndex]}`)?.focus();
     }
   };
 
-  if (!isRendered) return null;
+  if (!isOpen) return null;
 
   return (
     <div 
       className={clsx(
-        "fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300",
+        "fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center transition-all duration-300",
         isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
+      style={{ zIndex: zIndex ?? 50 }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
     >
       <div
         className={clsx(
-          "glass-panel w-full max-w-sm mx-4 overflow-hidden transform transition-all duration-300 shadow-2xl",
+          "glass-panel w-full max-w-sm mx-4 overflow-hidden transform transition-all duration-300 shadow-2xl max-h-[90vh] flex flex-col",
           isOpen ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
         )}
       >
@@ -130,7 +135,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
           </button>
         </div>
         
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           <div>
             <label 
               htmlFor="jobName"
@@ -206,6 +211,42 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
               </div>
           </div>
           
+          {/* Hourly Rates */}
+          <div>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
+              Hourly Rates
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { id: 'weekdayRate', label: 'Weekday', value: weekdayRate, setter: setWeekdayRate },
+                { id: 'saturdayRate', label: 'Saturday', value: saturdayRate, setter: setSaturdayRate },
+                { id: 'sundayRate', label: 'Sunday', value: sundayRate, setter: setSundayRate },
+                { id: 'holidayRate', label: 'Holiday', value: holidayRate, setter: setHolidayRate },
+              ] as const).map(({ id, label, value, setter }) => (
+                <div key={id}>
+                  <label htmlFor={id} className="text-xs text-slate-400 mb-1 block pl-1">
+                    {label}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">$</span>
+                    <input
+                      id={id}
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.5"
+                      value={value}
+                      onChange={(e) => setter(e.target.value)}
+                      onBlur={() => { if (value === '') setter(0); }}
+                      className="neu-pressed w-full pl-7 pr-10 py-2 border-none focus:ring-2 focus:ring-indigo-400 focus:outline-none text-sm text-slate-700 rounded-xl"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">/hr</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block pl-1">
               Color
@@ -219,7 +260,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [] }: Add
                   role="radio"
                   aria-checked={newJobColor === color}
                   aria-label={`Select ${color} color`}
-                  onClick={() => setNewJobColor(color as any)}
+                  onClick={() => setNewJobColor(color)}
                   onKeyDown={(e) => handleColorKeyDown(e, color)}
                   className={clsx(
                     "w-10 h-10 rounded-full transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400",

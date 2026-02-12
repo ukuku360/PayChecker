@@ -4,6 +4,7 @@ import { X, Send, MessageSquare, Bug, Lightbulb } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Feedback, FeedbackReply } from '../../types';
 import { useTranslation } from 'react-i18next';
+import { useViewportHeight } from '../../hooks/useViewportHeight';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ type FeedbackType = 'feedback' | 'feature_request' | 'bug';
 
 export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps) => {
   const { t } = useTranslation();
+  const { viewportHeight } = useViewportHeight();
   const [message, setMessage] = useState('');
   const [type, setType] = useState<FeedbackType>('feedback');
   const [loading, setLoading] = useState(false);
@@ -110,8 +112,14 @@ export const FeedbackModal = ({ isOpen, onClose, userEmail }: FeedbackModalProps
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
-      <div className="bg-[#e0e5ec] rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-white/50 flex flex-col max-h-[85vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
+      style={{ height: viewportHeight || '100vh' }}
+    >
+      <div
+        className="bg-[#e0e5ec] rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-white/50 flex flex-col"
+        style={{ maxHeight: viewportHeight ? `${viewportHeight - 32}px` : '85vh' }}
+      >
         <div className="p-4 border-b border-slate-200/50 flex justify-between items-center bg-slate-50/50 shrink-0">
           <div className="flex gap-4">
             <button 

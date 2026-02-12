@@ -8,34 +8,54 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
+import type { TooltipContentProps } from 'recharts';
 import { useMonthlyTrends } from '../../hooks/useMonthlyTrends';
 import { useCurrency } from '../../hooks/useCurrency';
 
 import { useTranslation } from 'react-i18next';
 
-const CustomTooltip = ({ active, payload, label, formatter }: any) => {
+interface TooltipEntry {
+  name?: string | number;
+  dataKey?: string | number;
+  color?: string;
+  value?: number | string | ReadonlyArray<number | string>;
+}
+
+type TooltipValue = number | string | ReadonlyArray<number | string>;
+type TooltipName = number | string;
+
+interface CustomTooltipProps extends TooltipContentProps<TooltipValue, TooltipName> {
+  formatValue?: (value: number) => string;
+}
+
+const CustomTooltip = ({ active, payload, label, formatValue }: CustomTooltipProps) => {
   const { t } = useTranslation();
-  
-  if (active && payload && payload.length) {
-    const total = payload.reduce((sum: number, entry: any) => sum + (entry.value || 0), 0);
+  const entries = Array.isArray(payload) ? (payload as TooltipEntry[]) : [];
+  const toNumber = (value: TooltipEntry['value']) => {
+    const raw = Array.isArray(value) ? value[0] : value;
+    return Number(raw ?? 0);
+  };
+
+  if (active && entries.length > 0) {
+    const total = entries.reduce((sum, entry) => sum + toNumber(entry.value), 0);
     
     return (
       <div className="glass-panel p-4 min-w-[180px]">
         <p className="font-semibold text-slate-700 mb-3 text-sm border-b border-slate-200/50 pb-2">{label}</p>
         <div className="space-y-2">
-            {payload.map((entry: any) => (
-            <div key={entry.name} className="flex items-center gap-3 text-sm">
+            {entries.map((entry, index) => (
+            <div key={`${entry.name ?? entry.dataKey ?? 'item'}-${index}`} className="flex items-center gap-3 text-sm">
                 <div className="w-2.5 h-2.5 rounded-full ring-2 ring-white/50" style={{ backgroundColor: entry.color }} />
                 <span className="text-slate-600 font-medium text-xs uppercase tracking-wide opacity-80">{entry.name}</span>
                 <span className="font-mono font-semibold ml-auto text-slate-700">
-                {formatter ? formatter(entry.value) : entry.value}
+                {formatValue ? formatValue(toNumber(entry.value)) : entry.value}
                 </span>
             </div>
             ))}
         </div>
         <div className="border-t border-slate-200/50 mt-3 pt-2 flex items-center justify-between font-bold text-slate-800 text-sm">
             <span>{t('charts.total')}</span>
-            <span>{formatter ? formatter(total) : total}</span>
+            <span>{formatValue ? formatValue(total) : total}</span>
         </div>
       </div>
     );
@@ -115,7 +135,7 @@ export const IncomeChart = () => {
                 dx={-10}
             />
             <Tooltip 
-                content={<CustomTooltip formatter={formatCurrency} />} 
+                content={(props) => <CustomTooltip {...props} formatValue={formatCurrency} />} 
                 cursor={{ fill: '#f8fafc', opacity: 0.5 }} 
             />
             <Legend 

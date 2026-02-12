@@ -8,10 +8,18 @@ import { formatLocalDate, isDateInRange } from './dateUtils';
  * AU FY runs from July 1 to June 30.
  * KR FY runs from Jan 1 to Dec 31.
  */
-export const getFiscalYearRange = (date: Date = new Date(), _country: CountryCode = 'AU'): { start: Date; end: Date; label: string } => {
+export const getFiscalYearRange = (date: Date = new Date(), country: CountryCode = 'AU'): { start: Date; end: Date; label: string } => {
   const year = getYear(date);
 
-
+  if (country !== 'AU') {
+    const start = new Date(year, 0, 1); // Jan 1st
+    const end = new Date(year, 11, 31); // Dec 31st
+    return {
+      start,
+      end,
+      label: `FY${year.toString().slice(-2)} (${year})`
+    };
+  }
 
   // Australia Default
   const isSecondHalf = date.getMonth() >= 6; // July(6) - Dec(11)

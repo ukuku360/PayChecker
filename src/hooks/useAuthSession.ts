@@ -53,6 +53,10 @@ export const useAuthSession = () => {
           fetchDataRef.current(session.user.id).catch(err => {
             if (import.meta.env.DEV) console.error('Background fetch failed:', err);
           });
+        } else {
+          // Prevent stale persisted auth state from being treated as authenticated
+          setUserIdRef.current(null);
+          clearDataRef.current();
         }
       } catch (error) {
         if (import.meta.env.DEV) console.error('Error initializing session:', error);

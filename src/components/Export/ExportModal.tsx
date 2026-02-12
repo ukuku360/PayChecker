@@ -19,11 +19,16 @@ export const ExportModal = ({ currentMonth, onClose }: ExportModalProps) => {
   const [exportRange, setExportRange] = useState<ExportRange>('current');
   const [customStart, setCustomStart] = useState(format(startOfMonth(currentMonth), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState(format(endOfMonth(currentMonth), 'yyyy-MM-dd'));
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const dateRange = useMemo(() => {
     switch (exportRange) {
       case 'current': return { start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) };
-      case 'previous': const prevMonth = subMonths(currentMonth, 1); return { start: startOfMonth(prevMonth), end: endOfMonth(prevMonth) };
+      case 'previous': {
+        const prevMonth = subMonths(currentMonth, 1);
+        return { start: startOfMonth(prevMonth), end: endOfMonth(prevMonth) };
+      }
       case 'custom': return { start: new Date(customStart), end: new Date(customEnd) };
     }
   }, [exportRange, currentMonth, customStart, customEnd]);
@@ -36,9 +41,25 @@ export const ExportModal = ({ currentMonth, onClose }: ExportModalProps) => {
     return { totalHours, totalPay, totalSuper: totalPay * SUPER_RATE, shiftCount: filteredShifts.length };
   }, [filteredShifts, jobConfigs, holidays]);
 
-  const handleExportCSV = () => exportToCSV({ shifts, jobConfigs, holidays, dateRange });
-  const handleExportPDF = () => exportToPDF({ shifts, jobConfigs, holidays, dateRange });
-  const handleGenerateICS = () => generateICS({ shifts, jobConfigs, holidays, dateRange });
+  const handleExportCSV = () => {
+    setExportError(null);
+    exportToCSV({ shifts, jobConfigs, holidays, dateRange });
+  };
+  const handleExportPDF = async () => {
+    setExportError(null);
+    setIsExportingPdf(true);
+    try {
+      await exportToPDF({ shifts, jobConfigs, holidays, dateRange });
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Failed to export PDF.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+  const handleGenerateICS = () => {
+    setExportError(null);
+    generateICS({ shifts, jobConfigs, holidays, dateRange });
+  };
   const formatCurrency = (amount: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
 
   return (
@@ -78,10 +99,21 @@ export const ExportModal = ({ currentMonth, onClose }: ExportModalProps) => {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button onClick={handleExportCSV} disabled={summary.shiftCount === 0} className={clsx('neu-btn flex items-center justify-center gap-2 !bg-emerald-50 !text-emerald-700 border border-emerald-100', summary.shiftCount === 0 && 'opacity-50 !cursor-not-allowed')}><span>CSV</span></button>
-            <button onClick={handleExportPDF} disabled={summary.shiftCount === 0} className={clsx('neu-btn flex items-center justify-center gap-2 !bg-rose-50 !text-rose-700 border border-rose-100', summary.shiftCount === 0 && 'opacity-50 !cursor-not-allowed')}><FileText className="w-5 h-5" /><span>PDF</span></button>
+            <button
+              onClick={handleExportPDF}
+              disabled={summary.shiftCount === 0 || isExportingPdf}
+              className={clsx(
+                'neu-btn flex items-center justify-center gap-2 !bg-rose-50 !text-rose-700 border border-rose-100',
+                (summary.shiftCount === 0 || isExportingPdf) && 'opacity-50 !cursor-not-allowed'
+              )}
+            >
+              <FileText className="w-5 h-5" />
+              <span>{isExportingPdf ? 'Generating...' : 'PDF'}</span>
+            </button>
             <button onClick={handleGenerateICS} disabled={summary.shiftCount === 0} className={clsx('neu-btn col-span-2 flex items-center justify-center gap-2 !bg-blue-50 !text-blue-700 border border-blue-100', summary.shiftCount === 0 && 'opacity-50 !cursor-not-allowed')}><Calendar className="w-5 h-5" /><span>Sync to Calendar (ICS)</span></button>
           </div>
           {summary.shiftCount === 0 && <p className="text-xs text-center text-slate-400">No shifts found in the selected period</p>}
+          {exportError && <p className="text-xs text-center text-rose-500">{exportError}</p>}
         </div>
       </div>
     </div>

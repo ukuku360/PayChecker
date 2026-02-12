@@ -76,6 +76,7 @@ create table public.profiles (
   savings_goal numeric default 0,
   holidays jsonb default '[]'::jsonb,
   expenses jsonb default '[]'::jsonb,
+  is_admin boolean default false,
   
   primary key (id)
 );
@@ -119,3 +120,6 @@ ADD COLUMN IF NOT EXISTS holidays jsonb DEFAULT '[]'::jsonb;
 
 ALTER TABLE public.profiles 
 ADD COLUMN IF NOT EXISTS expenses jsonb DEFAULT '[]'::jsonb;
+
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS is_admin boolean DEFAULT false;

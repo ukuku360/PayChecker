@@ -8,6 +8,7 @@ import { handleDbError } from '../utils/handleDbError';
 
 export interface UserSlice {
   userId: string | null;
+  isAdmin: boolean;
   holidays: string[];
   isStudentVisaHolder: boolean; // Legacy: kept for backward compatibility
   visaType: AustraliaVisaType; // New: visa type for tax calculation
@@ -33,6 +34,7 @@ export interface UserSlice {
 
 export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
   userId: null,
+  isAdmin: false,
   holidays: [],
   isStudentVisaHolder: false, // Legacy: kept for backward compatibility
   visaType: 'domestic' as AustraliaVisaType, // New: default to domestic

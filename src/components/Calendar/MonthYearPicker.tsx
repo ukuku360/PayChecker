@@ -16,10 +16,6 @@ export const MonthYearPicker = ({ currentDate, onMonthChange }: MonthYearPickerP
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setViewDate(currentDate);
-  }, [currentDate, isOpen]);
-
-  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
@@ -43,6 +39,16 @@ export const MonthYearPicker = ({ currentDate, onMonthChange }: MonthYearPickerP
     setViewDate(prev => addYears(prev, increment));
   };
 
+  const handleToggleOpen = () => {
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setViewDate(currentDate);
+      }
+      return next;
+    });
+  };
+
   const handleMonthSelect = (monthIndex: number) => {
     const newDate = setMonth(setYear(currentDate, viewDate.getFullYear()), monthIndex);
     onMonthChange(newDate);
@@ -64,7 +70,7 @@ export const MonthYearPicker = ({ currentDate, onMonthChange }: MonthYearPickerP
   return (
     <div className="relative" ref={containerRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggleOpen}
         className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/50 transition-all group"
       >
         <h2 className="text-2xl font-bold text-slate-700 tracking-tight group-hover:text-indigo-600 transition-colors">

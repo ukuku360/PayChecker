@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS job_aliases (
 -- 3. Add roster scan tracking columns to profiles
 ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS roster_scans_this_month INTEGER DEFAULT 0,
-ADD COLUMN IF NOT EXISTS roster_scan_limit INTEGER DEFAULT 20,
+ADD COLUMN IF NOT EXISTS roster_scan_limit INTEGER DEFAULT 5,
 ADD COLUMN IF NOT EXISTS roster_scan_reset_month TEXT;
 
 -- 4. RLS Policies for roster_scans

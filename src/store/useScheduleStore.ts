@@ -63,6 +63,7 @@ export const useScheduleStore = create<ScheduleState>()(
         const set = a[0];
         set({
           userId: null,
+          isAdmin: false,
           shifts: [],
           jobConfigs: DEFAULT_JOB_CONFIGS,
           holidays: [],
@@ -73,6 +74,7 @@ export const useScheduleStore = create<ScheduleState>()(
           savingsGoal: 0,
           expenses: [],
           country: null,
+          hasSeenHelp: false,
           isLoaded: false,
         });
       },
@@ -94,13 +96,13 @@ export const useScheduleStore = create<ScheduleState>()(
 
         // Fetch all data in parallel (user_id filter added for defense-in-depth, RLS also enforced)
         const [
-           { data: jobData, error: jobError },
+          { data: jobData, error: jobError },
            { data: shiftData, error: shiftError },
            { data: profileData, error: profileError }
         ] = await Promise.all([
           supabase.from('job_configs').select('*').eq('user_id', user.id),
           supabase.from('shifts').select('*').eq('user_id', user.id),
-          supabase.from('profiles').select('is_student_visa_holder, visa_type, vacation_periods, savings_goal, holidays, expenses, country').eq('id', user.id).maybeSingle()
+          supabase.from('profiles').select('is_student_visa_holder, visa_type, vacation_periods, savings_goal, holidays, expenses, country, is_admin, has_seen_help').eq('id', user.id).maybeSingle()
         ]);
         
         // Handle Job Configs
@@ -187,7 +189,9 @@ export const useScheduleStore = create<ScheduleState>()(
             savingsGoal: Number(profileData.savings_goal) || 0,
             holidays: profileData.holidays || [],
             expenses: profileData.expenses || [],
-            country: country
+            country: country,
+            isAdmin: profileData.is_admin === true,
+            hasSeenHelp: profileData.has_seen_help === true,
           });
           // Update i18n language based on country (Simplified to 'en' for AU-only)
           if (country) {
@@ -201,7 +205,8 @@ export const useScheduleStore = create<ScheduleState>()(
             visa_type: 'domestic',
             vacation_periods: [],
             savings_goal: 0,
-            holidays: []
+            holidays: [],
+            is_admin: false,
           });
 
           if (createError && import.meta.env.DEV) {
@@ -215,7 +220,9 @@ export const useScheduleStore = create<ScheduleState>()(
             savingsGoal: 0,
             holidays: [],
             expenses: [],
-            country: null
+            country: null,
+            isAdmin: false,
+            hasSeenHelp: false,
           });
         }
         
@@ -225,8 +232,9 @@ export const useScheduleStore = create<ScheduleState>()(
     {
       name: 'paychecker-storage-v2',
       partialize: (state) => {
-        const { isLoaded, ...rest } = state;
-        return rest;
+        const { isLoaded, ...persistedState } = state;
+        void isLoaded;
+        return persistedState;
       },
     }
   )

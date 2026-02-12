@@ -39,6 +39,6 @@ export const getCountryConfig = (country: CountryCode): CountryConfig => {
   return COUNTRIES[country];
 };
 
-export const getCountryByLanguage = (_language: 'en'): CountryCode => {
+export const getCountryByLanguage = (): CountryCode => {
   return 'AU';
 };

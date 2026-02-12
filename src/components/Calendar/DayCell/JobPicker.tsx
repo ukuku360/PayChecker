@@ -222,7 +222,7 @@ export const JobPicker = ({
         onClose={onClose}
         snapPoints={[0.4, 0.6]}
         initialSnap={0}
-        closeOnBackdropClick={false}
+        closeOnBackdropClick={true}
       >
         <div className="pb-4">
           <h2 className="text-lg font-bold text-slate-800 mb-4">Add Shift</h2>
@@ -242,7 +242,7 @@ export const JobPicker = ({
         position: 'fixed',
       }}
       className={clsx(
-        '-translate-x-1/2 z-[999] bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[150px] animate-in fade-in zoom-in-95 duration-150',
+        '-translate-x-1/2 z-[100] bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[150px] animate-in fade-in zoom-in-95 duration-150',
         position.openAbove !== false ? '-translate-y-full mt-[-10px]' : 'mt-[10px]'
       )}
     >

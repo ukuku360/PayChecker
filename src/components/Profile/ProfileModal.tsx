@@ -1,6 +1,6 @@
 import { X, User, GraduationCap, Plus, Trash2, Calendar, Plane, Home, Check } from 'lucide-react';
 import { useScheduleStore } from '../../store/useScheduleStore';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import type { AustraliaVisaType } from '../../types';
@@ -46,13 +46,6 @@ export const ProfileModal = ({ isOpen, onClose, email }: ProfileModalProps) => {
 
   // Local state for editing
   const [tempVisaType, setTempVisaType] = useState<AustraliaVisaType>(visaType);
-
-  // Sync visa type state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setTempVisaType(visaType);
-    }
-  }, [isOpen, visaType]);
 
   if (!isOpen) return null;
 

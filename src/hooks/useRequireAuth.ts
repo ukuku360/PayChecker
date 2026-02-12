@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { useAuthSession } from './useAuthSession';
 import { useAuthModalStore } from '../store/useAuthModalStore';
+import { useScheduleStore } from '../store/useScheduleStore';
 
 /**
  * Hook to gate actions behind authentication.
@@ -15,12 +15,13 @@ import { useAuthModalStore } from '../store/useAuthModalStore';
  * if (isAuthenticated) { ... }
  */
 export function useRequireAuth() {
-  const { session } = useAuthSession();
+  const userId = useScheduleStore((state) => state.userId);
   const { openAuthModal, setPendingAction } = useAuthModalStore();
+  const isAuthenticated = Boolean(userId);
 
   const requireAuth = useCallback(
     (action: () => void, message?: string) => {
-      if (session) {
+      if (isAuthenticated) {
         // User is authenticated, execute action immediately
         action();
       } else {
@@ -29,10 +30,8 @@ export function useRequireAuth() {
         openAuthModal(message);
       }
     },
-    [session, openAuthModal, setPendingAction]
+    [isAuthenticated, openAuthModal, setPendingAction]
   );
 
-  const isAuthenticated = !!session;
-
-  return { requireAuth, isAuthenticated, session };
+  return { requireAuth, isAuthenticated };
 }

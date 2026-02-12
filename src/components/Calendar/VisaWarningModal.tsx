@@ -1,6 +1,5 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useEffect, useState } from 'react';
 
 interface VisaWarningModalProps {
   isOpen: boolean;
@@ -10,21 +9,11 @@ interface VisaWarningModalProps {
 }
 
 export const VisaWarningModal = ({ isOpen, onClose, onConfirm, overageAmount }: VisaWarningModalProps) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsVisible(true);
-    } else {
-      setTimeout(() => setIsVisible(false), 300);
-    }
-  }, [isOpen]);
-
-  if (!isVisible && !isOpen) return null;
+  if (!isOpen) return null;
 
   return (
     <div className={clsx(
-      "fixed inset-0 z-[100] flex items-center justify-center transition-all duration-300",
+      "fixed inset-0 z-[70] flex items-center justify-center transition-all duration-300",
       isOpen ? "bg-slate-900/40 backdrop-blur-sm opacity-100" : "bg-transparent opacity-0 pointer-events-none"
     )}>
       <div 

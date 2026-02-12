@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:3000": "vite --host 0.0.0.0 --port 3000",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:no-danger": "sh -c 'if grep -R --line-number --include=\"*.ts\" --include=\"*.tsx\" \"dangerouslySetInnerHTML\" src; then echo \"dangerouslySetInnerHTML is forbidden\"; exit 1; fi'"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -18,7 +20,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "i18next": "^25.8.0",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.1.0",
     "lucide-react": "^0.562.0",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "^5.4.530",
@@ -31,6 +33,7 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.0",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/jest": "^30.0.0",
@@ -46,6 +49,7 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "postcss": "^8.5.6",
+    "jsdom": "^27.2.0",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",

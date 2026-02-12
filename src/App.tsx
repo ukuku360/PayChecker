@@ -1,7 +1,7 @@
 import { useState, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DndContext, DragOverlay, useSensor, useSensors, MouseSensor, TouchSensor } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { CalendarGrid } from './components/Calendar/CalendarGrid';
 import { Dashboard } from './components/Dashboard/Dashboard';
 
@@ -40,7 +40,8 @@ function App() {
     updateJobConfig, 
     removeJobConfig,
     shifts,
-    addShift
+    addShift,
+    isAdmin,
   } = useScheduleStore();
   
   const { session, loading, logout } = useAuthSession();
@@ -62,10 +63,15 @@ function App() {
         distance: 10,
       },
     }),
-    useSensor(TouchSensor)
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    })
   );
 
-  const handleDragStart = (event: any) => {
+  const handleDragStart = (event: DragStartEvent) => {
     setActiveType(event.active.data.current?.type);
   };
 
@@ -186,7 +192,7 @@ function App() {
 
               <Dashboard
                 currentMonth={currentDate}
-                onJobDoubleClick={setSelectedJob}
+                onJobClick={setSelectedJob}
                 onAddJob={() => requireAuth(() => modals.open('addJob'), t('auth.signInToAddJob'))}
                 onExport={() => requireAuth(() => modals.open('export'), t('auth.signInToExport'))}
                 onAIScan={() => requireAuth(() => modals.open('rosterScanner'), t('auth.signInToUseFeature'))}
@@ -270,7 +276,7 @@ function App() {
             />
           )}
 
-          {modals.isOpen('adminFeedback') && (
+          {isAdmin && modals.isOpen('adminFeedback') && (
             <AdminFeedbackList
               isOpen={true}
               onClose={() => modals.close('adminFeedback')}
@@ -302,7 +308,7 @@ function App() {
         {/* Secret Admin Trigger (Double click version number or similar, for now just a small hidden footer element or condition) */}
         {/* Alternatively, add it to the profile modal or just check email here */}
         {/* For simplicity, let's put a subtle trigger in the footer or near the ad */}
-        {session?.user?.email === 'nayoonho2001@gmail.com' ? (
+        {isAdmin ? (
           <div className="text-center mt-20 pb-4 opacity-5 hover:opacity-100 transition-opacity">
             <button onClick={() => modals.open('adminFeedback')} className="text-xs text-slate-400">
                Admin Access

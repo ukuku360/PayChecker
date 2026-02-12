@@ -9,6 +9,7 @@ create table if not exists profiles (
   savings_goal numeric default 0,
   holidays jsonb default '[]'::jsonb,
   expenses jsonb default '[]'::jsonb,
+  is_admin boolean default false,
   country varchar(2) default null, -- 'AU' (Australia) or 'KR' (Korea), null means not selected
   updated_at timestamptz default now()
 );

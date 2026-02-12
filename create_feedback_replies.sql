@@ -28,7 +28,13 @@ using (
 create policy "Admins can view all replies"
 on feedback_replies for select
 to authenticated
-using (auth.jwt() ->> 'email' = 'nayoonho2001@gmail.com');
+using (
+  exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
+);
 
 -- Policy: Users can insert replies to their own feedback
 create policy "Users can reply to own feedback"
@@ -41,6 +47,7 @@ with check (
     and feedback.user_id = auth.uid()
   )
   and sender_id = auth.uid()
+  and coalesce(is_admin_reply, false) = false
 );
 
 -- Policy: Admin can insert replies to any feedback
@@ -48,5 +55,11 @@ create policy "Admins can reply to any feedback"
 on feedback_replies for insert
 to authenticated
 with check (
-  auth.jwt() ->> 'email' = 'nayoonho2001@gmail.com'
+  sender_id = auth.uid()
+  and is_admin_reply = true
+  and exists (
+    select 1 from profiles p
+    where p.id = auth.uid()
+      and p.is_admin = true
+  )
 );
