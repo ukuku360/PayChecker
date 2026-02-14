@@ -167,7 +167,7 @@ interface GeminiApiResponse {
 // ============================================
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_GEMINI_MODEL = 'gemini-3-pro-preview';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 
 export class GeminiApiError extends Error {
   status: number;
@@ -189,20 +189,12 @@ function getModelCandidates(): string[] {
     envModel,
     DEFAULT_GEMINI_MODEL,
     'gemini-2.5-pro',
-    'gemini-2.5-flash',
     'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
     'gemini-1.5-pro'
   ].filter(Boolean) as string[];
 
   return Array.from(new Set(candidates));
-}
-
-function getFlashModelCandidates(): string[] {
-  return [
-    'gemini-2.0-flash',
-    'gemini-2.5-flash',
-    'gemini-1.5-flash'
-  ];
 }
 
 function extractErrorMessage(errorText: string): string | null {
@@ -643,7 +635,7 @@ async function extractShiftsPhase3(
   };
 
   try {
-    const data = await callGeminiApi(apiKey, requestBody, requestId, getFlashModelCandidates());
+    const data = await callGeminiApi(apiKey, requestBody, requestId);
     const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!textContent) {

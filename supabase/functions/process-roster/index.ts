@@ -187,9 +187,22 @@ serve(async (req) => {
     }
 
     // Create Supabase client and validate token explicitly
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
     // Use custom secret name (SUPABASE_ prefix is reserved)
-    const supabaseServiceKey = Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      logger.error('Supabase environment is not configured', {
+        requestId,
+        hasUrl: Boolean(supabaseUrl),
+        hasServiceRoleKey: Boolean(supabaseServiceKey),
+      });
+      return json(500, {
+        success: false,
+        error: 'Server configuration error',
+        errorType: 'config',
+      });
+    }
 
     // Create client with service role key to validate user tokens
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
