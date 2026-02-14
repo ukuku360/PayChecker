@@ -103,7 +103,7 @@ export async function processRoster(
   identifier?: RosterIdentifier | null
 ): Promise<RosterScanResult & { scansUsed?: number; scanLimit?: number }> {
   try {
-    let accessToken = await getValidAccessToken({ forceRefresh: false });
+    let accessToken = await getValidAccessToken({ forceRefresh: true });
 
     if (!accessToken) {
       return {
@@ -238,7 +238,7 @@ export async function processRosterPhase1(
   imageBase64: string
 ): Promise<QuestionGenerationResult> {
   try {
-    let accessToken = await getValidAccessToken({ forceRefresh: false });
+    let accessToken = await getValidAccessToken({ forceRefresh: true });
 
     if (!accessToken) {
       return {
@@ -358,7 +358,7 @@ export async function processRosterPhase2(
   jobAliases: JobAliasInput[]
 ): Promise<RosterScanResult> {
   try {
-    let accessToken = await getValidAccessToken({ forceRefresh: false });
+    let accessToken = await getValidAccessToken({ forceRefresh: true });
 
     if (!accessToken) {
       return {
