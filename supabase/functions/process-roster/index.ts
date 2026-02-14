@@ -188,14 +188,21 @@ serve(async (req) => {
 
     // Create Supabase client and validate token explicitly
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    // Use custom secret name (SUPABASE_ prefix is reserved)
-    const supabaseServiceKey = Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    // Some environments may have one key stale. Try both in a safe order.
+    const serviceRoleKeys = Array.from(
+      new Set(
+        [
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+          Deno.env.get('SERVICE_ROLE_KEY'),
+        ].filter((value): value is string => Boolean(value && value.trim()))
+      )
+    );
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || serviceRoleKeys.length === 0) {
       logger.error('Supabase environment is not configured', {
         requestId,
         hasUrl: Boolean(supabaseUrl),
-        hasServiceRoleKey: Boolean(supabaseServiceKey),
+        hasServiceRoleKey: serviceRoleKeys.length > 0,
       });
       return json(500, {
         success: false,
@@ -204,14 +211,25 @@ serve(async (req) => {
       });
     }
 
-    // Create client with service role key to validate user tokens
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Validate token explicitly by passing it to getUser.
+    // If one key is stale, fallback to the next key automatically.
+    let supabase = createClient(supabaseUrl, serviceRoleKeys[0]);
+    let user: Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user'] = null;
+    let userError: Awaited<ReturnType<typeof supabase.auth.getUser>>['error'] = null;
 
-    // Validate token explicitly by passing it to getUser
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser(token);
+    for (const serviceRoleKey of serviceRoleKeys) {
+      const candidate = createClient(supabaseUrl, serviceRoleKey);
+      const result = await candidate.auth.getUser(token);
+
+      if (result.data.user) {
+        supabase = candidate;
+        user = result.data.user;
+        userError = null;
+        break;
+      }
+
+      userError = result.error;
+    }
 
     if (userError || !user) {
       logger.warn('Auth error', {
