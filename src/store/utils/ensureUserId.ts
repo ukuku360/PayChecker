@@ -12,6 +12,22 @@ export async function ensureUserId(storeUserId: string | null): Promise<string |
   if (import.meta.env.DEV) {
     console.warn('[ensureUserId] userId not in store, fetching from auth');
   }
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error) {
+    const shouldClearSession =
+      error.status === 401 ||
+      error.status === 403 ||
+      /jwt|invalid|expired/i.test(error.message ?? '');
+
+    if (shouldClearSession) {
+      await supabase.auth.signOut({ scope: 'local' });
+    }
+    return null;
+  }
+
   return user?.id || null;
 }

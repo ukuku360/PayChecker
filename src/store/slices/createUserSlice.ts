@@ -18,6 +18,9 @@ export interface UserSlice {
   country: CountryCode | null;
   isLoaded: boolean;
   hasSeenHelp: boolean;
+  supportsVisaType: boolean;
+  supportsHasSeenHelp: boolean;
+  supportsCountry: boolean;
 
   markHelpSeen: () => Promise<void>;
   addHoliday: (date: string) => void;
@@ -44,6 +47,9 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
   country: null,
   isLoaded: false,
   hasSeenHelp: false,
+  supportsVisaType: false,
+  supportsHasSeenHelp: false,
+  supportsCountry: false,
 
   setLoaded: (loaded) => set({ isLoaded: loaded }),
   setUserId: (id) => set({ userId: id }),
@@ -52,7 +58,7 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     set({ hasSeenHelp: true });
     const userId = await ensureUserId(get().userId);
 
-    if (userId) {
+    if (userId && get().supportsHasSeenHelp) {
       const { error } = await supabase.from('profiles').update({ has_seen_help: true }).eq('id', userId);
       handleDbError(error, { context: 'markHelpSeen' });
     }
@@ -99,11 +105,18 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
     const userId = await ensureUserId(get().userId);
 
     if (userId) {
-      const { error } = await supabase.from('profiles').upsert({
+      const payload: Record<string, unknown> = {
         id: userId,
-        visa_type: visaType,
         is_student_visa_holder: isStudentVisaHolder, // Legacy: kept for backward compatibility
         vacation_periods: periodsToSave,
+      };
+
+      if (get().supportsVisaType) {
+        payload.visa_type = visaType;
+      }
+
+      const { error } = await supabase.from('profiles').upsert({
+        ...payload,
       });
 
       handleDbError(error, {
@@ -186,7 +199,7 @@ export const createUserSlice: StateCreator<UserSlice> = (set, get) => ({
 
     const userId = await ensureUserId(get().userId);
 
-    if (userId) {
+    if (userId && get().supportsCountry) {
       const { error } = await supabase.from('profiles').update({ country }).eq('id', userId);
       handleDbError(error, { context: 'setCountry' });
     }

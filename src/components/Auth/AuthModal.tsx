@@ -183,10 +183,6 @@ export function AuthModal() {
         if (data.user) {
           const { error: profileError } = await supabase.from('profiles').upsert({
             id: data.user.id,
-            visa_type: visaType,
-            is_student_visa_holder: visaType === 'student_visa', // Legacy sync
-            country: 'AU',
-            is_admin: false
           });
           if (profileError && import.meta.env.DEV) {
             console.error('Profile creation error:', profileError);

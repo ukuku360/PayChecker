@@ -128,9 +128,6 @@ export function Auth() {
           try {
             await supabase.from('profiles').upsert({
               id: data.user.id,
-              is_student_visa_holder: isStudentVisa,
-              country: selectedCountry,
-              is_admin: false
             });
           } catch (profileError) {
             // Log but don't fail signup for profile creation errors
