@@ -5,7 +5,7 @@ import { logger } from './logger.ts';
 
 const BASE_CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   Vary: 'Origin',
 } as const;
 
@@ -164,7 +164,32 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // Health check endpoint — tests if the function is reachable through the gateway
+  if (req.method === 'GET') {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const hasServiceKey = Boolean(
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY')
+    );
+    return json(200, {
+      success: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      config: {
+        hasSupabaseUrl: Boolean(supabaseUrl),
+        hasServiceRoleKey: hasServiceKey,
+        hasGeminiKey: Boolean(Deno.env.get('GEMINI_API_KEY')),
+      },
+    });
+  }
+
   const startTime = Date.now();
+
+  logger.info('Request received', {
+    requestId,
+    method: req.method,
+    hasAuth: Boolean(req.headers.get('Authorization')),
+    origin: req.headers.get('Origin') || 'none',
+  });
 
   try {
     // 1. Verify authentication

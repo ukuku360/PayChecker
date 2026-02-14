@@ -3,9 +3,15 @@
  * Supports two-phase AI-first flow:
  *   Phase 1: Image → OCR + Smart Questions
  *   Phase 2: Answers → Filtered Shifts
+ *
+ * Uses supabase.functions.invoke() which automatically handles:
+ * - Correct apikey header from the client instance
+ * - Session Bearer token from auth state
+ * - URL construction from the client's base URL
  */
 
 import { supabase } from './supabaseClient';
+import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@supabase/supabase-js';
 import type { RosterScanResult, JobAlias, RosterIdentifier, QuestionGenerationResult, QuestionAnswer, OcrResult } from '../types';
 
 interface JobConfigSimple {
@@ -18,83 +24,165 @@ interface JobAliasInput {
   job_config_id: string;
 }
 
-const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
-const MAX_AUTH_RETRIES = 2;
-const RETRY_DELAY_MS = 500;
+const MAX_AUTH_RETRIES = 1;
 
-// Mutex for token refresh to prevent race conditions when multiple API calls trigger refresh simultaneously
-let tokenRefreshPromise: Promise<string | null> | null = null;
+// ============================================
+// Error Handling
+// ============================================
 
-/** Refresh the session and return new access token (with mutex to prevent concurrent refreshes) */
-async function refreshAndGetToken(): Promise<string | null> {
-  // If a refresh is already in progress, wait for it instead of starting another
-  if (tokenRefreshPromise) {
-    return tokenRefreshPromise;
-  }
-
-  tokenRefreshPromise = (async () => {
-    try {
-      const { data: refreshed, error } = await supabase.auth.refreshSession();
-      if (error || !refreshed.session?.access_token) {
-        if (import.meta.env.DEV) console.warn('Session refresh failed:', error);
-        return null;
-      }
-      return refreshed.session.access_token;
-    } finally {
-      // Clear the mutex after a short delay to allow subsequent calls to benefit from the fresh token
-      setTimeout(() => {
-        tokenRefreshPromise = null;
-      }, 100);
-    }
-  })();
-
-  return tokenRefreshPromise;
-}
-
-/** Get a valid access token, refreshing if necessary.
- *  Token validation is delegated to the Edge Function (server-side).
- *  Client only checks session existence and local expiry timestamp. */
-async function getValidAccessToken(options: { forceRefresh?: boolean } = {}): Promise<string | null> {
-  const { forceRefresh = false } = options;
-
-  const { data: { session }, error } = await supabase.auth.getSession();
-
-  if (error && import.meta.env.DEV) {
-    console.error('Failed to get session:', error);
-  }
-
-  if (!session?.access_token) return null;
-
-  const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
-  const isExpiringSoon = expiresAtMs > 0 && (expiresAtMs - Date.now() < TOKEN_REFRESH_THRESHOLD_MS);
-
-  // If token is not expiring soon and no force refresh, use it directly.
-  // The Edge Function validates server-side; no need for client-side getUser() call.
-  if (!forceRefresh && !isExpiringSoon) {
-    return session.access_token;
-  }
-
-  // Token expiring soon or force refresh requested - get a fresh one
-  const refreshedToken = await refreshAndGetToken();
-
-  // Fall back to the current token rather than returning null.
-  // The Edge Function will reject it if truly invalid, triggering the retry loop.
-  return refreshedToken || session.access_token;
-}
-
-function getResponseErrorMessage(responseBody: unknown, status: number): string {
-  if (responseBody && typeof responseBody === 'object') {
-    const body = responseBody as { error?: unknown; message?: unknown; error_description?: unknown };
-    if (typeof body.error === 'string' && body.error.trim()) return body.error;
-    if (typeof body.message === 'string' && body.message.trim()) return body.message;
-    if (typeof body.error_description === 'string' && body.error_description.trim()) return body.error_description;
-  }
-
-  return `Request failed (${status})`;
+interface InvokeErrorResult {
+  errorMessage: string;
+  errorType: string;
+  status?: number;
+  responseData?: Record<string, unknown> | null;
 }
 
 /**
- * Processes a roster image through the Edge Function
+ * Maps supabase.functions.invoke() errors to our error type system.
+ * FunctionsHttpError = non-2xx from Edge Function (or gateway)
+ * FunctionsRelayError = Supabase relay/gateway could not reach the function
+ * FunctionsFetchError = network-level failure (offline, DNS, etc.)
+ */
+async function mapInvokeError(error: unknown): Promise<InvokeErrorResult> {
+  if (error instanceof FunctionsHttpError) {
+    // error.context is the raw Response object
+    const response = error.context as Response;
+    const status = response.status;
+    let responseData: Record<string, unknown> | null = null;
+
+    try {
+      responseData = await response.json();
+    } catch {
+      // Response body may already be consumed or not JSON
+    }
+
+    let errorMessage = 'An error occurred';
+    let errorType = 'unknown';
+
+    if (responseData) {
+      if (typeof responseData.error === 'string' && responseData.error.trim()) {
+        errorMessage = responseData.error;
+      } else if (typeof responseData.message === 'string' && responseData.message.trim()) {
+        errorMessage = responseData.message;
+      }
+      if (typeof responseData.errorType === 'string') {
+        errorType = responseData.errorType;
+      }
+    }
+
+    // If we still don't have a good error message, provide status-specific ones
+    if (errorMessage === 'An error occurred') {
+      if (status === 401 || status === 403) {
+        errorMessage = 'Session expired. Please sign in again.';
+      } else if (status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (status >= 500) {
+        errorMessage = 'Server error. Please try again.';
+      } else {
+        errorMessage = `Request failed (${status})`;
+      }
+    }
+
+    // Infer errorType from status if not set by the response body
+    if (errorType === 'unknown') {
+      if (status === 401 || status === 403) errorType = 'auth';
+      else if (status === 429) errorType = 'limit_exceeded';
+      else if (status === 400 || status === 413) errorType = 'invalid_input';
+      else if (status >= 500) errorType = 'network';
+    }
+
+    // Friendlier auth messages
+    if (errorType === 'auth' && /jwt|token|expired|invalid/i.test(errorMessage)) {
+      errorMessage = 'Session expired. Please sign in again.';
+    }
+
+    if (import.meta.env.DEV) {
+      console.error('[RosterAPI] HTTP error:', { status, errorType, errorMessage, responseData });
+    }
+
+    return { errorMessage, errorType, status, responseData };
+  }
+
+  if (error instanceof FunctionsRelayError) {
+    if (import.meta.env.DEV) {
+      console.error('[RosterAPI] Relay error (gateway could not reach function):', error.message);
+    }
+    return {
+      errorMessage: 'Service temporarily unavailable. Please try again.',
+      errorType: 'network',
+    };
+  }
+
+  if (error instanceof FunctionsFetchError) {
+    if (import.meta.env.DEV) {
+      console.error('[RosterAPI] Fetch error (network failure):', error.message);
+    }
+    return {
+      errorMessage: 'Network error. Please check your connection.',
+      errorType: 'network',
+    };
+  }
+
+  // Unknown error type
+  const message = error instanceof Error ? error.message : 'An unexpected error occurred';
+  if (import.meta.env.DEV) {
+    console.error('[RosterAPI] Unknown error:', error);
+  }
+  return { errorMessage: message, errorType: 'unknown' };
+}
+
+/**
+ * Invoke the process-roster Edge Function with automatic auth retry.
+ * On 401, refreshes the session once and retries.
+ */
+async function invokeRoster<T>(
+  body: Record<string, unknown>
+): Promise<{ data: T | null; invokeError: InvokeErrorResult | null; responseData?: Record<string, unknown> | null }> {
+  for (let attempt = 0; attempt <= MAX_AUTH_RETRIES; attempt++) {
+    const { data, error } = await supabase.functions.invoke('process-roster', { body });
+
+    if (!error) {
+      return { data: data as T, invokeError: null };
+    }
+
+    // Check if it's an auth error worth retrying
+    const isAuthError =
+      (error instanceof FunctionsHttpError &&
+        (error.context as Response).status === 401) ||
+      (error instanceof FunctionsHttpError &&
+        (error.context as Response).status === 403);
+
+    if (isAuthError && attempt < MAX_AUTH_RETRIES) {
+      if (import.meta.env.DEV) {
+        console.warn('[RosterAPI] Auth error, refreshing session and retrying...');
+      }
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        if (import.meta.env.DEV) {
+          console.error('[RosterAPI] Session refresh failed:', refreshError);
+        }
+        // Don't retry if refresh failed
+        const mapped = await mapInvokeError(error);
+        return { data: null, invokeError: mapped, responseData: mapped.responseData };
+      }
+      continue;
+    }
+
+    // Non-auth error or retries exhausted
+    const mapped = await mapInvokeError(error);
+    return { data: null, invokeError: mapped, responseData: mapped.responseData };
+  }
+
+  // Should not reach here, but just in case
+  return { data: null, invokeError: { errorMessage: 'Unexpected error', errorType: 'unknown' } };
+}
+
+// ============================================
+// Edge Function Callers
+// ============================================
+
+/**
+ * Legacy: Processes a roster image through the Edge Function (single-phase)
  */
 export async function processRoster(
   imageBase64: string,
@@ -103,123 +191,40 @@ export async function processRoster(
   identifier?: RosterIdentifier | null
 ): Promise<RosterScanResult & { scansUsed?: number; scanLimit?: number }> {
   try {
-    let accessToken = await getValidAccessToken({ forceRefresh: true });
-
-    if (!accessToken) {
+    // Ensure we have a session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
       return {
         success: false,
         shifts: [],
         processingTimeMs: 0,
-        error: 'Authentication required',
+        error: 'Authentication required. Please sign in.',
         errorType: 'auth'
       };
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { data, invokeError, responseData } = await invokeRoster<RosterScanResult & { scansUsed?: number; scanLimit?: number }>({
+      imageBase64,
+      jobConfigs,
+      jobAliases,
+      ...(identifier ? { identifier } : {})
+    });
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (invokeError) {
       return {
         success: false,
         shifts: [],
         processingTimeMs: 0,
-        error: 'Supabase configuration missing',
-        errorType: 'config'
+        error: invokeError.errorMessage,
+        errorType: invokeError.errorType as RosterScanResult['errorType'],
+        ...(typeof responseData?.scansUsed === 'number' ? { scansUsed: responseData.scansUsed as number } : {}),
+        ...(typeof responseData?.scanLimit === 'number' ? { scanLimit: responseData.scanLimit as number } : {}),
       };
     }
 
-    const callFunction = async (token: string) => {
-      const response = await fetch(`${supabaseUrl}/functions/v1/process-roster`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: supabaseAnonKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          imageBase64,
-          jobConfigs,
-          jobAliases,
-          ...(identifier ? { identifier } : {})
-        })
-      });
-
-      let responseBody: unknown = null;
-      try {
-        responseBody = await response.json();
-      } catch {
-        responseBody = null;
-      }
-
-      return { response, responseBody };
-    };
-
-    let response: Response;
-    let responseBody: unknown;
-
-    for (let attempt = 0; attempt <= MAX_AUTH_RETRIES; attempt++) {
-      ({ response, responseBody } = await callFunction(accessToken));
-
-      // If not an auth error, break out of retry loop
-      if (response.status !== 401 && response.status !== 403) {
-        break;
-      }
-
-      if (attempt < MAX_AUTH_RETRIES) {
-        // Small delay before refresh to allow server-side state propagation
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-
-        // Use shared refresh function to prevent concurrent refreshes
-        const refreshedToken = await refreshAndGetToken();
-
-        if (!refreshedToken) {
-          break;
-        }
-
-        accessToken = refreshedToken;
-      }
-    }
-
-    if (!response!.ok) {
-      let errorMessage = getResponseErrorMessage(responseBody, response!.status);
-      let errorType: RosterScanResult['errorType'] = 'unknown';
-
-      const bodyErrorType = (responseBody as { errorType?: unknown } | null)?.errorType;
-      if (typeof bodyErrorType === 'string') {
-        errorType = bodyErrorType as RosterScanResult['errorType'];
-      } else if (response!.status === 401 || response!.status === 403) {
-        errorType = 'auth';
-        if (/jwt|token|expired|invalid/i.test(errorMessage)) {
-          errorMessage = 'Session expired. Please sign in again.';
-        }
-      } else if (response!.status === 429) {
-        errorType = 'limit_exceeded';
-      } else if (response!.status === 400) {
-        errorType = 'invalid_input';
-      } else if (response!.status >= 500) {
-        errorType = 'network';
-      }
-
-      if (import.meta.env.DEV) console.error('Edge function error:', response!.status, responseBody);
-
-      return {
-        success: false,
-        shifts: [],
-        processingTimeMs: 0,
-        error: errorMessage,
-        errorType,
-        ...(typeof (responseBody as { scansUsed?: unknown } | null)?.scansUsed === 'number'
-          ? { scansUsed: (responseBody as { scansUsed: number }).scansUsed }
-          : {}),
-        ...(typeof (responseBody as { scanLimit?: unknown } | null)?.scanLimit === 'number'
-          ? { scanLimit: (responseBody as { scanLimit: number }).scanLimit }
-          : {})
-      };
-    }
-
-    return responseBody as RosterScanResult & { scansUsed?: number; scanLimit?: number };
+    return data!;
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Process roster error:', error);
+    if (import.meta.env.DEV) console.error('[RosterAPI] processRoster error:', error);
     return {
       success: false,
       shifts: [],
@@ -237,111 +242,45 @@ export async function processRoster(
 export async function processRosterPhase1(
   imageBase64: string
 ): Promise<QuestionGenerationResult> {
-  try {
-    let accessToken = await getValidAccessToken({ forceRefresh: true });
+  const emptyOcr = { success: false as const, tableType: 'unknown' as const, headers: [] as string[], rows: [] as string[][] };
 
-    if (!accessToken) {
+  try {
+    // Ensure we have a session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
       return {
         success: false,
         questions: [],
-        ocrData: { success: false, tableType: 'unknown', headers: [], rows: [] },
-        error: 'Authentication required',
+        ocrData: emptyOcr,
+        error: 'Authentication required. Please sign in.',
         errorType: 'auth'
       };
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { data, invokeError, responseData } = await invokeRoster<QuestionGenerationResult>({
+      phase: 'questions',
+      imageBase64,
+    });
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (invokeError) {
       return {
         success: false,
         questions: [],
-        ocrData: { success: false, tableType: 'unknown', headers: [], rows: [] },
-        error: 'Supabase configuration missing',
-        errorType: 'config'
+        ocrData: emptyOcr,
+        error: invokeError.errorMessage,
+        errorType: invokeError.errorType,
+        ...(typeof responseData?.scansUsed === 'number' ? { scansUsed: responseData.scansUsed as number } : {}),
+        ...(typeof responseData?.scanLimit === 'number' ? { scanLimit: responseData.scanLimit as number } : {}),
       };
     }
 
-    const callFunction = async (token: string) => {
-      const response = await fetch(`${supabaseUrl}/functions/v1/process-roster`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: supabaseAnonKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          phase: 'questions',
-          imageBase64
-        })
-      });
-
-      let responseBody: QuestionGenerationResult | null = null;
-      try {
-        responseBody = await response.json();
-      } catch {
-        responseBody = null;
-      }
-
-      return { response, responseBody };
-    };
-
-    let response!: Response;
-    let responseBody: QuestionGenerationResult | null = null;
-
-    for (let attempt = 0; attempt <= MAX_AUTH_RETRIES; attempt++) {
-      ({ response, responseBody } = await callFunction(accessToken));
-
-      // If not an auth error, break out of retry loop
-      if (response.status !== 401 && response.status !== 403) {
-        break;
-      }
-
-      if (attempt < MAX_AUTH_RETRIES) {
-        // Small delay before refresh to allow server-side state propagation
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-
-        // Use shared refresh function to prevent concurrent refreshes
-        const refreshedToken = await refreshAndGetToken();
-
-        if (!refreshedToken) {
-          break;
-        }
-
-        accessToken = refreshedToken;
-      }
-    }
-
-    if (!response.ok) {
-      let errorMessage = responseBody?.error || `Request failed (${response.status})`;
-      let errorType = responseBody?.errorType || 'unknown';
-
-      if (response.status === 401 || response.status === 403) {
-        errorType = 'auth';
-        if (/jwt|token|expired|invalid/i.test(errorMessage)) {
-          errorMessage = 'Session expired. Please sign in again.';
-        }
-      }
-
-      return {
-        success: false,
-        questions: [],
-        ocrData: responseBody?.ocrData || { success: false, tableType: 'unknown', headers: [], rows: [] },
-        error: errorMessage,
-        errorType,
-        scansUsed: responseBody?.scansUsed,
-        scanLimit: responseBody?.scanLimit
-      };
-    }
-
-    return responseBody as QuestionGenerationResult;
+    return data!;
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Phase 1 error:', error);
+    if (import.meta.env.DEV) console.error('[RosterAPI] Phase 1 error:', error);
     return {
       success: false,
       questions: [],
-      ocrData: { success: false, tableType: 'unknown', headers: [], rows: [] },
+      ocrData: emptyOcr,
       error: error instanceof Error ? error.message : 'Network error',
       errorType: 'network'
     };
@@ -358,118 +297,50 @@ export async function processRosterPhase2(
   jobAliases: JobAliasInput[]
 ): Promise<RosterScanResult> {
   try {
-    let accessToken = await getValidAccessToken({ forceRefresh: true });
-
-    if (!accessToken) {
+    // Ensure we have a session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
       return {
         success: false,
         shifts: [],
         processingTimeMs: 0,
-        error: 'Authentication required',
+        error: 'Authentication required. Please sign in.',
         errorType: 'auth'
       };
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { data, invokeError } = await invokeRoster<RosterScanResult>({
+      phase: 'filter',
+      ocrData: {
+        contentType: ocrData.contentType,
+        tableType: ocrData.tableType,
+        headers: ocrData.headers,
+        rows: ocrData.rows,
+        extractedShifts: ocrData.extractedShifts,
+        rawText: ocrData.rawText,
+        layoutDescription: ocrData.layoutDescription,
+        uncertainCells: ocrData.uncertainCells,
+        metadata: ocrData.metadata,
+      },
+      answers,
+      jobConfigs,
+      jobAliases,
+    });
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (invokeError) {
       return {
         success: false,
         shifts: [],
         processingTimeMs: 0,
-        error: 'Supabase configuration missing',
-        errorType: 'config'
+        error: invokeError.errorMessage,
+        errorType: invokeError.errorType as RosterScanResult['errorType'],
+        ocrData,
       };
     }
 
-    const callFunction = async (token: string) => {
-      const response = await fetch(`${supabaseUrl}/functions/v1/process-roster`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: supabaseAnonKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          phase: 'filter',
-          ocrData: {
-            contentType: ocrData.contentType,
-            tableType: ocrData.tableType,
-            headers: ocrData.headers,
-            rows: ocrData.rows,
-            extractedShifts: ocrData.extractedShifts,
-            rawText: ocrData.rawText,
-            layoutDescription: ocrData.layoutDescription,
-            uncertainCells: ocrData.uncertainCells,
-            metadata: ocrData.metadata
-          },
-          answers,
-          jobConfigs,
-          jobAliases
-        })
-      });
-
-      let responseBody: RosterScanResult | null = null;
-      try {
-        responseBody = await response.json();
-      } catch {
-        responseBody = null;
-      }
-
-      return { response, responseBody };
-    };
-
-    let response!: Response;
-    let responseBody: RosterScanResult | null = null;
-
-    for (let attempt = 0; attempt <= MAX_AUTH_RETRIES; attempt++) {
-      ({ response, responseBody } = await callFunction(accessToken));
-
-      // If not an auth error, break out of retry loop
-      if (response.status !== 401 && response.status !== 403) {
-        break;
-      }
-
-      if (attempt < MAX_AUTH_RETRIES) {
-        // Small delay before refresh to allow server-side state propagation
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-
-        // Use shared refresh function to prevent concurrent refreshes
-        const refreshedToken = await refreshAndGetToken();
-
-        if (!refreshedToken) {
-          break;
-        }
-
-        accessToken = refreshedToken;
-      }
-    }
-
-    if (!response.ok) {
-      let errorMessage = responseBody?.error || `Request failed (${response.status})`;
-      let errorType = responseBody?.errorType || 'unknown';
-
-      if (response.status === 401 || response.status === 403) {
-        errorType = 'auth';
-        if (/jwt|token|expired|invalid/i.test(errorMessage)) {
-          errorMessage = 'Session expired. Please sign in again.';
-        }
-      }
-
-      return {
-        success: false,
-        shifts: [],
-        processingTimeMs: responseBody?.processingTimeMs || 0,
-        error: errorMessage,
-        errorType,
-        ocrData
-      };
-    }
-
-    return responseBody as RosterScanResult;
+    return data!;
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Phase 2 error:', error);
+    if (import.meta.env.DEV) console.error('[RosterAPI] Phase 2 error:', error);
     return {
       success: false,
       shifts: [],
@@ -479,6 +350,55 @@ export async function processRosterPhase2(
     };
   }
 }
+
+// ============================================
+// Diagnostic & Utility Functions
+// ============================================
+
+/**
+ * Health check — tests if the Edge Function is reachable through the Supabase gateway.
+ * Useful for diagnosing gateway vs function 401 issues.
+ */
+export async function checkRosterHealth(): Promise<{
+  reachable: boolean;
+  status: number;
+  gatewayBlocked: boolean;
+  details: Record<string, unknown>;
+}> {
+  try {
+    const { data, error } = await supabase.functions.invoke('process-roster', {
+      method: 'GET',
+    });
+
+    if (error) {
+      const mapped = await mapInvokeError(error);
+      return {
+        reachable: false,
+        status: mapped.status || 0,
+        gatewayBlocked: error instanceof FunctionsRelayError || (mapped.status === 401 && !mapped.responseData?.requestId),
+        details: { error: mapped.errorMessage, errorType: mapped.errorType },
+      };
+    }
+
+    return {
+      reachable: true,
+      status: 200,
+      gatewayBlocked: false,
+      details: data as Record<string, unknown>,
+    };
+  } catch (err) {
+    return {
+      reachable: false,
+      status: 0,
+      gatewayBlocked: false,
+      details: { error: err instanceof Error ? err.message : 'Unknown error' },
+    };
+  }
+}
+
+// ============================================
+// Data Access Functions (unchanged)
+// ============================================
 
 /**
  * Gets all job aliases for the current user

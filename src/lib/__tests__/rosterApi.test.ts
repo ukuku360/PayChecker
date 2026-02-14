@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@supabase/supabase-js';
 
 const getSessionMock = vi.fn();
 const getUserMock = vi.fn();
 const refreshSessionMock = vi.fn();
+const invokeMock = vi.fn();
 
 vi.mock('../supabaseClient', () => ({
   supabase: {
@@ -11,18 +13,28 @@ vi.mock('../supabaseClient', () => ({
       getUser: (...args: unknown[]) => getUserMock(...args),
       refreshSession: (...args: unknown[]) => refreshSessionMock(...args),
     },
+    functions: {
+      invoke: (...args: unknown[]) => invokeMock(...args),
+    },
   },
 }));
 
-function buildResponse(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
+/**
+ * Helper: build a FunctionsHttpError with a mock Response as context
+ */
+function buildHttpError(status: number, body: Record<string, unknown>) {
+  const response = new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+  return new FunctionsHttpError(response);
 }
 
 async function callProcessRoster(status: number, body: Record<string, unknown>) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(buildResponse(status, body)));
+  invokeMock.mockResolvedValue({
+    data: null,
+    error: buildHttpError(status, body),
+  });
 
   const { processRoster } = await import('../rosterApi');
 
@@ -38,8 +50,6 @@ describe('rosterApi error mapping', () => {
     vi.resetModules();
     Object.assign(import.meta.env, {
       DEV: false,
-      VITE_SUPABASE_URL: 'https://example.supabase.co',
-      VITE_SUPABASE_ANON_KEY: 'anon-key',
     });
 
     getSessionMock.mockResolvedValue({
@@ -58,7 +68,6 @@ describe('rosterApi error mapping', () => {
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -91,5 +100,83 @@ describe('rosterApi error mapping', () => {
     const result = await callProcessRoster(503, { error: 'upstream unavailable' });
     expect(result.success).toBe(false);
     expect(result.errorType).toBe('network');
+  });
+
+  it('returns auth error when no session exists', async () => {
+    getSessionMock.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
+
+    const { processRoster } = await import('../rosterApi');
+    const result = await processRoster('image', [{ id: '1', name: 'Job' }], []);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe('auth');
+    expect(result.error).toContain('Authentication required');
+  });
+
+  it('handles relay errors as network errors', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: new FunctionsRelayError({ message: 'relay failed' }),
+    });
+
+    const { processRoster } = await import('../rosterApi');
+    const result = await processRoster('image', [{ id: '1', name: 'Job' }], []);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe('network');
+  });
+
+  it('handles fetch errors as network errors', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: new FunctionsFetchError(new TypeError('Failed to fetch')),
+    });
+
+    const { processRoster } = await import('../rosterApi');
+    const result = await processRoster('image', [{ id: '1', name: 'Job' }], []);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe('network');
+  });
+
+  it('returns data on successful invoke', async () => {
+    invokeMock.mockResolvedValue({
+      data: {
+        success: true,
+        shifts: [{ id: '1', date: '2026-01-15', rosterJobName: 'Bar' }],
+        processingTimeMs: 1200,
+      },
+      error: null,
+    });
+
+    const { processRoster } = await import('../rosterApi');
+    const result = await processRoster('image', [{ id: '1', name: 'Job' }], []);
+    expect(result.success).toBe(true);
+    expect(result.shifts).toHaveLength(1);
+  });
+
+  it('retries on 401 with session refresh', async () => {
+    // First call returns 401, second succeeds
+    invokeMock
+      .mockResolvedValueOnce({
+        data: null,
+        error: buildHttpError(401, { error: 'jwt expired' }),
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, shifts: [], processingTimeMs: 100 },
+        error: null,
+      });
+
+    refreshSessionMock.mockResolvedValue({
+      data: { session: { access_token: 'new-token' } },
+      error: null,
+    });
+
+    const { processRoster } = await import('../rosterApi');
+    const result = await processRoster('image', [{ id: '1', name: 'Job' }], []);
+
+    expect(result.success).toBe(true);
+    expect(refreshSessionMock).toHaveBeenCalledOnce();
+    expect(invokeMock).toHaveBeenCalledTimes(2);
   });
 });

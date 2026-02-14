@@ -200,6 +200,16 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
     setIsLoading(true);
 
     try {
+      // Validate session is actually valid (server round-trip, not cached)
+      // before spending time on image compression + API call
+      const { data: { user: validUser }, error: userError } = await supabase.auth.getUser();
+      if (userError || !validUser) {
+        setError('Your session has expired. Please sign in again.');
+        setErrorType('auth');
+        setIsLoading(false);
+        return;
+      }
+
       let base64: string;
       if (isPDF(file)) {
         base64 = await extractFirstPageAsImage(file);
