@@ -126,8 +126,11 @@ export function ConfirmationStep({
   };
 
   const handleJobCreated = async (shiftId: string, newJob: JobConfig) => {
-    // Add to local state immediately so it appears in the UI
-    setLocalJobConfigs(prev => [...prev, newJob]);
+    // Add to local state immediately so it appears in the UI.
+    // Guard against duplicate entries when parent state sync arrives.
+    setLocalJobConfigs(prev => (
+      prev.some(job => job.id === newJob.id) ? prev : [...prev, newJob]
+    ));
     // Persist to the store
     if (onAddJob) {
       await onAddJob(newJob);

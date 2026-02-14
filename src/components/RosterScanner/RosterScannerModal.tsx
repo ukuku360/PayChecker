@@ -65,6 +65,8 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
     setParsedShifts
   } = useRosterScanner({ initialIsOpen: isOpen, onClose });
 
+  const canReturnToQuestions = questions.length > 0 && Boolean(ocrData);
+
   if (!isOpen) return null;
 
   return (
@@ -142,7 +144,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 errorType={errorType}
                 scanLimit={scanLimit}
                 onRetry={handleRetry}
-                onBack={questions.length > 0 ? handleBackToQuestions : handleBackToUpload}
+                onBack={canReturnToQuestions ? handleBackToQuestions : handleBackToUpload}
                 onReauth={handleReauth}
               />
             )}
@@ -162,7 +164,7 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 unmappedJobNames={unmappedJobNames}
                 jobConfigs={jobConfigs}
                 onComplete={handleMappingComplete}
-                onBack={handleBackToQuestions}
+                onBack={canReturnToQuestions ? handleBackToQuestions : handleBackToUpload}
                 onAddJob={handleAddJob}
               />
             )}
@@ -174,7 +176,17 @@ export function RosterScannerModal({ isOpen, onClose }: RosterScannerModalProps)
                 existingShifts={existingShifts}
                 onShiftsChange={setParsedShifts}
                 onConfirm={handleConfirm}
-                onBack={() => unmappedJobNames.length > 0 ? setStep('mapping') : handleBackToQuestions()}
+                onBack={() => {
+                  if (unmappedJobNames.length > 0) {
+                    setStep('mapping');
+                    return;
+                  }
+                  if (canReturnToQuestions) {
+                    handleBackToQuestions();
+                    return;
+                  }
+                  handleBackToUpload();
+                }}
                 isLoading={isLoading}
                 onAddJob={handleAddJob}
                 identifiedPerson={identifiedPerson}

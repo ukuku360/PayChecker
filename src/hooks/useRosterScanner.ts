@@ -90,6 +90,10 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
   }, [previewUrl]);
 
   const handleFileSelect = useCallback((selectedFile: File) => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     setFile(selectedFile);
     setError(null);
     setErrorType(null);
@@ -101,7 +105,7 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
     } else {
       setPreviewUrl(null);
     }
-  }, []);
+  }, [previewUrl]);
 
   const handleClearFile = useCallback(() => {
     if (previewUrl) {
@@ -256,10 +260,18 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
   }, []);
 
   const handleBackToQuestions = useCallback(() => {
+    // Questions step is only valid when OCR data exists and there are actual questions.
+    if (!ocrData || questions.length === 0) {
+      setStep('upload');
+      setError(null);
+      setErrorType(null);
+      return;
+    }
+
     setStep('questions');
     setError(null);
     setErrorType(null);
-  }, []);
+  }, [ocrData, questions]);
 
   const handleReauth = useCallback(async () => {
     try {

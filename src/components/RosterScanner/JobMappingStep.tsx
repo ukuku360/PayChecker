@@ -39,6 +39,20 @@ export function JobMappingStep({
     setLocalJobConfigs(jobConfigs);
   }, [jobConfigs]);
 
+  // Keep mappings aligned to current unmapped names while preserving selections.
+  useEffect(() => {
+    setMappings(prev => {
+      const next: Record<string, { jobId: string; saveAlias: boolean }> = {};
+      unmappedJobNames.forEach(name => {
+        next[name] = {
+          jobId: prev[name]?.jobId || '',
+          saveAlias: prev[name]?.saveAlias ?? true
+        };
+      });
+      return next;
+    });
+  }, [unmappedJobNames]);
+
   // Track which roster name is currently adding a new job
   const [creatingJobFor, setCreatingJobFor] = useState<string | null>(null);
 
@@ -52,8 +66,11 @@ export function JobMappingStep({
   };
 
   const handleJobCreated = async (rosterName: string, newJob: JobConfig) => {
-    // Add to local state immediately so it appears in the UI
-    setLocalJobConfigs(prev => [...prev, newJob]);
+    // Add to local state immediately so it appears in the UI.
+    // Guard against duplicate entries when parent state sync arrives.
+    setLocalJobConfigs(prev => (
+      prev.some(job => job.id === newJob.id) ? prev : [...prev, newJob]
+    ));
     // Also persist to the store
     await onAddJob(newJob);
     // Auto-select the newly created job
@@ -72,8 +89,8 @@ export function JobMappingStep({
   const handleContinue = () => {
     const result: JobMapping[] = unmappedJobNames.map(name => ({
       rosterJobName: name,
-      mappedJobId: mappings[name].jobId,
-      saveAsAlias: mappings[name].saveAlias
+      mappedJobId: mappings[name]?.jobId || '',
+      saveAsAlias: mappings[name]?.saveAlias ?? true
     }));
     onComplete(result);
   };
