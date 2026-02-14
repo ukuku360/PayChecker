@@ -9,6 +9,7 @@ import { addHoursToTime } from '../utils/timeUtils';
 import { extractFirstPageAsImage } from '../utils/pdfUtils';
 import type { ParsedShift, JobAlias, IdentifiedPerson, SmartQuestion, QuestionAnswer, OcrResult, JobConfig, Shift } from '../types';
 import type { ScanStep, JobMapping } from '../components/RosterScanner/types';
+import { useAuthModalStore } from '../store/useAuthModalStore';
 
 // Extended step type to include questions
 export type ExtendedScanStep = ScanStep | 'questions';
@@ -288,6 +289,9 @@ export function useRosterScanner({ initialIsOpen, onClose }: UseRosterScannerPro
       await supabase.auth.signOut({ scope: 'local' });
     } finally {
       onClose();
+      // Immediately open the auth modal so user can sign in without hunting for the button
+      const { openAuthModal } = useAuthModalStore.getState();
+      openAuthModal('Sign in to continue scanning your roster');
     }
   }, [onClose]);
 

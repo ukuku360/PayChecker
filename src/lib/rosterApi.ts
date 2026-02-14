@@ -138,6 +138,20 @@ async function mapInvokeError(error: unknown): Promise<InvokeErrorResult> {
 async function invokeRoster<T>(
   body: Record<string, unknown>
 ): Promise<{ data: T | null; invokeError: InvokeErrorResult | null; responseData?: Record<string, unknown> | null }> {
+  // Pre-check: if session is null (e.g. refresh token died), the SDK would
+  // fallback to sending the anon key as Bearer token → guaranteed 401 from gateway.
+  // Catch this early with a clear error instead of making a doomed network request.
+  const { data: { session: currentSession } } = await supabase.auth.getSession();
+  if (!currentSession?.access_token) {
+    return {
+      data: null,
+      invokeError: {
+        errorMessage: 'Session expired. Please sign in again.',
+        errorType: 'auth',
+      },
+    };
+  }
+
   for (let attempt = 0; attempt <= MAX_AUTH_RETRIES; attempt++) {
     const { data, error } = await supabase.functions.invoke('process-roster', { body });
 
