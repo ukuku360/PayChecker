@@ -2,11 +2,10 @@
  * Gemini API integration for roster image processing
  * 3-Phase Architecture:
  * - Phase 1: Pure OCR (extract raw content without normalization)
- * - Phase 2: Analysis + Question Generation (when clarification needed)
+ * - Phase 2: Minimal question generation (ask only user's name when needed)
  * - Phase 3: Normalization + Extraction (final shift output)
  *
- * Simple cases (single-person): Phase 1 → Phase 3 (2 calls)
- * Complex cases (multi-person): Phase 1 → Phase 2 → Phase 3 (3 calls)
+ * Model calls stay minimal: Phase 1 OCR + Phase 3 extraction.
  */
 
 import {
@@ -299,130 +298,6 @@ UNCERTAINTY RULES:
 - If characters look similar and you're unsure (e.g., "RL" vs "BL", "1" vs "l") → add
 - Only include genuinely uncertain readings. Do NOT flag clear, easily readable text.
 - If there are no uncertain cells, return an empty array [].`;
-
-// ============================================
-// Phase 2: Analysis + Question Generation Prompt
-// ============================================
-
-function buildPhase2AnalysisPrompt(ocrData: ExtractedContent): string {
-  const currentDate = getCurrentDate();
-  const currentYear = getCurrentYear();
-
-  return `Analyze this extracted roster content and determine if clarification is needed.
-
-CURRENT DATE: ${currentDate}
-CURRENT YEAR: ${currentYear}
-
-EXTRACTED CONTENT:
-${JSON.stringify(ocrData, null, 2)}
-
-TASK:
-1. Determine if this is a valid work schedule/roster
-2. Analyze if user clarification is needed
-3. Generate questions ONLY when truly necessary
-
-WHEN TO ASK QUESTIONS:
-- Multiple people visible in table AND shifts are interleaved → Ask who
-- **CALENDAR VIEW with multiple names in cell contents** → Ask who
-- Date format genuinely ambiguous (01/02 could be Jan 2 or Feb 1 in Australian context) → Ask format
-- Critical information missing that cannot be inferred → Ask
-- **UNCERTAIN DATA** (see below) → Ask data clarification questions
-
-WHEN NOT TO ASK:
-- Single person's schedule (email addressed to one person, text mentioning one person)
-- Only one name/column visible in table data
-- Only one name found in calendar cells
-- Dates are unambiguous (full month names, clear context)
-- Context makes meaning obvious (e.g., "Hi John, here are your shifts")
-
-**DATA CLARIFICATION QUESTIONS:**
-If the extracted content contains "uncertainCells", generate clarification questions for them.
-DO NOT GUESS uncertain values. ALWAYS ask the user.
-
-When to generate data clarification questions:
-- uncertainCells array has items → ask about each uncertain cell
-- Time values that could be interpreted multiple ways
-- Abbreviated codes that are ambiguous (e.g., "RL" vs "BL")
-- Text that is partially obscured or blurry
-
-Format for data clarification questions:
-{
-  "id": "data_clarify_<location_slug>",
-  "type": "single_select",
-  "question": "I couldn't clearly read [location]. Does it say '[readValue]' or '[alternativeValue]'?",
-  "options": [
-    {"label": "<readValue>", "value": "<readValue>"},
-    {"label": "<alternativeValue>", "value": "<alternativeValue>"}
-  ],
-  "required": true
-}
-
-If an uncertain cell has no alternativeValue, use type "text" instead:
-{
-  "id": "data_clarify_<location_slug>",
-  "type": "text",
-  "question": "I couldn't clearly read [location]. The text looks like '[readValue]' but I'm not sure. What does it actually say?",
-  "required": true
-}
-
-Set needsClarification to true if ANY data clarification questions are generated.
-
-**CALENDAR VIEW HANDLING:**
-When contentType is "calendar":
-1. Names are embedded in cell contents, NOT in headers
-2. Cell format examples:
-   - Korean: "오픈 8 - 21 수연(13)" → name is "수연"
-   - Korean: "마감 21 - 24 태현(3)" → name is "태현"
-   - English: "Open 8-5 John(9)" → name is "John"
-3. Check metadata.potentialNames for all names found in cells
-4. If potentialNames has MORE than 1 name → Ask person_select question
-5. Use the names directly as option values (not col_0, col_1)
-
-QUESTION FORMAT FOR CALENDAR:
-{
-  "id": "person_select",
-  "type": "single_select",
-  "question": "이 로스터에서 누구의 시프트를 추출할까요?" (Korean) or "Whose shifts should I extract?" (English),
-  "options": [
-    {"label": "수연", "value": "수연"},
-    {"label": "태현", "value": "태현"},
-    {"label": "현승", "value": "현승"}
-  ],
-  "required": true
-}
-
-OUTPUT FORMAT (JSON only):
-{
-  "isRoster": true | false,
-  "confidence": 0.0-1.0,
-  "analysisNotes": "Brief explanation",
-
-  "needsClarification": true | false,
-  "questions": [
-    {
-      "id": "person_select" | "date_format" | "custom_...",
-      "type": "single_select" | "text",
-      "question": "Question in content's language",
-      "options": [{"label": "...", "value": "..."}],
-      "required": true | false
-    }
-  ],
-
-  "preAnalysis": {
-    "detectedPerson": "Name if single person detected" | null,
-    "dateFormat": "detected format description",
-    "timeFormat": "24h" | "12h" | "mixed",
-    "shiftPatterns": ["pattern1", "pattern2", ...]
-  }
-}
-
-LANGUAGE: Match questions to the content's language. Korean content → Korean questions.
-
-CRITICAL:
-- For TABLE columns, use "col_0", "col_1", etc. as values
-- For CALENDAR views, use actual names as values (e.g., "수연", "태현")
-- For row-based tables, use "row_0", "row_1", etc.`;
-}
 
 // ============================================
 // Phase 3: Extraction + Normalization Prompt
@@ -743,101 +618,6 @@ async function extractContentPhase1(
 }
 
 // ============================================
-// Phase 2: Analysis + Question Generation
-// ============================================
-
-async function analyzeContentPhase2(
-  apiKey: string,
-  ocrData: ExtractedContent,
-  requestId?: string,
-): Promise<{ questions: SmartQuestion[]; preAnalysis: PreAnalysis; needsClarification: boolean }> {
-  logger.debug('Phase 2 analysis started', { requestId });
-
-  const prompt = buildPhase2AnalysisPrompt(ocrData);
-
-  const requestBody = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      topP: 0.9,
-      topK: 40,
-      maxOutputTokens: 2048,
-    }
-  };
-
-  try {
-    const data = await callGeminiApi(apiKey, requestBody, requestId, getFlashModelCandidates());
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!textContent) {
-      return {
-        questions: [],
-        preAnalysis: { detectedPerson: null, dateFormat: 'unknown', timeFormat: 'unknown', shiftPatterns: [] },
-        needsClarification: false
-      };
-    }
-
-    const parsed = parseJsonFromResponse<{
-      questions?: Array<{
-        id?: string;
-        type?: SmartQuestion['type'];
-        question?: string;
-        options?: Array<{ label?: string; value?: string; description?: string }>;
-        required?: boolean;
-      }>;
-      preAnalysis?: {
-        detectedPerson?: string | null;
-        dateFormat?: string;
-        timeFormat?: string;
-        shiftPatterns?: string[];
-      };
-      needsClarification?: boolean;
-    }>(textContent);
-
-    const questions: SmartQuestion[] = (Array.isArray(parsed.questions) ? parsed.questions : [])
-      .filter((q): q is NonNullable<typeof parsed.questions>[number] & { question: string } => Boolean(q && q.question))
-      .map((q) => ({
-        id: q.id || `q_${Math.random().toString(36).substr(2, 6)}`,
-        type: q.type || 'single_select',
-        question: q.question,
-        options: Array.isArray(q.options)
-          ? q.options
-              .filter((o): o is { label: string; value: string; description?: string } => Boolean(o && o.label && o.value))
-              .map((o) => ({ label: o.label, value: o.value, description: o.description }))
-          : undefined,
-        required: q.required !== false
-      }));
-
-    const preAnalysis: PreAnalysis = {
-      detectedPerson: parsed.preAnalysis?.detectedPerson || null,
-      dateFormat: parsed.preAnalysis?.dateFormat || 'unknown',
-      timeFormat: parsed.preAnalysis?.timeFormat || 'unknown',
-      shiftPatterns: Array.isArray(parsed.preAnalysis?.shiftPatterns) ? parsed.preAnalysis.shiftPatterns : []
-    };
-
-    logger.debug('Phase 2 analysis complete', {
-      requestId,
-      needsClarification: parsed.needsClarification === true,
-      questionCount: questions.length,
-    });
-
-    return {
-      questions,
-      preAnalysis,
-      needsClarification: parsed.needsClarification === true
-    };
-
-  } catch (error) {
-    logger.error('Phase 2 analysis error', { requestId, message: toErrorMessage(error) });
-    return {
-      questions: [],
-      preAnalysis: { detectedPerson: null, dateFormat: 'unknown', timeFormat: 'unknown', shiftPatterns: [] },
-      needsClarification: false
-    };
-  }
-}
-
-// ============================================
 // Phase 3: Extraction + Normalization
 // ============================================
 
@@ -914,9 +694,14 @@ async function extractShiftsPhase3(
 // ============================================
 
 function detectSimpleContent(ocrData: ExtractedContent): boolean {
-  // If there are uncertain cells, force the question step so user can clarify
-  if (ocrData.uncertainCells && ocrData.uncertainCells.length > 0) {
+  const candidateNames = getCandidatePersonNames(ocrData);
+
+  if (candidateNames.length > 1) {
     return false;
+  }
+
+  if (candidateNames.length === 1) {
+    return true;
   }
 
   // Email or text message → usually single person
@@ -960,6 +745,61 @@ function isMetadataColumn(header: string): boolean {
   const metadataKeywords = ['date', 'day', 'roster', 'notes', 'events', 'memo', '날짜', '요일', '메모', 'week'];
   const h = header.toLowerCase();
   return metadataKeywords.some(k => h.includes(k));
+}
+
+function isLikelyPersonName(value: string): boolean {
+  const v = value.trim();
+  const lower = v.toLowerCase();
+  const nonNameCodes = new Set(['am', 'pm', 'rl', 'bl', 'cl', 'off', 'open', 'close', 'day', 'night']);
+
+  if (!v) return false;
+  if (v.length > 40) return false;
+  if (/\d/.test(v)) return false;
+  if (isMetadataColumn(v)) return false;
+  if (nonNameCodes.has(lower)) return false;
+  return true;
+}
+
+function getCandidatePersonNames(ocrData: ExtractedContent): string[] {
+  const headerCandidates = Array.isArray(ocrData.headers)
+    ? ocrData.headers.filter(h => !isMetadataColumn(h))
+    : [];
+  const metadataCandidates = Array.isArray(ocrData.metadata?.potentialNames)
+    ? ocrData.metadata.potentialNames
+    : [];
+
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  for (const raw of [...metadataCandidates, ...headerCandidates]) {
+    const name = raw.trim();
+    const key = name.toLowerCase();
+    if (!isLikelyPersonName(name) || seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+
+  return names;
+}
+
+function buildPersonSelectQuestion(ocrData: ExtractedContent): SmartQuestion | null {
+  const candidateNames = getCandidatePersonNames(ocrData);
+  if (candidateNames.length <= 1) return null;
+
+  const isKorean = (ocrData.metadata?.language || '').toLowerCase().startsWith('ko');
+
+  return {
+    id: 'person_select',
+    type: 'single_select',
+    question: isKorean
+      ? '로스터에서 본인 이름이 무엇인지 선택해 주세요.'
+      : 'Which name are you on this roster?',
+    options: candidateNames.map((name) => ({
+      label: name,
+      value: name,
+    })),
+    required: true,
+  };
 }
 
 // ============================================
@@ -1006,15 +846,36 @@ export async function processRosterPhase1(
     };
   }
 
-  // Phase 2: Analysis + Question Generation
-  const analysisResult = await analyzeContentPhase2(apiKey, ocrResult, requestId);
+  // Keep questions intentionally minimal: only ask who the user is when multiple names are present.
+  // Do not ask OCR clarification questions.
+  const personSelectQuestion = buildPersonSelectQuestion(ocrResult);
+
+  if (!personSelectQuestion) {
+    return {
+      success: true,
+      questions: [],
+      ocrData: ocrResult,
+      skipToExtraction: true,
+      preAnalysis: {
+        detectedPerson: null,
+        dateFormat: 'auto',
+        timeFormat: 'auto',
+        shiftPatterns: []
+      }
+    };
+  }
 
   return {
     success: true,
-    questions: analysisResult.questions,
+    questions: [personSelectQuestion],
     ocrData: ocrResult,
-    skipToExtraction: !analysisResult.needsClarification,
-    preAnalysis: analysisResult.preAnalysis
+    skipToExtraction: false,
+    preAnalysis: {
+      detectedPerson: null,
+      dateFormat: 'auto',
+      timeFormat: 'auto',
+      shiftPatterns: []
+    }
   };
 }
 
