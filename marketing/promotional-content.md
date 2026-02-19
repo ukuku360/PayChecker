@@ -2,7 +2,7 @@
 
 > **PayChecker** - 호주에서 일하는 모든 분들을 위한 무료 급여 & 로스터 관리 앱
 >
-> 웹사이트: [paychecker.app](https://paychecker.app) (실제 URL로 교체 필요)
+> 웹사이트: [paychecker-six.vercel.app](https://paychecker-six.vercel.app) (실제 URL로 교체 필요)
 
 ---
 

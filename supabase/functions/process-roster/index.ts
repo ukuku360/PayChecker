@@ -14,8 +14,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  'https://paychecker.app',
-  'https://www.paychecker.app',
+  'https://paychecker-six.vercel.app',
 ];
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
@@ -63,6 +62,13 @@ interface QuestionAnswer {
   value: string;
 }
 
+interface PreAnalysis {
+  detectedPerson: string | null;
+  dateFormat: string;
+  timeFormat: string;
+  shiftPatterns?: string[];
+}
+
 // Phase 1: Image → OCR + Questions
 interface Phase1RequestBody {
   phase: 'questions';
@@ -76,6 +82,7 @@ interface Phase2RequestBody {
   answers: QuestionAnswer[];
   jobConfigs: Array<{ id: string; name: string }>;
   jobAliases: Array<{ alias: string; job_config_id: string }>;
+  preAnalysis?: PreAnalysis;
 }
 
 // Legacy: Single-phase processing (backward compatible)
@@ -325,7 +332,7 @@ serve(async (req) => {
         });
       }
 
-      // Check usage limits (Phase 1 counts as a scan)
+      // Check usage limits
       const limitCheck = await checkUsageLimits(supabase, user.id, requestId);
       if (!limitCheck.allowed) {
         return json(429, {
@@ -341,7 +348,20 @@ serve(async (req) => {
       const result = await processRosterPhase1(geminiApiKey, imageBase64, requestId);
       const processingTime = Date.now() - startTime;
 
-      // Increment usage count
+      // Count only successful OCR/question generation attempts.
+      // Failed scans should not consume monthly quota.
+      if (!result.success) {
+        return new Response(
+          JSON.stringify({
+            ...result,
+            processingTimeMs: processingTime,
+            scansUsed: limitCheck.scansUsed,
+            scanLimit: limitCheck.scanLimit,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
       await supabase
         .from('profiles')
         .update({ roster_scans_this_month: limitCheck.scansUsed + 1 })
@@ -362,7 +382,7 @@ serve(async (req) => {
     // PHASE 2: Filter with Answers
     // ============================================
     if (phase === 'filter') {
-      const { ocrData, answers, jobConfigs, jobAliases } = body as Phase2RequestBody;
+      const { ocrData, answers, jobConfigs, jobAliases, preAnalysis } = body as Phase2RequestBody;
 
       if (!ocrData || !answers) {
         return json(400, {
@@ -393,6 +413,7 @@ serve(async (req) => {
         Array.isArray(answers) ? answers : [],
         jobConfigs || [],
         jobAliases || [],
+        preAnalysis,
         requestId,
       );
 

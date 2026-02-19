@@ -29,6 +29,8 @@ import { useAuthSession } from './hooks/useAuthSession';
 import { useRequireAuth } from './hooks/useRequireAuth';
 import { useAuthModalStore } from './store/useAuthModalStore';
 import { MessageSquare, BookOpen, LogOut, LogIn, User } from 'lucide-react';
+import { PublisherContentSection } from './components/Content/PublisherContentSection';
+import { SiteFooterLinks } from './components/Content/SiteFooterLinks';
 import './i18n';
 
 
@@ -53,6 +55,9 @@ function App() {
   const modals = useModalState();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'monthly' | 'fiscal' | 'budget'>('monthly');
+  const hasScheduleContent = jobConfigs.length > 0 || shifts.length > 0;
+  const shouldShowPublisherContent = !isAuthenticated || !hasScheduleContent;
+  const shouldShowAds = isAuthenticated && hasScheduleContent;
 
 
 
@@ -128,94 +133,92 @@ function App() {
     >
       <div className="min-h-screen p-2 md:p-12 font-sans text-slate-700 pb-20 pb-safe overflow-x-hidden w-full">
         <main className="max-w-7xl mx-auto mt-6 md:mt-8">
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Main Content Area */}
-            <div className="flex-1 min-w-0 space-y-8">
-              <header className="flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-4 py-3 md:px-6 md:py-4 sticky top-0 md:static z-50">
-                <div>
-                  <h1 className="text-xl md:text-2xl font-bold text-slate-700 tracking-tight">
-                    PayChecker
-                  </h1>
-                  <p className="text-slate-500 text-sm hidden md:block">Manage scheduling and track earnings.</p>
-                </div>
-                <div className="flex items-center gap-3 md:gap-4">
-                  {isAuthenticated ? (
-                    <button
-                      onClick={logout}
-                      className="p-3 min-w-[48px] min-h-[48px] text-slate-400 hover:text-red-500 transition-all rounded-xl hover:bg-red-50 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:outline-none"
-                      title={t('auth.signOut')}
-                      aria-label={t('auth.signOut')}
-                    >
-                      <span className="hidden md:inline text-sm font-medium">{t('auth.signOut')}</span>
-                      <LogOut className="w-5 h-5 md:hidden" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => openAuthModal()}
-                      className="neu-btn text-sm px-4 py-3 min-h-[48px] flex items-center justify-center gap-2 !bg-indigo-500 !text-white hover:!bg-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
-                      title={t('auth.signIn')}
-                      aria-label={t('auth.signIn')}
-                    >
-                      <span className="hidden md:inline">{t('auth.signIn')}</span>
-                      <LogIn className="w-5 h-5 md:hidden" />
-                    </button>
-                  )}
+          <div className="space-y-8">
+            <header className="flex justify-between items-center bg-white/95 backdrop-blur-sm rounded-2xl shadow-sm border border-slate-200/60 px-4 py-3 md:px-6 md:py-4 sticky top-0 md:static z-50">
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold text-slate-700 tracking-tight">
+                  PayChecker
+                </h1>
+                <p className="text-slate-500 text-sm hidden md:block">Manage scheduling and track earnings.</p>
+              </div>
+              <div className="flex items-center gap-3 md:gap-4">
+                {isAuthenticated ? (
                   <button
-                     onClick={() => modals.open('readme')}
-                     className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
-                     title="User Guide"
-                     aria-label="User Guide"
+                    onClick={logout}
+                    className="p-3 min-w-[48px] min-h-[48px] text-slate-400 hover:text-red-500 transition-all rounded-xl hover:bg-red-50 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:outline-none"
+                    title={t('auth.signOut')}
+                    aria-label={t('auth.signOut')}
                   >
-                     <BookOpen className="w-5 h-5" />
-                     <span className="text-sm font-medium hidden md:inline">README</span>
+                    <span className="hidden md:inline text-sm font-medium">{t('auth.signOut')}</span>
+                    <LogOut className="w-5 h-5 md:hidden" />
                   </button>
+                ) : (
                   <button
-                     onClick={() => requireAuth(() => modals.open('feedback'), t('auth.signInToUseFeature'))}
-                     className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
-                     title="Feedback"
-                     aria-label="Feedback"
+                    onClick={() => openAuthModal()}
+                    className="neu-btn text-sm px-4 py-3 min-h-[48px] flex items-center justify-center gap-2 !bg-indigo-500 !text-white hover:!bg-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
+                    title={t('auth.signIn')}
+                    aria-label={t('auth.signIn')}
                   >
-                     <MessageSquare className="w-5 h-5" />
-                     <span className="text-sm font-medium hidden md:inline">Feedback</span>
+                    <span className="hidden md:inline">{t('auth.signIn')}</span>
+                    <LogIn className="w-5 h-5 md:hidden" />
                   </button>
-                  <button
-                     onClick={() => requireAuth(() => modals.open('profile'), t('auth.signInToUseFeature'))}
-                     className="neu-btn text-sm px-4 py-3 min-h-[48px] flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
-                     title="Profile"
-                     aria-label="Profile"
-                  >
-                     <span className="hidden md:inline">Profile</span>
-                     <User className="w-5 h-5 md:hidden" />
-                  </button>
-                </div>
-              </header>
+                )}
+                <button
+                  onClick={() => modals.open('readme')}
+                  className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
+                  title="User Guide"
+                  aria-label="User Guide"
+                >
+                  <BookOpen className="w-5 h-5" />
+                  <span className="text-sm font-medium hidden md:inline">README</span>
+                </button>
+                <button
+                  onClick={() => requireAuth(() => modals.open('feedback'), t('auth.signInToUseFeature'))}
+                  className="text-slate-400 hover:text-indigo-600 transition-all p-3 min-w-[48px] min-h-[48px] flex items-center justify-center gap-2 rounded-xl hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
+                  title="Feedback"
+                  aria-label="Feedback"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  <span className="text-sm font-medium hidden md:inline">Feedback</span>
+                </button>
+                <button
+                  onClick={() => requireAuth(() => modals.open('profile'), t('auth.signInToUseFeature'))}
+                  className="neu-btn text-sm px-4 py-3 min-h-[48px] flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none"
+                  title="Profile"
+                  aria-label="Profile"
+                >
+                  <span className="hidden md:inline">Profile</span>
+                  <User className="w-5 h-5 md:hidden" />
+                </button>
+              </div>
+            </header>
 
-              <Dashboard
-                currentMonth={currentDate}
-                onJobClick={setSelectedJob}
+            <Dashboard
+              currentMonth={currentDate}
+              onJobClick={setSelectedJob}
+              onAddJob={() => requireAuth(() => modals.open('addJob'), t('auth.signInToAddJob'))}
+              onExport={() => requireAuth(() => modals.open('export'), t('auth.signInToExport'))}
+              onAIScan={() => requireAuth(() => modals.open('rosterScanner'), t('auth.signInToUseFeature'))}
+              onViewModeChange={setViewMode}
+            />
+            {viewMode === 'monthly' && (
+              <CalendarGrid
+                currentDate={currentDate}
+                onMonthChange={setCurrentDate}
                 onAddJob={() => requireAuth(() => modals.open('addJob'), t('auth.signInToAddJob'))}
-                onExport={() => requireAuth(() => modals.open('export'), t('auth.signInToExport'))}
-                onAIScan={() => requireAuth(() => modals.open('rosterScanner'), t('auth.signInToUseFeature'))}
-                onViewModeChange={setViewMode}
               />
-              {viewMode === 'monthly' && (
-                <CalendarGrid
-                  currentDate={currentDate}
-                  onMonthChange={setCurrentDate}
-                  onAddJob={() => requireAuth(() => modals.open('addJob'), t('auth.signInToAddJob'))}
-                />
-              )}
-              {/* Horizontal Ad at bottom of content */}
-              <GoogleAd slot="8564028791" className="mt-8" /> 
-            </div>
+            )}
 
-            {/* Vertical Ad Sidebar (Desktop only) */}
-            <div className="hidden lg:block w-[160px] xl:w-[300px] shrink-0">
-               <div className="sticky top-8">
-                  <div className="text-xs font-bold text-slate-300 uppercase text-center mb-2">Ad</div>
-                  <GoogleAd slot="6494384759" style={{ minHeight: '600px' }} />
-               </div>
-            </div>
+            {shouldShowPublisherContent ? <PublisherContentSection /> : null}
+
+            {shouldShowAds ? (
+              <section aria-label="Advertisement" className="space-y-2">
+                <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Advertisement</p>
+                <GoogleAd slot="8564028791" />
+              </section>
+            ) : null}
+
+            <SiteFooterLinks />
           </div>
         </main>
         

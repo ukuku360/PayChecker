@@ -268,7 +268,7 @@ export const generateICS = (data: ExportData): void => {
       const description = `Hours: ${shift.hours}\\nEst. Pay: $${pay.toFixed(2)}`;
       
       // UID should be persistent if possible, using shift.id
-      const uid = `${shift.id}@paychecker.app`;
+      const uid = `${shift.id}@paychecker-six.vercel.app`;
 
       return [
         'BEGIN:VEVENT',
