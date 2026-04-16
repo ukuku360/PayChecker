@@ -1,99 +1,131 @@
 # PayChecker
-**Your Personal Roster & Pay Manager**
 
-Keeping track of variable shifts, penalty rates, and tax deductions can be a headache. PayChecker makes it effortless to manage your work schedule, calculate accurate expected pay, and track your financial goals—all in one place.
+Roster scanning and pay forecasting app for casual workers, built with React, Vite, and Supabase.
 
----
+## Problem
 
-## ✨ Features & How to Use
+Casual workers often piece together income from multiple jobs, shifting penalty rates, and roster screenshots that are hard to turn into clean schedule data. PayChecker focuses on three practical needs:
 
-Click on a section below to learn how PayChecker can help you.
+- turning roster files into editable shifts
+- forecasting take-home income across different rate rules
+- keeping tax-year context, expenses, and savings goals in one place
 
-<details>
-<summary><strong>📅 Auto Roster Scanner (Upload & Go)</strong></summary>
+## Solution
 
-*   **Snap & Upload**: Just drag and drop your roster file (PDF or Image) into the app.
-*   **Automatic Schedule**: The app intelligently reads your shifts—dates, times, and roles—and adds them straight to your calendar.
-*   **Smart Mapping**: It remembers your job codes, so "Shift A" on your roster automatically links to your "Bartender" job settings.
-</details>
+PayChecker combines a schedule planner with an OCR-assisted roster intake flow.
 
-<details>
-<summary><strong>📊 Smart Dashboard & Savings Goals</strong></summary>
+- Users create job profiles with weekday, weekend, holiday, and break defaults.
+- Shift data feeds monthly and fiscal-year views, income summaries, and category breakdowns.
+- A Supabase Edge Function processes uploaded roster files and returns candidate shifts for confirmation before import.
+- Auth-gated feedback and profile flows support an admin-reviewed product loop.
 
-*   **track Your Earnings**: See exactly how much you are estimated to earn this week or month at a glance. No more guessing until payday.
-*   **Set Goals**: Saving for a holiday or a new car? Set a **Savings Goal** and watch your progress bar grow as you complete shifts.
-</details>
+## Key Flows
 
-<details>
-<summary><strong>💰 Fiscal Year Overview</strong></summary>
+### 1. Job and rate setup
 
-*   **Tax Made Easy**: View your income based on the financial year (e.g., July to June).
-*   **Year-to-Date Tracking**: Instantly see your total cumulative income for the year to help you stay on top of tax brackets and annual planning.
-</details>
+- Create one or more jobs with base rates and per-day penalties.
+- Track rate history so future calculations can use the correct pay rules.
 
-<details>
-<summary><strong>💸 Expense Tracker</strong></summary>
+### 2. Calendar planning
 
-*   **Log Deductions**: Bought new work boots, a uniform, or a course? Log the receipts immediately.
-*   **Organized for Tax Time**: Keep all your work-related expenses categorized and ready for when you need to file your tax return.
-</details>
+- Add or edit shifts manually from the calendar.
+- Track notes, break minutes, start/end times, and country-aware holiday handling.
 
-<details>
-<summary><strong>🏢 Manage Multiple Jobs</strong></summary>
+### 3. Roster scanning
 
-*   **Multiple Rates**: Juggle multiple jobs effortlessly. Add different employers and assign specific base rates to each.
-*   **Penalty Rates**: Define custom rules for weekends, public holidays, or late nights. The app does the math for you.
-</details>
+- Upload a roster image or PDF.
+- Send the file to the `process-roster` Edge Function.
+- Review extracted shifts, map roster aliases to job configs, and confirm import.
 
-<br/>
+### 4. Earnings and tax tracking
 
-## Local Development (Port 3000)
+- View monthly summaries, work statistics, and job breakdowns.
+- Track expenses and savings goals.
+- Switch to fiscal-year reporting for tax-season planning.
 
-1. Run `npm ci`.
-2. Run `npm run dev:3000`.
-3. Open `http://localhost:3000`.
+## Architecture
 
-## � Get Started
+### Frontend
 
-1.  **Add Your Jobs**: Go to the settings or Job Manager to set up your employers and hourly rates.
-2.  **Upload Roster**: Use the **Scanner** tab to upload your weekly or monthly roster.
-3.  **Check Dashboard**: Visit the **Dashboard** to see your upcoming schedule and projected earnings!
+- React 19 + TypeScript + Vite
+- Zustand store split into shift, job, and user slices
+- Lazy-loaded modals and feature-heavy views to keep the initial shell smaller
+- i18n scaffolding for English and Korean locales
 
-## Environment Variables
+### Backend and data
 
-Copy `.env.example` to `.env` and fill in the following values.
+- Supabase auth for session management
+- Supabase tables for profiles, jobs, shifts, feedback, and roster metadata
+- Supabase Edge Function for OCR and roster parsing
 
-| Variable | Required | Description |
-|---|---|---|
-| `VITE_SUPABASE_URL` | Yes | Supabase project URL for frontend API calls |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon key for frontend auth and queries |
-| `GEMINI_API_KEY` | Yes (Edge Function) | Gemini API key used by roster OCR/extraction |
-| `SERVICE_ROLE_KEY` | Yes (Edge Function) | Supabase service role key used for token validation and privileged writes |
-| `ALLOWED_ORIGINS` | Yes (Edge Function) | Comma-separated CORS allowlist for `process-roster` (`localhost:3000` + `localhost:5173` in local dev) |
-| `LOG_LEVEL` | Recommended (Edge Function) | `debug`, `info`, `warn`, or `error` (recommended `warn` for public production) |
+### Core modules
 
-## Supabase Migration Order
+- `src/store`: client state and persistence
+- `src/lib/rosterApi.ts`: frontend boundary around the roster-processing function
+- `src/components/RosterScanner`: upload, mapping, processing, and confirmation flow
+- `supabase/functions/process-roster`: server-side OCR orchestration and validation
 
-Apply SQL migrations in filename order. Current required order:
+## Testing
 
-1. `supabase/migrations/20260126_roster_scanning.sql`
-2. `supabase/migrations/20260127_add_has_seen_help.sql`
-3. `supabase/migrations/20260127_add_shift_time_fields.sql`
-4. `supabase/migrations/20260127_add_job_default_times.sql`
-5. `supabase/migrations/20260127_add_roster_identifier.sql`
-6. `supabase/migrations/20260201_add_visa_type.sql`
-7. `supabase/migrations/20260206_add_admin_role_and_feedback_policies.sql`
-8. `supabase/migrations/20260206_set_roster_scan_limit_5.sql`
+The project keeps lightweight automated checks around the most failure-prone paths.
 
-## Deployment Checklist
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `npm run check:no-danger`
 
-1. Run `npm ci`.
-2. Run `npm run lint`.
-3. Run `npm run check:no-danger`.
-4. Run `npm run test`.
-5. Run `npm run build`.
-6. Run `npm audit --omit=dev --audit-level=high`.
-7. Deploy frontend with production `VITE_*` env vars.
-8. Deploy Supabase Edge Function `process-roster` with `GEMINI_API_KEY`, `SERVICE_ROLE_KEY`, `ALLOWED_ORIGINS`, and `LOG_LEVEL`.
-9. Confirm `profiles.is_admin` is set to `true` for admin users only.
-10. Verify roster scan limit policy (`profiles.roster_scan_limit = 5`) in production DB.
+Current test coverage is concentrated around:
+
+- roster API error handling and retry behavior
+- auth/session hooks
+- README/help modal behavior
+- date utilities used by scheduling logic
+
+## Local Setup
+
+### 1. Install dependencies
+
+```bash
+npm ci
+```
+
+### 2. Configure environment
+
+Copy `.env.example` to `.env` and fill in:
+
+```bash
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+GEMINI_API_KEY=...
+SERVICE_ROLE_KEY=...
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+LOG_LEVEL=warn
+```
+
+### 3. Run the app
+
+```bash
+npm run dev:3000
+```
+
+Then open `http://localhost:3000`.
+
+### 4. Apply database migrations
+
+Run the SQL files in `supabase/migrations` in filename order. The repo currently expects the roster-scanning, visa-type, and admin/feedback policy migrations to be applied before production use.
+
+## Deployment Notes
+
+- Frontend is deployed separately from the Supabase Edge Function.
+- Production requires both frontend `VITE_*` variables and Edge Function secrets.
+- Admin feedback features depend on `profiles.is_admin` being set only for trusted users.
+
+## Tradeoffs
+
+- OCR is intentionally human-in-the-loop. Extracted shifts are reviewed before import rather than written directly into the schedule.
+- The app prioritizes product speed over deep backend abstraction; some domain logic still lives close to the client store.
+- Rate and holiday handling are currently optimized for the countries already modeled in the repo rather than a generic payroll engine.
+
+## Status
+
+This is an active product-style project, not a static mockup. The current branch builds cleanly, passes lint, and runs the existing test suite without requiring live Supabase credentials during tests.

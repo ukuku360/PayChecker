@@ -4,6 +4,16 @@ import { useRequireAuth } from '../useRequireAuth';
 import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { useScheduleStore } from '../../store/useScheduleStore';
 
+vi.mock('../../lib/supabaseClient', () => ({
+  supabase: {
+    auth: {
+      getUser: vi.fn(),
+      signOut: vi.fn(),
+    },
+    from: vi.fn(),
+  },
+}));
+
 function resetStores() {
   useAuthModalStore.setState({
     isOpen: false,
@@ -48,4 +58,3 @@ describe('useRequireAuth', () => {
     expect(useAuthModalStore.getState().pendingAction).toBeNull();
   });
 });
-

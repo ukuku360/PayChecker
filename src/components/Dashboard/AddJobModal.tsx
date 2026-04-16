@@ -16,8 +16,13 @@ interface AddJobModalProps {
 
 type JobColor = (typeof colorOptions)[number];
 
-export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initialName, zIndex }: AddJobModalProps) {
-  const [newJobName, setNewJobName] = useState('');
+export function AddJobModal(props: AddJobModalProps) {
+  if (!props.isOpen) return null;
+
+  return <AddJobModalContent key={props.initialName ?? 'new-job'} {...props} />;
+}
+
+function AddJobModalContent({ onClose, onAdd, existingJobIds = [], initialName, zIndex }: AddJobModalProps) {
   const [newJobColor, setNewJobColor] = useState<JobColor>('purple');
   const [defaultWeekdayHours, setDefaultWeekdayHours] = useState<string | number>(7.5);
   const [defaultWeekendHours, setDefaultWeekendHours] = useState<string | number>(7.5);
@@ -29,16 +34,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initi
 
   const isMobile = useMediaQuery('(max-width: 768px)');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Pre-fill name when modal opens with initialName
-  useEffect(() => {
-    if (isOpen && initialName) {
-      setNewJobName(initialName);
-    }
-    if (isOpen && !initialName) {
-      setNewJobName('');
-    }
-  }, [isOpen, initialName]);
+  const [jobNameDraft, setJobNameDraft] = useState(initialName ?? '');
 
   // Check for duplicate job ID
   const checkDuplicate = (name: string): boolean => {
@@ -54,21 +50,21 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initi
   // Handle escape key to close modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [onClose]);
 
   const handleAddJob = () => {
-    if (!newJobName.trim()) return;
-    if (checkDuplicate(newJobName)) return;
+    if (!jobNameDraft.trim()) return;
+    if (checkDuplicate(jobNameDraft)) return;
 
     const newJob: JobConfig = {
-      id: newJobName.toUpperCase().replace(/\s+/g, '_'),
-      name: newJobName,
+      id: jobNameDraft.toUpperCase().replace(/\s+/g, '_'),
+      name: jobNameDraft,
       color: newJobColor,
       defaultHours: {
         weekday: Number(defaultWeekdayHours) || 0,
@@ -104,13 +100,11 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initi
     }
   };
 
-  if (!isOpen) return null;
-
   return (
     <div 
       className={clsx(
         "fixed inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center transition-all duration-300",
-        isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        "opacity-100"
       )}
       style={{ zIndex: zIndex ?? 50 }}
       role="dialog"
@@ -120,7 +114,7 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initi
       <div
         className={clsx(
           "glass-panel w-full max-w-sm mx-4 overflow-hidden transform transition-all duration-300 shadow-2xl max-h-[90vh] flex flex-col",
-          isOpen ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
+          "scale-100 opacity-100 translate-y-0"
         )}
       >
         <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between bg-white/20">
@@ -149,12 +143,12 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initi
               name="jobName" // meaningful name
               autoComplete="off" // generic field
               placeholder="e.g., Tutoring"
-              value={newJobName}
+              value={jobNameDraft}
               onChange={(e) => {
-                setNewJobName(e.target.value);
+                setJobNameDraft(e.target.value);
                 if (duplicateError) checkDuplicate(e.target.value);
               }}
-              onBlur={() => checkDuplicate(newJobName)}
+              onBlur={() => checkDuplicate(jobNameDraft)}
               className={clsx(
                 "neu-pressed w-full px-4 py-3 border-none focus:ring-2 focus:ring-indigo-400 focus:outline-none text-sm placeholder-slate-400 text-slate-700 rounded-xl transition-all",
                 duplicateError && "ring-2 ring-rose-400"
@@ -284,10 +278,10 @@ export function AddJobModal({ isOpen, onClose, onAdd, existingJobIds = [], initi
           </button>
           <button 
             onClick={handleAddJob} 
-            disabled={!newJobName.trim()}
+            disabled={!jobNameDraft.trim()}
             className={clsx(
               "neu-btn !bg-indigo-500 !text-white !shadow-none hover:!bg-indigo-600 focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2",
-              !newJobName.trim() && "opacity-50 cursor-not-allowed"
+              !jobNameDraft.trim() && "opacity-50 cursor-not-allowed"
             )}
           >
             Add Job
